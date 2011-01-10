@@ -1,0 +1,6 @@
+*.bmx/
+*.debug*
+*.release.*.x86.*
+*.release.*.ppc.*
+*.debug.*.x86.*
+*.debug.*.pcc.*
