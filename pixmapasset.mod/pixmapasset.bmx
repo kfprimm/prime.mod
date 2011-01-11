@@ -2,6 +2,8 @@
 Strict
 
 Module sys87.PixmapAsset
+ModuleInfo "Author: Kevin Primm"
+ModuleInfo "License: MIT"
 
 Import BRL.Pixmap
 Import sys87.AssetManager
