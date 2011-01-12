@@ -12,6 +12,7 @@ Import PUB.MaXML
 
 Type TAssetManager
 	Field _assets:TMap=CreateMap()
+	Field _ids$[]
 	
 	Method Load(url:Object)
 		Local doc:xmlDocument=New xmlDocument
@@ -21,6 +22,11 @@ Type TAssetManager
 		For Local node:xmlNode=EachIn root.ChildList
 			ParseNode(node,"",root.Attribute("dir").Value+"/")
 		Next
+		Local new_ids$[]
+		For Local key:Object=EachIn MapKeys(_assets)
+			new_ids:+[String(key)]
+		Next
+		_ids:+new_ids
 	End Method
 	
 	Method ParseNode(node:xmlNode,id$,dir$)
@@ -68,6 +74,14 @@ Type TAssetManager
 	
 	Method Get:Object(id$)
 		Return _assets.ValueForKey(id)
+	End Method
+	
+	Method Multiget:Object[](id$)
+		Local objs:Object[]
+		For Local key$=EachIn _ids
+			If key[..id.length]=id objs:+[Get(key)]
+		Next
+		Return objs
 	End Method
 End Type
 
