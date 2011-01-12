@@ -30,24 +30,8 @@ Type TAssetManager
 	End Method
 	
 	Method ParseNode(node:xmlNode,id$,dir$)
-		If node.Name<>"group"
-			Local params:TMap=CreateMap()
-			For Local attr:xmlAttribute=EachIn node.AttributeList
-				If attr.Name<>"id" And attr.Name<>"url" params.Insert(attr.Name,attr.Value)
-			Next
-			Local obj:Object=TAssetLoader.Load(dir+node.Attribute("url").Value,node.Name,params)
-			If obj<>Null
-				Local obj_id$
-				If Not node.HasAttribute("id")
-					obj_id=StripAll(node.Attribute("url").Value)
-				Else
-					obj_id=node.Attribute("id").Value
-				EndIf
-				_assets.Insert(id+obj_id,obj)
-			Else
-				DebugLog "Failed to load ~q"+dir+node.Attribute("url").Value+"~q"
-			EndIf
-		Else			
+		Select node.Name
+		Case "group"
 			If node.HasAttribute("dir")
 				dir:+node.Attribute("dir").Value
 				If node.HasAttribute("id") id:+node.Attribute("id").Value+"_"
@@ -60,7 +44,36 @@ Type TAssetManager
 			For Local child:xmlNode=EachIn node.ChildList
 				ParseNode(child,id,dir)
 			Next
-		EndIf
+		Case "set"
+			For Local child:xmlNode=EachIn node.ChildList
+				For Local attr:xmlAttribute=EachIn node.AttributeList
+					If Not child.HasAttribute(attr.Name) child.Attribute(attr.Name).Value=attr.Value
+				Next
+				ParseNode child,id,dir
+			Next
+		Default
+			Local params:TMap=GetParams(node)
+			Local obj:Object=TAssetLoader.Load(dir+node.Attribute("url").Value,node.Name,params)
+			If obj<>Null
+				Local obj_id$
+				If Not node.HasAttribute("id")
+					obj_id=StripAll(node.Attribute("url").Value)
+				Else
+					obj_id=node.Attribute("id").Value
+				EndIf
+				_assets.Insert(id+obj_id,obj)
+			Else
+				DebugLog "Failed to load ~q"+dir+node.Attribute("url").Value+"~q"
+			EndIf
+		End Select
+	End Method
+	
+	Method GetParams:TMap(node:xmlNode)
+		Local params:TMap=CreateMap()		
+		For Local attr:xmlAttribute=EachIn node.AttributeList
+			params.Insert(attr.Name,attr.Value)
+		Next
+		Return params
 	End Method
 	
 	Method List$[]()

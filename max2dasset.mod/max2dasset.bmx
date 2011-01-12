@@ -11,14 +11,17 @@ Import sys87.AssetManager
 Type TImageAssetLoader Extends TAssetLoader
 	Method Run:Object(url:Object)
 		If TImage(url) Return url
-		
+		Local image:TImage
 		Local flags=IParam("flags",-1)
 		If ParamExists("cell_width")
 			Local cell_width=IParam("cell_width"),cell_height=IParam("cell_height")
 			Local first_cell=IParam("first_cell"),cell_count=IParam("cell_count")
-			Return LoadAnimImage(url,cell_width,cell_height,first_cell,cell_count,flags)
+			image=LoadAnimImage(url,cell_width,cell_height,first_cell,cell_count,flags)
+		Else
+			image=LoadImage(url,flags)
 		EndIf
-		Return LoadImage(url,flags)
+		If SParam("midhandle")="true" MidHandleImage image
+		Return image
 	End Method
 	
 	Method GetType$()
