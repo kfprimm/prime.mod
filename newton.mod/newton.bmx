@@ -494,22 +494,20 @@ Rem
 	Function NewtonMaterialSetContactTangentAcceleration (const NewtonMaterial* const material, dFloat accel, int index);
 	Function NewtonMaterialContactRotateTangentDirections (const NewtonMaterial* const material, const dFloat* const directionVector);
 
+End Rem
 	
 
-	// **********************************************************************************************
-	//
-	// convex collision primitives creation functions
-	//
-	// **********************************************************************************************
-	NEWTON_API NewtonCollision* NewtonCreateNull (newtonWorld:Byte Ptr);
-	NEWTON_API NewtonCollision* NewtonCreateSphere (newtonWorld:Byte Ptr, dFloat radiusX, dFloat radiusY, dFloat radiusZ, int shapeID, const dFloat* const offsetMatrix);
-	NEWTON_API NewtonCollision* NewtonCreateBox (newtonWorld:Byte Ptr, dFloat dx, dFloat dy, dFloat dz, int shapeID, const dFloat* const offsetMatrix);
-	NEWTON_API NewtonCollision* NewtonCreateCone (newtonWorld:Byte Ptr, dFloat radius, dFloat height, int shapeID, const dFloat* const offsetMatrix);
-	NEWTON_API NewtonCollision* NewtonCreateCapsule (newtonWorld:Byte Ptr, dFloat radius, dFloat height, int shapeID, const dFloat* const offsetMatrix);
-	NEWTON_API NewtonCollision* NewtonCreateCylinder (newtonWorld:Byte Ptr, dFloat radius, dFloat height, int shapeID, const dFloat* const offsetMatrix);
-	NEWTON_API NewtonCollision* NewtonCreateChamferCylinder (newtonWorld:Byte Ptr, dFloat radius, dFloat height, int shapeID, const dFloat* const offsetMatrix);
-	NEWTON_API NewtonCollision* NewtonCreateConvexHull (newtonWorld:Byte Ptr, int count, const dFloat* const vertexCloud, int strideInBytes, dFloat tolerance, int shapeID, const dFloat* const offsetMatrix);
-	NEWTON_API NewtonCollision* NewtonCreateConvexHullFromMesh (newtonWorld:Byte Ptr, const NewtonMesh* const mesh, dFloat tolerance, int shapeID);
+	Function NewtonCreateNull:Byte Ptr (newtonWorld:Byte Ptr)
+	Function NewtonCreateSphere:Byte Ptr (newtonWorld:Byte Ptr, radiusX#, radiusY#, radiusZ#, shapeID, offsetMatrix:Float Ptr)
+	Function NewtonCreateBox:Byte Ptr(newtonWorld:Byte Ptr, dx#, dy#, dz#, shapeID, offsetMatrix:Float Ptr)
+	Function NewtonCreateCone:Byte Ptr (newtonWorld:Byte Ptr, radius#, height#, shapeID, offsetMatrix:Float Ptr)
+	Function NewtonCreateCapsule:Byte Ptr (newtonWorld:Byte Ptr, radius#, height#, shapeID, offsetMatrix:Float Ptr)
+	Function NewtonCreateCylinder:Byte Ptr (newtonWorld:Byte Ptr, radius#, height#, shapeID, offsetMatrix:Float Ptr)
+	Function NewtonCreateChamferCylinder:Byte Ptr (newtonWorld:Byte Ptr, radius#, height#, shapeID,  offsetMatrix:Float Ptr)
+	Function NewtonCreateConvexHul:Byte Ptr (newtonWorld:Byte Ptr, count, vertexCloud:Float Ptr, strideInBytes, tolerance#, shapeID, offsetMatrix:Float Ptr)
+	Function NewtonCreateConvexHullFromMesh:Byte Ptr (newtonWorld:Byte Ptr, mesh:Byte Ptr, tolerance#, shapeID)
+
+Rem
 
 	NEWTON_API NewtonCollision* NewtonCreateConvexHullModifier (newtonWorld:Byte Ptr, const NewtonCollision* const convexHullCollision, int shapeID);
 	Function NewtonConvexHullModifierGetMatrix (const NewtonCollision* const convexHullCollision, dFloat* const matrix);
