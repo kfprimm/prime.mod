@@ -6,6 +6,7 @@ Rem
 End Rem
 Module sys87.Newton
 ModuleInfo "Author: Kevin Primm"
+ModuleInfo "License: MIT"
 ModuleInfo "Version: 0.01"
 ModuleInfo "Newton Version: 2.33"
 ?Linux
@@ -230,7 +231,7 @@ Rem
 			NewtonCollisionTreeParam m_collisionTree;
 			NewtonHeightFieldCollisionParam m_heightField;
 			NewtonSceneCollisionParam m_sceneCollision;
-			dFloat m_paramArray[64];		    ' user define collision can use this to store information
+			dFloat m_paramArray[64];		  ' user define collision can use this to store information
 		};
 	};
 
@@ -271,20 +272,20 @@ Rem
 	{
 		dFloat m_point[4];						' collision point in global space
 		dFloat m_normal[4];						' surface normal at collision point in global space
-		dFloat m_normalOnHitPoint[4];           ' surface normal at the surface of the hit body, 
+		dFloat m_normalOnHitPoint[4];      ' surface normal at the surface of the hit body, 
 												' is the same as the normal calculated by a ray cast hitting the body at the hit point
-		dFloat m_penetration;                   ' contact penetration at collision point
-		int    m_contactID;	                    ' collision ID at contact point
-		const  NewtonBody* m_hitBody;			' body hit at contact point
+		dFloat m_penetration;          ' contact penetration at collision point
+		int  m_contactID;	          ' collision ID at contact point
+		const NewtonBody* m_hitBody;			' body hit at contact point
 	};
 	
 	struct NewtonUserMeshCollisionRayHitDesc
 	{
 		dFloat m_p0[4];							' ray origin in collision local space
-		dFloat m_p1[4];                         ' ray destination in collision local space   
+		dFloat m_p1[4];             ' ray destination in collision local space  
 		dFloat m_normalOut[4];					' copy here the normal at the ray intersection
-		int m_userIdOut;                        ' copy here a user defined id for further feedback  
-		void* m_userData;                       ' user data passed to the collision geometry at creation time
+		int m_userIdOut;            ' copy here a user defined id for further feedback 
+		void* m_userData;            ' user data passed to the collision geometry at creation time
 	};
 
 	struct NewtonHingeSliderUpdateDesc
@@ -313,8 +314,8 @@ Rem
 	typedef dFloat (*NewtonUserMeshCollisionRayHitCallback) (NewtonUserMeshCollisionRayHitDesc* const lineDescData)
 	typedef void (*NewtonUserMeshCollisionGetCollisionInfo) (void* const userData, NewtonCollisionInfoRecord* const infoRecord)
 	typedef int (*NewtonUserMeshCollisionGetFacesInAABB) (void* const userData, const dFloat* const p0, const dFloat* const p1,
-														   const dFloat** const vertexArray, int* const vertexCount, int* const vertexStrideInBytes, 
-		                                                   const int* const indexList, int maxIndexCount, const int* const userDataList)
+														  const dFloat** const vertexArray, int* const vertexCount, int* const vertexStrideInBytes, 
+		                          const int* const indexList, int maxIndexCount, const int* const userDataList)
 
 	typedef dFloat (*NewtonCollisionTreeRayCastCallback) (body:Byte Ptr, const NewtonCollision* const treeCollision, dFloat interception, dFloat* normal, int faceId, void* usedData)
 	typedef dFloat (*NewtonHeightFieldRayCastCallback) (body:Byte Ptr, const NewtonCollision* const heightFieldCollision, dFloat interception, int row, int col, dFloat* normal, int faceId, void* usedData)
@@ -326,7 +327,7 @@ Rem
 
 	typedef void (*NewtonBodyDestructor) (body:Byte Ptr)
 	typedef void (*NewtonApplyForceAndTorque) (body:Byte Ptr, dFloat timestep, int threadIndex)
-	typedef void (*NewtonSetTransform) (body:Byte Ptr, matrix:Float Ptr, int threadIndex)
+	typedef void (*NewtonSetTransform) (body:Byte Ptr, const matrix:Float Ptr, int threadIndex)
 
 	typedef int (*NewtonIslandUpdate) (newtonWorld:Byte Ptr, const void* islandHandle, int bodyCount)
 	typedef void (*NewtonBodyLeaveWorld) (body:Byte Ptr, int threadIndex)
@@ -347,11 +348,11 @@ Rem
 	typedef void (*NewtonJointIterator) (joint:Byte Ptr, void* const userData)
 	typedef void (*NewtonCollisionIterator) (void* const userData, int vertexCount, const dFloat* const faceArray, int faceId)
 
-	typedef void (*NewtonBallCallBack) (const NewtonJoint* const ball, dFloat timestep)
-	typedef unsigned (*NewtonHingeCallBack) (const NewtonJoint* const hinge, NewtonHingeSliderUpdateDesc* const desc)
+	typedef void (*NewtonBallCallBack) (ball:Byte Ptr, dFloat timestep)
+	typedef unsigned (*NewtonHingeCallBack) (hinge:Byte Ptr, NewtonHingeSliderUpdateDesc* const desc)
 	typedef unsigned (*NewtonSliderCallBack) (const NewtonJoint* const slider, NewtonHingeSliderUpdateDesc* const desc)
-	typedef unsigned (*NewtonUniversalCallBack) (const NewtonJoint* const universal, NewtonHingeSliderUpdateDesc* const desc)
-	typedef unsigned (*NewtonCorkscrewCallBack) (const NewtonJoint* const corkscrew, NewtonHingeSliderUpdateDesc* const desc)
+	typedef unsigned (*NewtonUniversalCallBack) (universal:Byte Ptr, NewtonHingeSliderUpdateDesc* const desc)
+	typedef unsigned (*NewtonCorkscrewCallBack) (corkscrew:Byte Ptr, NewtonHingeSliderUpdateDesc* const desc)
 
 	typedef void (*NewtonUserBilateralCallBack) (const NewtonJoint* const userJoint, dFloat timestep, int threadIndex)
 	typedef void (*NewtonUserBilateralGetInfoCallBack) (const NewtonJoint* const userJoint, NewtonJointRecord* const info)
@@ -383,24 +384,21 @@ Extern
 	Function NewtonSetMultiThreadSolverOnSingleIsland (newtonWorld:Byte Ptr, mode)
 	Function NewtonGetMultiThreadSolverOnSingleIsland (newtonWorld:Byte Ptr)
 
-Rem
-
-	Function NewtonSetPerformanceClock (newtonWorld:Byte Ptr, NewtonGetTicksCountCallback callback)
-	NEWTON_API unsigned NewtonReadPerformanceTicks (newtonWorld:Byte Ptr, unsigned performanceEntry)
-	NEWTON_API unsigned NewtonReadThreadPerformanceTicks (const NewtonWorld* newtonWorld, unsigned threadIndex)
-
+	Function NewtonSetPerformanceClock (newtonWorld:Byte Ptr, callback:Byte Ptr)
+	Function NewtonReadPerformanceTicks (newtonWorld:Byte Ptr, performanceEntry)
+	Function NewtonReadThreadPerformanceTicks (newtonWorld:Byte Ptr, threadIndex)
+	
 	Function NewtonWorldCriticalSectionLock (newtonWorld:Byte Ptr)
 	Function NewtonWorldCriticalSectionUnlock (newtonWorld:Byte Ptr)
-	Function NewtonSetThreadsCount (newtonWorld:Byte Ptr, int threads)
+	Function NewtonSetThreadsCount (newtonWorld:Byte Ptr, threads)
 	Function NewtonGetThreadsCount(newtonWorld:Byte Ptr)
 	Function NewtonGetMaxThreadsCount(newtonWorld:Byte Ptr)
 
-End Rem
 
 	Function NewtonSetFrictionModel(newtonWorld:Byte Ptr, model)
 	Function NewtonSetMinimumFrameRate(newtonWorld:Byte Ptr, frameRate#)
 	Function NewtonSetBodyLeaveWorldEvent(newtonWorld:Byte Ptr, callback:Byte Ptr)
-	Function NewtonSetWorldSize(newtonWorld:Byte Ptr, minPoint:Float Ptr,  maxPoint:Float Ptr)
+	Function NewtonSetWorldSize(newtonWorld:Byte Ptr, minPoint:Float Ptr, maxPoint:Float Ptr)
 	Function NewtonSetIslandUpdateEvent(newtonWorld:Byte Ptr, islandUpdate:Byte Ptr)
 	Function NewtonSetCollisionDestructor(newtonWorld:Byte Ptr, callback:Byte Ptr)
 	Function NewtonSetDestroyBodyByExeciveForce(newtonWorld:Byte Ptr, callback:Byte Ptr)
@@ -422,7 +420,6 @@ Rem
 	Function NewtonWorldConvexCast (newtonWorld:Byte Ptr, matrix:Float Ptr, const dFloat* const target, const NewtonCollision* shape, dFloat* const hitParam, void* const userData,  
 										  NewtonWorldRayPrefilterCallback prefilter, NewtonWorldConvexCastReturnInfo* info, int maxContactsCount, int threadIndex)
 									   
-
 	' world utility functions
 	Function NewtonWorldGetBodyCount(newtonWorld:Byte Ptr)
 	Function NewtonWorldGetConstraintCount(newtonWorld:Byte Ptr)
@@ -438,8 +435,8 @@ Rem
 	' Simulation islands 
 	'
 	' **********************************************************************************************
-	NEWTON_API NewtonBody* NewtonIslandGetBody (const void* const island, int bodyIndex)
-	Function NewtonIslandGetBodyAABB (const void* const island, int bodyIndex, dFloat* const p0, dFloat* const p1)
+	NEWTON_API NewtonBody* NewtonIslandGetBody:Byte Ptr (const void* const island:Byte Ptr, bodyIndex)
+	Function NewtonIslandGetBodyAABB (island:Byte Ptr, bodyIndex, p0:Float Ptr, p1:Float Ptr)
 
 	' **********************************************************************************************
 	'
@@ -454,7 +451,7 @@ Rem
 	Function* NewtonMaterialGetUserData (newtonWorld:Byte Ptr, int id0, int id1)
 	Function NewtonMaterialSetSurfaceThickness (newtonWorld:Byte Ptr, int id0, int id1, dFloat thickness)
 	Function NewtonMaterialSetContinuousCollisionMode (newtonWorld:Byte Ptr, int id0, int id1, int state)
-	Function NewtonMaterialSetCollisionCallback (newtonWorld:Byte Ptr, int id0, int id1, void* const userData,
+	Function NewtonMaterialSetCollisionCallback (newtonWorld:Byte Ptr, id0, id1, void* const userData:Byte Ptr,
 														NewtonOnAABBOverlap aabbOverlap, NewtonContactsProcess process)
 
 	Function NewtonMaterialSetDefaultSoftness (newtonWorld:Byte Ptr, int id0, int id1, dFloat value)
@@ -503,11 +500,11 @@ End Rem
 	Function NewtonCreateCone:Byte Ptr (newtonWorld:Byte Ptr, radius#, height#, shapeID, offsetMatrix:Float Ptr)
 	Function NewtonCreateCapsule:Byte Ptr (newtonWorld:Byte Ptr, radius#, height#, shapeID, offsetMatrix:Float Ptr)
 	Function NewtonCreateCylinder:Byte Ptr (newtonWorld:Byte Ptr, radius#, height#, shapeID, offsetMatrix:Float Ptr)
-	Function NewtonCreateChamferCylinder:Byte Ptr (newtonWorld:Byte Ptr, radius#, height#, shapeID,  offsetMatrix:Float Ptr)
+	Function NewtonCreateChamferCylinder:Byte Ptr (newtonWorld:Byte Ptr, radius#, height#, shapeID, offsetMatrix:Float Ptr)
 	Function NewtonCreateConvexHul:Byte Ptr (newtonWorld:Byte Ptr, count, vertexCloud:Float Ptr, strideInBytes, tolerance#, shapeID, offsetMatrix:Float Ptr)
 	Function NewtonCreateConvexHullFromMesh:Byte Ptr (newtonWorld:Byte Ptr, mesh:Byte Ptr, tolerance#, shapeID)
-	
-	Function NewtonCreateConvexHullModifier:Byte Ptr(newtonWorld:Byte Ptr, convexHullCollision:Byte Ptr, shapeID)
+
+	Function NewtonCreateConvexHullModifier:Byte Ptr (newtonWorld:Byte Ptr, convexHullCollision:Byte Ptr, shapeID)
 	Function NewtonConvexHullModifierGetMatrix (convexHullCollision:Byte Ptr, matrix:Float Ptr)
 	Function NewtonConvexHullModifierSetMatrix (convexHullCollision:Byte Ptr, matrix:Float Ptr)
 	
@@ -520,9 +517,9 @@ End Rem
 	Function NewtonCollisionSetUserID (convexCollision:Byte Ptr, id)
 	Function NewtonCollisionGetUserID (convexCollision:Byte Ptr)
 	
-	Function NewtonConvexHullGetFaceIndices (convexHullCollision:Byte Ptr,face,faceIndices:Int Ptr)
-	Function NewtonConvexCollisionCalculateVolume#(convexCollision:Byte Ptr)
-	Function NewtonConvexCollisionCalculateInertialMatrix ( convexCollision:Byte Ptr, inertia:Float Ptr, origin:Float Ptr)	
+	Function NewtonConvexHullGetFaceIndices (convexHullCollision:Byte Ptr, face, faceIndices:Int Ptr)
+	Function NewtonConvexCollisionCalculateVolume# (convexCollision:Byte Ptr)
+	Function NewtonConvexCollisionCalculateInertialMatrix (convexCollision:Byte Ptr, inertia:Float Ptr, origin:Float Ptr)	
 	
 	
 	Function NewtonCollisionMakeUnique (newtonWorld:Byte Ptr, collision:Byte Ptr)
@@ -550,8 +547,8 @@ Rem
 	'
 	' **********************************************************************************************
 	NEWTON_API NewtonCollision* NewtonCreateCompoundCollision (newtonWorld:Byte Ptr, int count, NewtonCollision* const collisionPrimitiveArray[], int shapeID)
-	'NEWTON_API NewtonCollision* NewtonCreateCompoundCollisionFromMesh (newtonWorld:Byte Ptr, const NewtonMesh* const mesh, dFloat concavity, int shapeID, int subShapeID)
-	'NEWTON_API NewtonCollision* NewtonCreateCompoundCollisionFromMesh(newtonWorld:Byte Ptr, const NewtonMesh* const mesh, int maxSubShapesCount, int shapeID, int subShapeID)
+	'NEWTON_API NewtonCollision* NewtonCreateCompoundCollisionFromMesh (newtonWorld:Byte Ptr, mesh:Byte ptr, dFloat concavity, int shapeID, int subShapeID)
+	'NEWTON_API NewtonCollision* NewtonCreateCompoundCollisionFromMesh(newtonWorld:Byte Ptr, mesh:Byte ptr, int maxSubShapesCount, int shapeID, int subShapeID)
 
 	' **********************************************************************************************
 	'
@@ -618,7 +615,7 @@ Rem
 	
 	Function NewtonSceneCollisionOptimize (NewtonCollision* scene)
 
-	'  ***********************************************************************************************************
+	' ***********************************************************************************************************
 	'
 	'	Collision serialization functions
 	'
@@ -658,20 +655,20 @@ Rem
 	'
 	' **********************************************************************************************
 	Function NewtonCollisionPointDistance (newtonWorld:Byte Ptr, const dFloat* const point,
-		collision:Byte Ptr, matrix:Float Ptr, dFloat* const contact, dFloat* const normal, int threadIndex)
+		collision:Byte Ptr, const matrix:Float Ptr, dFloat* const contact, dFloat* const normal, int threadIndex)
 
 	Function NewtonCollisionClosestPoint (newtonWorld:Byte Ptr, 
-		collision:Byte PtrA, matrix:Float PtrA, collision:Byte PtrB, matrix:Float PtrB,
+		collision:Byte PtrA, const matrix:Float PtrA, collision:Byte PtrB, const matrix:Float PtrB,
 		dFloat* const contactA, dFloat* const contactB, dFloat* const normalAB, int threadIndex)
 	
 	Function NewtonCollisionCollide (newtonWorld:Byte Ptr, int maxSize,
-		collision:Byte PtrA, matrix:Float PtrA, 
-		collision:Byte PtrB, matrix:Float PtrB,
+		collision:Byte PtrA, const matrix:Float PtrA, 
+		collision:Byte PtrB, const matrix:Float PtrB,
 		dFloat* const contacts, dFloat* const normals, dFloat* const penetration, int threadIndex)
 
 	Function NewtonCollisionCollideContinue (newtonWorld:Byte Ptr, int maxSize, const dFloat timestep, 
-		collision:Byte PtrA, matrix:Float PtrA, const dFloat* const velocA, const dFloat* omegaA, 
-		collision:Byte PtrB, matrix:Float PtrB, const dFloat* const velocB, const dFloat* const omegaB, 
+		collision:Byte PtrA, const matrix:Float PtrA, const dFloat* const velocA, const dFloat* omegaA, 
+		collision:Byte PtrB, const matrix:Float PtrB, const dFloat* const velocB, const dFloat* const omegaB, 
 		dFloat* const timeOfImpact, dFloat* const contacts, dFloat* const normals, dFloat* const penetration, int threadIndex)
 
 	Function NewtonCollisionSupportVertex (collision:Byte Ptr, const dFloat* const dir, dFloat* const vertex)
@@ -688,8 +685,6 @@ Rem
 	Function NewtonGetEulerAngle (matrix:Float Ptr, dFloat* const eulersAngles)
 	Function NewtonSetEulerAngle (const dFloat* const eulersAngles, dFloat* const matrix)
 	NEWTON_API dFloat NewtonCalculateSpringDamperAcceleration (dFloat dt, dFloat ks, dFloat x, dFloat kd, dFloat s)
-
-
 End Rem
 
 	' **********************************************************************************************
@@ -697,30 +692,29 @@ End Rem
 	' body manipulation functions
 	'
 	' **********************************************************************************************
-	Function NewtonCreateBody:Byte Ptr(newtonWorld:Byte Ptr, collision:Byte Ptr, matrix:Float Ptr)
+	Function NewtonCreateBody:Byte Ptr (newtonWorld:Byte Ptr, collision:Byte Ptr, matrix:Float Ptr)
 	Function NewtonDestroyBody(newtonWorld:Byte Ptr, body:Byte Ptr)
 
 	Function NewtonBodyAddForce (body:Byte Ptr, force:Float Ptr)
 	Function NewtonBodyAddTorque (body:Byte Ptr, torque:Float Ptr)
-	Function NewtonBodyCalculateInverseDynamicsForce (body:Byte Ptr,timestep#,desiredVeloc:Float Ptr,forceOut:Float Ptr)
+	Function NewtonBodyCalculateInverseDynamicsForce (body:Byte Ptr, timestep#, desiredVeloc:Float Ptr, forceOut:Float Ptr)
 
 	Function NewtonBodySetMatrix (body:Byte Ptr, matrix:Float Ptr)
 	Function NewtonBodySetMatrixRecursive (body:Byte Ptr, matrix:Float Ptr)
-	Function NewtonBodySetMassMatrix (body:Byte Ptr, mass#, Ixx#,  Iyy#, Izz#)
+	Function NewtonBodySetMassMatrix (body:Byte Ptr, mass#, Ixx#, Iyy#, Izz#)
 	Function NewtonBodySetMaterialGroupID (body:Byte Ptr, id)
 	Function NewtonBodySetContinuousCollisionMode (body:Byte Ptr, state)
 	Function NewtonBodySetJointRecursiveCollision (body:Byte Ptr, state)
-	Function NewtonBodySetOmega (body:Byte Ptr,omega:Float Ptr)
-	Function NewtonBodySetVelocity (body:Byte Ptr,velocity:Float Ptr)
+	Function NewtonBodySetOmega (body:Byte Ptr, omega:Float Ptr) 
+	Function NewtonBodySetVelocity (body:Byte Ptr, velocity:Float Ptr)
 	Function NewtonBodySetForce (body:Byte Ptr, force:Float Ptr)
 	Function NewtonBodySetTorque (body:Byte Ptr, torque:Float Ptr)
 	
-	Function NewtonBodySetCentreOfMass  (body:Byte Ptr, com:Float Ptr)
+	Function NewtonBodySetCentreOfMass (body:Byte Ptr, com:Float Ptr)
 	Function NewtonBodySetLinearDamping (body:Byte Ptr, linearDamp#)
 	Function NewtonBodySetAngularDamping (body:Byte Ptr, angularDamp:Float Ptr)
 	Function NewtonBodySetUserData (body:Byte Ptr, userData:Byte Ptr)
 	Function NewtonBodySetCollision (body:Byte Ptr, collision:Byte Ptr)
-
 
 	Function NewtonBodyGetSleepState (body:Byte Ptr)
 	Function NewtonBodyGetAutoSleep (body:Byte Ptr)
@@ -768,34 +762,31 @@ End Rem
 	Function NewtonBodyGetTorqueAcc(body:Byte Ptr, vector:Float Ptr)
 	Function NewtonBodyGetCentreOfMass (body:Byte Ptr, com:Float Ptr)
 
-Rem
 
-
-	NEWTON_API dFloat NewtonBodyGetLinearDamping (body:Byte Ptr)
+	Function NewtonBodyGetLinearDamping# (body:Byte Ptr)
 	Function NewtonBodyGetAngularDamping (body:Byte Ptr, vector:Float Ptr)
-	Function NewtonBodyGetAABB (body:Byte Ptr, dFloat* const p0, dFloat* const p1)
-	NEWTON_API NewtonJoint* NewtonBodyGetFirstJoint (body:Byte Ptr)
-	NEWTON_API NewtonJoint* NewtonBodyGetNextJoint (body:Byte Ptr, joint:Byte Ptr)
-	NEWTON_API NewtonJoint* NewtonBodyGetFirstContactJoint (body:Byte Ptr)
-	NEWTON_API NewtonJoint* NewtonBodyGetNextContactJoint (body:Byte Ptr, const NewtonJoint* const contactJoint)
+	Function NewtonBodyGetAABB (body:Byte Ptr, p0:Float Ptr, p1:Float Ptr)
+	Function NewtonBodyGetFirstJoint:Byte Ptr (body:Byte Ptr)
+	Function NewtonBodyGetNextJoint:Byte Ptr  (body:Byte Ptr, joint:Byte Ptr)
+	Function NewtonBodyGetFirstContactJoint:Byte Ptr  (body:Byte Ptr)
+	Function NewtonBodyGetNextContactJoint:Byte Ptr  (body:Byte Ptr, contactJoint:Byte Ptr)
 
-	Function* NewtonContactJointGetFirstContact (const NewtonJoint* const contactJoint)
-	Function* NewtonContactJointGetNextContact (const NewtonJoint* const contactJoint, void* const contact)
+	Function NewtonContactJointGetFirstContact:Byte Ptr (contactJoint:Byte Ptr)
+	Function NewtonContactJointGetNextContact:Byte Ptr (contactJoint:Byte Ptr, contact:Byte Ptr)
 
-	Function NewtonContactJointGetContactCount(const NewtonJoint* const contactJoint)
-	Function NewtonContactJointRemoveContact(const NewtonJoint* const contactJoint, void* const contact) 
+	Function NewtonContactJointGetContactCount(contactJoint:Byte Ptr)
+	Function NewtonContactJointRemoveContact(contactJoint:Byte Ptr, contact:Byte Ptr) 
 
-	NEWTON_API NewtonMaterial* NewtonContactGetMaterial (const void* const contact)
+	Function NewtonContactGetMaterial:Byte Ptr (contact:Byte Ptr)
 
 	
-	Function NewtonBodyAddBuoyancyForce (body:Byte Ptr, dFloat fluidDensity, 
-		dFloat fluidLinearViscosity, dFloat fluidAngularViscosity, 
-		const dFloat* const gravityVector, NewtonGetBuoyancyPlane buoyancyPlane, void* const context)
+	Function NewtonBodyAddBuoyancyForce (body:Byte Ptr, fluidDensity#, fluidLinearViscosity#, fluidAngularViscosity#, gravityVector:Float Ptr, buoyancyPlane:Byte Ptr, context:Byte Ptr)
 
 '	Function NewtonBodyForEachPolygonDo (body:Byte Ptr, NewtonCollisionIterator callback)
-	Function NewtonBodyAddImpulse (body:Byte Ptr, const dFloat* const pointDeltaVeloc, const dFloat* const pointPosit)
+	Function NewtonBodyAddImpulse (body:Byte Ptr, pointDeltaVeloc:Float Ptr, pointPosit:Float Ptr)
 
 
+Rem
 	' **********************************************************************************************
 	'
 	' Common joint functions
@@ -817,9 +808,6 @@ Rem
 	Function NewtonDestroyJoint(newtonWorld:Byte Ptr, joint:Byte Ptr)
 	Function NewtonJointSetDestructor (joint:Byte Ptr, NewtonConstraintDestructor destructor)
 
-	
-
-
 	' **********************************************************************************************
 	'
 	' Ball and Socket joint functions
@@ -827,11 +815,11 @@ Rem
 	' **********************************************************************************************
 	NEWTON_API NewtonJoint* NewtonConstraintCreateBall (newtonWorld:Byte Ptr, const dFloat* pivotPoint, 
 														const NewtonBody* const childBody, const NewtonBody* const parentBody)
-	Function NewtonBallSetUserCallback (const NewtonJoint* const ball, NewtonBallCallBack callback)
-	Function NewtonBallGetJointAngle (const NewtonJoint* const ball, dFloat* angle)
-	Function NewtonBallGetJointOmega (const NewtonJoint* const ball, dFloat* omega)
-	Function NewtonBallGetJointForce (const NewtonJoint* const ball, dFloat* const force)
-	Function NewtonBallSetConeLimits (const NewtonJoint* const ball, const dFloat* pin, dFloat maxConeAngle, dFloat maxTwistAngle)
+	Function NewtonBallSetUserCallback (ball:Byte Ptr, NewtonBallCallBack callback)
+	Function NewtonBallGetJointAngle (ball:Byte Ptr, dFloat* angle)
+	Function NewtonBallGetJointOmega (ball:Byte Ptr, dFloat* omega)
+	Function NewtonBallGetJointForce (ball:Byte Ptr, dFloat* const force)
+	Function NewtonBallSetConeLimits (ball:Byte Ptr, const dFloat* pin, dFloat maxConeAngle, dFloat maxTwistAngle)
 
 	' **********************************************************************************************
 	'
@@ -842,11 +830,11 @@ Rem
 		const dFloat* pivotPoint, const dFloat* pinDir, 
 		const NewtonBody* const childBody, const NewtonBody* const parentBody)
 
-	Function NewtonHingeSetUserCallback (const NewtonJoint* const hinge, NewtonHingeCallBack callback)
-	NEWTON_API dFloat NewtonHingeGetJointAngle (const NewtonJoint* const hinge)
-	NEWTON_API dFloat NewtonHingeGetJointOmega (const NewtonJoint* const hinge)
-	Function NewtonHingeGetJointForce (const NewtonJoint* const hinge, dFloat* const force)
-	NEWTON_API dFloat NewtonHingeCalculateStopAlpha (const NewtonJoint* const hinge, const NewtonHingeSliderUpdateDesc* const desc, dFloat angle)
+	Function NewtonHingeSetUserCallback (hinge:Byte Ptr, NewtonHingeCallBack callback)
+	NEWTON_API dFloat NewtonHingeGetJointAngle (hinge:Byte Ptr)
+	NEWTON_API dFloat NewtonHingeGetJointOmega (hinge:Byte Ptr)
+	Function NewtonHingeGetJointForce (hinge:Byte Ptr, dFloat* const force)
+	NEWTON_API dFloat NewtonHingeCalculateStopAlpha (hinge:Byte Ptr, const NewtonHingeSliderUpdateDesc* const desc, dFloat angle)
 
 	' **********************************************************************************************
 	'
@@ -857,8 +845,8 @@ Rem
 		const dFloat* pivotPoint, const dFloat* pinDir, 
 		const NewtonBody* const childBody, const NewtonBody* const parentBody)
 	Function NewtonSliderSetUserCallback (const NewtonJoint* const slider, NewtonSliderCallBack callback)
-	NEWTON_API dFloat NewtonSliderGetJointPosit (const NewtonJoint* slider)
-	NEWTON_API dFloat NewtonSliderGetJointVeloc (const NewtonJoint* slider)
+	NEWTON_API dFloat NewtonSliderGetJointPosit (slider:Byte Ptr)
+	NEWTON_API dFloat NewtonSliderGetJointVeloc (slider:Byte Ptr)
 	Function NewtonSliderGetJointForce (const NewtonJoint* const slider, dFloat* const force)
 	NEWTON_API dFloat NewtonSliderCalculateStopAccel (const NewtonJoint* const slider, const NewtonHingeSliderUpdateDesc* const desc, dFloat position)
 
@@ -871,14 +859,14 @@ Rem
 	NEWTON_API NewtonJoint* NewtonConstraintCreateCorkscrew (newtonWorld:Byte Ptr, 
 		const dFloat* pivotPoint, const dFloat* pinDir, 
 		const NewtonBody* const childBody, const NewtonBody* const parentBody)
-	Function NewtonCorkscrewSetUserCallback (const NewtonJoint* const corkscrew, NewtonCorkscrewCallBack callback)
-	NEWTON_API dFloat NewtonCorkscrewGetJointPosit (const NewtonJoint* const corkscrew)
-	NEWTON_API dFloat NewtonCorkscrewGetJointAngle (const NewtonJoint* const corkscrew)
-	NEWTON_API dFloat NewtonCorkscrewGetJointVeloc (const NewtonJoint* const corkscrew)
-	NEWTON_API dFloat NewtonCorkscrewGetJointOmega (const NewtonJoint* const corkscrew)
-	Function NewtonCorkscrewGetJointForce (const NewtonJoint* const corkscrew, dFloat* const force)
-	NEWTON_API dFloat NewtonCorkscrewCalculateStopAlpha (const NewtonJoint* const corkscrew, const NewtonHingeSliderUpdateDesc* const desc, dFloat angle)
-	NEWTON_API dFloat NewtonCorkscrewCalculateStopAccel (const NewtonJoint* const corkscrew, const NewtonHingeSliderUpdateDesc* const desc, dFloat position)
+	Function NewtonCorkscrewSetUserCallback (corkscrew:Byte Ptr, NewtonCorkscrewCallBack callback)
+	NEWTON_API dFloat NewtonCorkscrewGetJointPosit (corkscrew:Byte Ptr)
+	NEWTON_API dFloat NewtonCorkscrewGetJointAngle (corkscrew:Byte Ptr)
+	NEWTON_API dFloat NewtonCorkscrewGetJointVeloc (corkscrew:Byte Ptr)
+	NEWTON_API dFloat NewtonCorkscrewGetJointOmega (corkscrew:Byte Ptr)
+	Function NewtonCorkscrewGetJointForce (corkscrew:Byte Ptr, dFloat* const force)
+	NEWTON_API dFloat NewtonCorkscrewCalculateStopAlpha (corkscrew:Byte Ptr, const NewtonHingeSliderUpdateDesc* const desc, dFloat angle)
+	NEWTON_API dFloat NewtonCorkscrewCalculateStopAccel (corkscrew:Byte Ptr, const NewtonHingeSliderUpdateDesc* const desc, dFloat position)
 
 
 	' **********************************************************************************************
@@ -889,14 +877,14 @@ Rem
 	NEWTON_API NewtonJoint* NewtonConstraintCreateUniversal (newtonWorld:Byte Ptr, 
 		const dFloat* pivotPoint, const dFloat* pinDir0, const dFloat* pinDir1, 
 		const NewtonBody* const childBody, const NewtonBody* const parentBody)
-	Function NewtonUniversalSetUserCallback (const NewtonJoint* const universal, NewtonUniversalCallBack callback)
-	NEWTON_API dFloat NewtonUniversalGetJointAngle0 (const NewtonJoint* const universal)
-	NEWTON_API dFloat NewtonUniversalGetJointAngle1 (const NewtonJoint* const universal)
-	NEWTON_API dFloat NewtonUniversalGetJointOmega0 (const NewtonJoint* const universal)
-	NEWTON_API dFloat NewtonUniversalGetJointOmega1 (const NewtonJoint* const universal)
-	Function NewtonUniversalGetJointForce (const NewtonJoint* const universal, dFloat* const force)
-	NEWTON_API dFloat NewtonUniversalCalculateStopAlpha0 (const NewtonJoint* const universal, const NewtonHingeSliderUpdateDesc* const desc, dFloat angle)
-	NEWTON_API dFloat NewtonUniversalCalculateStopAlpha1 (const NewtonJoint* const universal, const NewtonHingeSliderUpdateDesc* const desc, dFloat angle)
+	Function NewtonUniversalSetUserCallback (universal:Byte Ptr, NewtonUniversalCallBack callback)
+	NEWTON_API dFloat NewtonUniversalGetJointAngle0 (universal:Byte Ptr)
+	NEWTON_API dFloat NewtonUniversalGetJointAngle1 (universal:Byte Ptr)
+	NEWTON_API dFloat NewtonUniversalGetJointOmega0 (universal:Byte Ptr)
+	NEWTON_API dFloat NewtonUniversalGetJointOmega1 (universal:Byte Ptr)
+	Function NewtonUniversalGetJointForce (universal:Byte Ptr, dFloat* const force)
+	NEWTON_API dFloat NewtonUniversalCalculateStopAlpha0 (universal:Byte Ptr, const NewtonHingeSliderUpdateDesc* const desc, dFloat angle)
+	NEWTON_API dFloat NewtonUniversalCalculateStopAlpha1 (universal:Byte Ptr, const NewtonHingeSliderUpdateDesc* const desc, dFloat angle)
 
 
 	' **********************************************************************************************
@@ -928,7 +916,7 @@ Rem
 	Function NewtonUserJointSetRowSpringDamperAcceleration (joint:Byte Ptr, dFloat springK, dFloat springD)
 	Function NewtonUserJointSetRowStiffness (joint:Byte Ptr, dFloat stiffness)
 	NEWTON_API dFloat NewtonUserJointGetRowForce (joint:Byte Ptr, int row)
-	
+
 
 	' **********************************************************************************************
 	'
@@ -936,42 +924,42 @@ Rem
 	'
 	' **********************************************************************************************
 	NEWTON_API NewtonMesh* NewtonMeshCreate(newtonWorld:Byte Ptr)
-	NEWTON_API NewtonMesh* NewtonMeshCreateFromMesh(const NewtonMesh* const mesh)
+	NEWTON_API NewtonMesh* NewtonMeshCreateFromMesh(mesh:Byte ptr)
 	NEWTON_API NewtonMesh* NewtonMeshCreateFromCollision(collision:Byte Ptr)
 	NEWTON_API NewtonMesh* NewtonMeshConvexHull (newtonWorld:Byte Ptr, int count, const dFloat* const vertexCloud, int strideInBytes, dFloat tolerance)
 	NEWTON_API NewtonMesh* NewtonMeshCreatePlane (newtonWorld:Byte Ptr, const dFloat* const locationMatrix, dFloat witdth, dFloat breadth, int material, const dFloat* const textureMatrix0, const dFloat* const textureMatrix1)
 	
-	Function NewtonMeshDestroy(const NewtonMesh* const mesh)
+	Function NewtonMeshDestroy(mesh:Byte ptr)
 
-	Function NewtonMeshCalculateOOBB(const NewtonMesh* const mesh, dFloat* const matrix, dFloat* const x, dFloat* const y, dFloat* const z)
+	Function NewtonMeshCalculateOOBB(mesh:Byte ptr, matrix:Float Ptr, dFloat* const x, dFloat* const y, dFloat* const z)
 
-	Function NewtonMeshCalculateVertexNormals(const NewtonMesh* const mesh, dFloat angleInRadians)
-	Function NewtonMeshApplySphericalMapping(const NewtonMesh* const mesh, int material)
-	Function NewtonMeshApplyBoxMapping(const NewtonMesh* const mesh, int front, int side, int top)
-	Function NewtonMeshApplyCylindricalMapping(const NewtonMesh* const mesh, int cylinderMaterial, int capMaterial)
+	Function NewtonMeshCalculateVertexNormals(mesh:Byte ptr, dFloat angleInRadians)
+	Function NewtonMeshApplySphericalMapping(mesh:Byte ptr, int material)
+	Function NewtonMeshApplyBoxMapping(mesh:Byte ptr, int front, int side, int top)
+	Function NewtonMeshApplyCylindricalMapping(mesh:Byte ptr, int cylinderMaterial, int capMaterial)
 	
-	Function NewtonMeshIsOpenMesh (const NewtonMesh* const mesh)
-	Function NewtonMeshFixTJoints (const NewtonMesh* const mesh)
+	Function NewtonMeshIsOpenMesh (mesh:Byte ptr)
+	Function NewtonMeshFixTJoints (mesh:Byte ptr)
 
 
-	Function NewtonMeshPolygonize (const NewtonMesh* const mesh)
-	Function NewtonMeshTriangulate (const NewtonMesh* const mesh)
-	NEWTON_API NewtonMesh* NewtonMeshUnion (const NewtonMesh* const mesh, const NewtonMesh* const clipper, const dFloat* const clipperMatrix)
-	NEWTON_API NewtonMesh* NewtonMeshDifference (const NewtonMesh* const mesh, const NewtonMesh* const clipper, const dFloat* const clipperMatrix)
-	NEWTON_API NewtonMesh* NewtonMeshIntersection (const NewtonMesh* const mesh, const NewtonMesh* const clipper, const dFloat* const clipperMatrix)
-	Function NewtonMeshClip (const NewtonMesh* const mesh, const NewtonMesh* const clipper, const dFloat* const clipperMatrix, NewtonMesh** const topMesh, NewtonMesh** const bottomMesh)
+	Function NewtonMeshPolygonize (mesh:Byte ptr)
+	Function NewtonMeshTriangulate (mesh:Byte ptr)
+	NEWTON_API NewtonMesh* NewtonMeshUnion (mesh:Byte ptr, const NewtonMesh* const clipper, const dFloat* const clipperMatrix)
+	NEWTON_API NewtonMesh* NewtonMeshDifference (mesh:Byte ptr, const NewtonMesh* const clipper, const dFloat* const clipperMatrix)
+	NEWTON_API NewtonMesh* NewtonMeshIntersection (mesh:Byte ptr, const NewtonMesh* const clipper, const dFloat* const clipperMatrix)
+	Function NewtonMeshClip (mesh:Byte ptr, const NewtonMesh* const clipper, const dFloat* const clipperMatrix, NewtonMesh** const topMesh, NewtonMesh** const bottomMesh)
 
-	NEWTON_API NewtonMesh* NewtonMeshConvexDecomposition (const NewtonMesh* const mesh, int maxCount)
-	NEWTON_API NewtonMesh* NewtonMeshVoronoiDecomposition (const NewtonMesh* const mesh, int pointCount, int pointStrideInBytes, const dFloat* const pointCloud, int internalMaterial, const dFloat* const textureMatrix)
+	NEWTON_API NewtonMesh* NewtonMeshConvexDecomposition (mesh:Byte ptr, int maxCount)
+	NEWTON_API NewtonMesh* NewtonMeshVoronoiDecomposition (mesh:Byte ptr, int pointCount, int pointStrideInBytes, const dFloat* const pointCloud, int internalMaterial, const dFloat* const textureMatrix)
 
 
-	Function NewtonRemoveUnusedVertices(const NewtonMesh* const mesh, int* const vertexRemapTable)
+	Function NewtonRemoveUnusedVertices(mesh:Byte ptr, int* const vertexRemapTable)
 
-	Function NewtonMeshBeginFace(const NewtonMesh* const mesh)
-	Function NewtonMeshAddFace(const NewtonMesh* const mesh, int vertexCount, const dFloat* const vertex, int strideInBytes, int materialIndex)
-	Function NewtonMeshEndFace(const NewtonMesh* const mesh)
+	Function NewtonMeshBeginFace(mesh:Byte ptr)
+	Function NewtonMeshAddFace(mesh:Byte ptr, int vertexCount, const dFloat* const vertex, int strideInBytes, int materialIndex)
+	Function NewtonMeshEndFace(mesh:Byte ptr)
 
-	Function NewtonMeshBuildFromVertexListIndexList(const NewtonMesh* const mesh,
+	Function NewtonMeshBuildFromVertexListIndexList(mesh:Byte ptr,
 		int faceCount, const int* const faceIndexCount, const int* const faceMaterialIndex, 
 		const dFloat* const vertex, int vertexStrideInBytes, const int* const vertexIndex,
 		const dFloat* const normal, int normalStrideInBytes, const int* const normalIndex,
@@ -980,70 +968,70 @@ Rem
 
 
 
-	Function NewtonMeshGetVertexStreams (const NewtonMesh* const mesh, 
+	Function NewtonMeshGetVertexStreams (mesh:Byte ptr, 
 												int vertexStrideInByte, dFloat* const vertex,
 												int normalStrideInByte, dFloat* const normal,
 												int uvStrideInByte0, dFloat* const uv0,
 												int uvStrideInByte1, dFloat* const uv1)
-	Function NewtonMeshGetIndirectVertexStreams(const NewtonMesh* const mesh, 
-													   int vertexStrideInByte, dFloat* const vertex, int* const vertexIndices, int* const vertexCount,
-													   int normalStrideInByte, dFloat* const normal, int* const normalIndices, int* const normalCount,
-													   int uvStrideInByte0, dFloat* const uv0, int* const uvIndices0, int* const uvCount0,
-													   int uvStrideInByte1, dFloat* const uv1, int* const uvIndices1, int* const uvCount1)
-	Function* NewtonMeshBeginHandle (const NewtonMesh* const mesh) 
-	Function NewtonMeshEndHandle (const NewtonMesh* const mesh, void* const handle) 
-	Function NewtonMeshFirstMaterial (const NewtonMesh* const mesh, void* const handle) 
-	Function NewtonMeshNextMaterial (const NewtonMesh* const mesh, void* const handle, int materialId) 
-	Function NewtonMeshMaterialGetMaterial (const NewtonMesh* const mesh, void* const handle, int materialId) 
-	Function NewtonMeshMaterialGetIndexCount (const NewtonMesh* const mesh, void* const handle, int materialId) 
-	Function NewtonMeshMaterialGetIndexStream (const NewtonMesh* const mesh, void* const handle, int materialId, int* const index) 
-	Function NewtonMeshMaterialGetIndexStreamShort (const NewtonMesh* const mesh, void* const handle, int materialId, short int* const index) 
+	Function NewtonMeshGetIndirectVertexStreams(mesh:Byte ptr, 
+													  int vertexStrideInByte, dFloat* const vertex, int* const vertexIndices, int* const vertexCount,
+													  int normalStrideInByte, dFloat* const normal, int* const normalIndices, int* const normalCount,
+													  int uvStrideInByte0, dFloat* const uv0, int* const uvIndices0, int* const uvCount0,
+													  int uvStrideInByte1, dFloat* const uv1, int* const uvIndices1, int* const uvCount1)
+	Function* NewtonMeshBeginHandle (mesh:Byte ptr) 
+	Function NewtonMeshEndHandle (mesh:Byte ptr, void* const handle) 
+	Function NewtonMeshFirstMaterial (mesh:Byte ptr, void* const handle) 
+	Function NewtonMeshNextMaterial (mesh:Byte ptr, void* const handle, int materialId) 
+	Function NewtonMeshMaterialGetMaterial (mesh:Byte ptr, void* const handle, int materialId) 
+	Function NewtonMeshMaterialGetIndexCount (mesh:Byte ptr, void* const handle, int materialId) 
+	Function NewtonMeshMaterialGetIndexStream (mesh:Byte ptr, void* const handle, int materialId, int* const index) 
+	Function NewtonMeshMaterialGetIndexStreamShort (mesh:Byte ptr, void* const handle, int materialId, short int* const index) 
 
-	NEWTON_API NewtonMesh* NewtonMeshCreateFirstSingleSegment (const NewtonMesh* const mesh) 
-	NEWTON_API NewtonMesh* NewtonMeshCreateNextSingleSegment (const NewtonMesh* const mesh, const NewtonMesh* const segment) 
+	NEWTON_API NewtonMesh* NewtonMeshCreateFirstSingleSegment (mesh:Byte ptr) 
+	NEWTON_API NewtonMesh* NewtonMeshCreateNextSingleSegment (mesh:Byte ptr, const NewtonMesh* const segment) 
 
-	NEWTON_API NewtonMesh* NewtonMeshCreateFirstLayer (const NewtonMesh* const mesh) 
-	NEWTON_API NewtonMesh* NewtonMeshCreateNextLayer (const NewtonMesh* const mesh, const NewtonMesh* const segment) 
-
-
-	Function NewtonMeshGetTotalFaceCount (const NewtonMesh* const mesh) 
-	Function NewtonMeshGetTotalIndexCount (const NewtonMesh* const mesh) 
-	Function NewtonMeshGetFaces (const NewtonMesh* const mesh, int* const faceIndexCount, int* const faceMaterial, void** const faceIndices) 
+	NEWTON_API NewtonMesh* NewtonMeshCreateFirstLayer (mesh:Byte ptr) 
+	NEWTON_API NewtonMesh* NewtonMeshCreateNextLayer (mesh:Byte ptr, const NewtonMesh* const segment) 
 
 
-	Function NewtonMeshGetPointCount (const NewtonMesh* const mesh) 
-	Function NewtonMeshGetPointStrideInByte (const NewtonMesh* const mesh) 
-	NEWTON_API dFloat64* NewtonMeshGetPointArray (const NewtonMesh* const mesh) 
-	NEWTON_API dFloat64* NewtonMeshGetNormalArray (const NewtonMesh* const mesh) 
-	NEWTON_API dFloat64* NewtonMeshGetUV0Array (const NewtonMesh* const mesh) 
-	NEWTON_API dFloat64* NewtonMeshGetUV1Array (const NewtonMesh* const mesh) 
-
-	Function NewtonMeshGetVertexCount (const NewtonMesh* const mesh) 
-	Function NewtonMeshGetVertexStrideInByte (const NewtonMesh* const mesh) 
-	NEWTON_API dFloat64* NewtonMeshGetVertexArray (const NewtonMesh* const mesh) 
+	Function NewtonMeshGetTotalFaceCount (mesh:Byte ptr) 
+	Function NewtonMeshGetTotalIndexCount (mesh:Byte ptr) 
+	Function NewtonMeshGetFaces (mesh:Byte ptr, int* const faceIndexCount, int* const faceMaterial, void** const faceIndices) 
 
 
-	Function* NewtonMeshGetFirstVertex (const NewtonMesh* const mesh)
-	Function* NewtonMeshGetNextVertex (const NewtonMesh* const mesh, const void* const vertex)
-	Function NewtonMeshGetVertexIndex (const NewtonMesh* const mesh, const void* const vertex)
+	Function NewtonMeshGetPointCount (mesh:Byte ptr) 
+	Function NewtonMeshGetPointStrideInByte (mesh:Byte ptr) 
+	NEWTON_API dFloat64* NewtonMeshGetPointArray (mesh:Byte ptr) 
+	NEWTON_API dFloat64* NewtonMeshGetNormalArray (mesh:Byte ptr) 
+	NEWTON_API dFloat64* NewtonMeshGetUV0Array (mesh:Byte ptr) 
+	NEWTON_API dFloat64* NewtonMeshGetUV1Array (mesh:Byte ptr) 
 
-	Function* NewtonMeshGetFirstPoint (const NewtonMesh* const mesh)
-	Function* NewtonMeshGetNextPoint (const NewtonMesh* const mesh, const void* const point)
-	Function NewtonMeshGetPointIndex (const NewtonMesh* const mesh, const void* const point)
-	Function NewtonMeshGetVertexIndexFromPoint (const NewtonMesh* const mesh, const void* const point)
+	Function NewtonMeshGetVertexCount (mesh:Byte ptr) 
+	Function NewtonMeshGetVertexStrideInByte (mesh:Byte ptr) 
+	NEWTON_API dFloat64* NewtonMeshGetVertexArray (mesh:Byte ptr) 
+
+
+	Function* NewtonMeshGetFirstVertex (mesh:Byte ptr)
+	Function* NewtonMeshGetNextVertex (mesh:Byte ptr, vertex:Byte Ptr)
+	Function NewtonMeshGetVertexIndex (mesh:Byte ptr, vertex:Byte Ptr)
+
+	Function* NewtonMeshGetFirstPoint (mesh:Byte ptr)
+	Function* NewtonMeshGetNextPoint (mesh:Byte ptr, point:Byte Ptr)
+	Function NewtonMeshGetPointIndex (mesh:Byte ptr, point:Byte Ptr)
+	Function NewtonMeshGetVertexIndexFromPoint (mesh:Byte ptr, point:Byte Ptr)
 	
 
-	Function* NewtonMeshGetFirstEdge (const NewtonMesh* const mesh)
-	Function* NewtonMeshGetNextEdge (const NewtonMesh* const mesh, const void* const edge)
-	Function NewtonMeshGetEdgeIndices (const NewtonMesh* const mesh, const void* const edge, int* const v0, int* const v1)
-	'Function NewtonMeshGetEdgePointIndices (const NewtonMesh* const mesh, const void* const edge, int* const v0, int* const v1)
+	Function* NewtonMeshGetFirstEdge (mesh:Byte ptr)
+	Function* NewtonMeshGetNextEdge (mesh:Byte ptr, edge:Byte Ptr)
+	Function NewtonMeshGetEdgeIndices (mesh:Byte ptr, edge:Byte Ptr, int* const v0, int* const v1)
+	'Function NewtonMeshGetEdgePointIndices (mesh:Byte ptr, edge:Byte Ptr, int* const v0, int* const v1)
 
-	Function* NewtonMeshGetFirstFace (const NewtonMesh* const mesh)
-	Function* NewtonMeshGetNextFace (const NewtonMesh* const mesh, const void* const face)
-	Function NewtonMeshIsFaceOpen (const NewtonMesh* const mesh, const void* const face)
-	Function NewtonMeshGetFaceMaterial (const NewtonMesh* const mesh, const void* const face)
-	Function NewtonMeshGetFaceIndexCount (const NewtonMesh* const mesh, const void* const face)
-	Function NewtonMeshGetFaceIndices (const NewtonMesh* const mesh, const void* const face, int* const indices)
-	Function NewtonMeshGetFacePointIndices (const NewtonMesh* const mesh, const void* const face, int* const indices)
+	Function* NewtonMeshGetFirstFace (mesh:Byte ptr)
+	Function* NewtonMeshGetNextFace (mesh:Byte ptr, face:Byte Ptr)
+	Function NewtonMeshIsFaceOpen (mesh:Byte ptr, face:Byte Ptr)
+	Function NewtonMeshGetFaceMaterial (mesh:Byte ptr, face:Byte Ptr)
+	Function NewtonMeshGetFaceIndexCount (mesh:Byte ptr, face:Byte Ptr)
+	Function NewtonMeshGetFaceIndices (mesh:Byte ptr, face:Byte Ptr, int* const indices)
+	Function NewtonMeshGetFacePointIndices (mesh:Byte ptr, face:Byte Ptr, int* const indices)
 End Rem
 End Extern
