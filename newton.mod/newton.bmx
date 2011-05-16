@@ -11,8 +11,8 @@ ModuleInfo "Version: 0.01"
 ModuleInfo "Newton Version: 2.33"
 ?Linux
 ModuleInfo "CC_OPTS: -Wall -Wno-strict-aliasing -D_LINUX_VER -O2 -g -fpic -msse -msse2 -ffloat-store -ffast-math -freciprocal-math -funsafe-math-optimizations -fsingle-precision-constant"
-?
 
+?Not Win32
 Import "source/core/*.h"
 
 Import "source/core/dg.cpp"
@@ -84,7 +84,7 @@ Import "source/physics/dgContact.cpp"
 
 Import "source/newton/Newton.cpp"
 Import "source/newton/NewtonClass.cpp"
-
+?
 Rem
 
 #define NEWTON_MAJOR_VERSION 2 
