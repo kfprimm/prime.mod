@@ -12,6 +12,10 @@ ModuleInfo "Newton Version: 2.33"
 ?Linux
 ModuleInfo "CC_OPTS: -Wall -Wno-strict-aliasing -D_LINUX_VER -O2 -g -fpic -msse -msse2 -ffloat-store -ffast-math -freciprocal-math -funsafe-math-optimizations -fsingle-precision-constant"
 
+?Win32
+Import "newton.a"
+Import "dJointLibrary.a"
+
 ?Not Win32
 Import "source/core/*.h"
 
