@@ -515,7 +515,7 @@ dgInt32 dgVertexListToIndexList (dgFloat64* const vertList, dgInt32 strideInByte
 		return 0;
 	}
 	_ASSERTE (compareCount <= dgInt32 (strideInBytes / sizeof (dgFloat64)));
-	_ASSERT (strideInBytes == dgInt32 (sizeof (dgFloat64) * (strideInBytes / sizeof (dgFloat64))));
+	_ASSERTE (strideInBytes == dgInt32 (sizeof (dgFloat64) * (strideInBytes / sizeof (dgFloat64))));
 
 	dgInt32 stride = strideInBytes / dgInt32 (sizeof (dgFloat64));
 	dgInt32 stride2 = stride + 2;
