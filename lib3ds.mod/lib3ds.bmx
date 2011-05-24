@@ -27,6 +27,8 @@ Import "src/lib3ds_vector.c"
 Import "src/lib3ds_viewport.c"
 
 Import "lib3ds_file_wrapper.c"
+Import "lib3ds_mesh_wrapper.c"
+
 
 Const LIB3DS_SEEK_SET     = 0
 Const LIB3DS_SEEK_CUR     = 1
@@ -274,4 +276,34 @@ Extern
 	Function lib3ds_matrix_camera(m:Float Ptr, pos:Float Ptr, tgt:Float Ptr, roll#)
 	
 	' wrapper functions
+	Function lib3ds_file_get_user_id (file:Byte Ptr)
+	Function lib3ds_file_get_user_ptr:Byte Ptr (file:Byte Ptr)
+	Function lib3ds_file_get_mesh_version (file:Byte Ptr)
+	Function lib3ds_file_get_keyf_revision (file:Byte Ptr)
+	Function lib3ds_file_get_name:Byte Ptr (file:Byte Ptr)
+	Function lib3ds_file_get_master_scale# (file:Byte Ptr)
+	Function lib3ds_file_get_construction_plane:Float Ptr (file:Byte Ptr)
+	Function lib3ds_file_get_ambient:Float Ptr (file:Byte Ptr)
+	Function lib3ds_file_get_shadow:Byte Ptr (file:Byte Ptr)
+	Function lib3ds_file_get_background:Byte Ptr (file:Byte Ptr)
+	Function lib3ds_file_get_atmosphere:Byte Ptr (file:Byte Ptr)
+	Function lib3ds_file_get_viewport:Byte Ptr (file:Byte Ptr)
+	Function lib3ds_file_get_viewport_keyf:Byte Ptr (file:Byte Ptr)
+	Function lib3ds_file_get_frames (file:Byte Ptr)
+	Function lib3ds_file_get_segment_from (file:Byte Ptr)
+	Function lib3ds_file_get_segment_to (file:Byte Ptr)
+	Function lib3ds_file_get_current_frame (file:Byte Ptr)
+	Function lib3ds_file_get_materials_size (file:Byte Ptr)
+	Function lib3ds_file_get_nmaterials (file:Byte Ptr)
+	Function lib3ds_file_get_materials:Byte Ptr (file:Byte Ptr) 
+	Function lib3ds_file_get_cameras_size (file:Byte Ptr)
+	Function lib3ds_file_get_ncameras (file:Byte Ptr)
+	Function lib3ds_file_get_camera:Byte Ptr (file:Byte Ptr)
+	Function lib3ds_file_get_lights_size (file:Byte Ptr)
+	Function lib3ds_file_get_nlights (file:Byte Ptr)
+	Function lib3ds_file_get_lights:Byte Ptr (file:Byte Ptr)
+	Function lib3ds_file_get_meshes_size (file:Byte Ptr)
+	Function lib3ds_file_get_nmeshes (file:Byte Ptr)
+	Function lib3ds_file_get_meshes:Byte Ptr (file:Byte Ptr)
+	Function lib3ds_file_get_nodes:Byte Ptr (file:Byte Ptr)
 End Extern
