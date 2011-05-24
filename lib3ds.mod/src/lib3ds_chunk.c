@@ -37,6 +37,13 @@ lib3ds_chunk_read(Lib3dsChunk *c, Lib3dsIo *io) {
     c->cur = lib3ds_io_tell(io);
     c->chunk = lib3ds_io_read_word(io);
     c->size = lib3ds_io_read_dword(io);
+		// Kevin was here
+		/* if (c->size == 0)
+			lib3ds_io_log(io, LIB3DS_LOG_WARN, "Corrupted chunk found (size==0). Data may be invalid.");
+			return 0;
+		} */
+	  assert(c->size != 0);
+		// End Kevin was here
     c->end = c->cur + c->size;
     c->cur += 6;
     if (c->size < 6) {
@@ -69,13 +76,26 @@ lib3ds_chunk_read_next(Lib3dsChunk *c, Lib3dsIo *io) {
     Lib3dsChunk d;
 
     if (c->cur >= c->end) {
-        assert(c->cur == c->end);
-        return 0;
+			// Kevin was here
+			// assert(c->cur == c->end);
+			if (c->cur != c->end) {
+				lib3ds_io_log(io, LIB3DS_LOG_WARN, "Corrupted chunk found. Data may be invalid.");
+				lib3ds_io_seek(io, (long)c->end, LIB3DS_SEEK_SET);
+				c->cur = c->end;
+			}
+			// End Kevin was here
+			return 0;
     }
 
     lib3ds_io_seek(io, (long)c->cur, LIB3DS_SEEK_SET);
     d.chunk = lib3ds_io_read_word(io);
     d.size = lib3ds_io_read_dword(io);
+		// Kevin was here
+		if (d.size == 0) {
+		    lib3ds_io_log(io, LIB3DS_LOG_WARN, "Corrupted chunk found (size==0). Data may be invalid.");
+				return 0;
+		}
+		// End Kevin was here
     c->cur += d.size;
 
     if (io->log_func) {
@@ -129,6 +149,13 @@ void
 lib3ds_chunk_write_end(Lib3dsChunk *c, Lib3dsIo *io) {
     assert(c);
     c->size = lib3ds_io_tell(io) - c->cur;
+		// Kevin was here
+		/*if (c->size == 0)
+        lib3ds_io_log(io, LIB3DS_LOG_WARN, "Corrupted chunk found (size==0). Data may be invalid.");
+        return 0;
+    }*/
+		// End Kevin was here
+    assert(c->size != 0);
     lib3ds_io_seek(io, c->cur + 2, LIB3DS_SEEK_SET);
     lib3ds_io_write_dword(io, c->size);
     c->cur += c->size;

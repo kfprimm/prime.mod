@@ -26,6 +26,8 @@ Import "src/lib3ds_util.c"
 Import "src/lib3ds_vector.c"
 Import "src/lib3ds_viewport.c"
 
+Import "lib3ds_file_wrapper.c"
+
 Const LIB3DS_SEEK_SET     = 0
 Const LIB3DS_SEEK_CUR     = 1
 Const LIB3DS_SEEK_END     = 2
@@ -136,7 +138,18 @@ Const LIB3DS_TRACK_UNLINK_X = $0100
 Const LIB3DS_TRACK_UNLINK_Y = $0200
 Const LIB3DS_TRACK_UNLINK_Z = $0400
 
+Type Lib3dsIo
+	Field impl:Byte Ptr
+	Field self_:Byte Ptr
+	Field seek_func:Byte Ptr ' Function seek_func:long(self_:byte ptr, offset:long, origin)
+	Field tell_func:Byte Ptr ' Function tell_func:long(self_:byte ptr)
+	Field read_func:Byte Ptr ' Function write_func(self_:byte ptr,buffer:byte ptr,size)
+	Field write_func:Byte Ptr ' Function read_func(self_:byte ptr,buffer:byte ptr,size)
+	Field log_func:Byte Ptr ' Function log_func(self_:byte ptr, level, indent, msg:Byte ptr)
+End Type
+
 Extern
+	' lib functions
 	Function lib3ds_file_open:Byte Ptr(filename:Byte Ptr)
 	Function lib3ds_file_save(file:Byte Ptr, filename:Byte Ptr)
 	Function lib3ds_file_new:Byte Ptr()
@@ -259,4 +272,6 @@ Extern
 	Function lib3ds_matrix_rotate_quat(m:Float Ptr, q:Float Ptr)
 	Function lib3ds_matrix_rotate(m:Float Ptr, angle#, ax:Float Ptr, ay:Float Ptr, az:Float Ptr)
 	Function lib3ds_matrix_camera(m:Float Ptr, pos:Float Ptr, tgt:Float Ptr, roll#)
+	
+	' wrapper functions
 End Extern

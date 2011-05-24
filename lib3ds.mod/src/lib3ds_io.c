@@ -144,7 +144,8 @@ lib3ds_io_read_byte(Lib3dsIo *io) {
     uint8_t b;
 
     assert(io);
-    lib3ds_io_read(io, &b, 1);
+    // lib3ds_io_read(io, &b, 1);
+		if (lib3ds_io_read(io, &b, 1) != 1) lib3ds_io_read_error(io); // Kevin was here
     return(b);
 }
 
@@ -174,7 +175,8 @@ lib3ds_io_read_dword(Lib3dsIo *io) {
     uint32_t d;
 
     assert(io);
-    lib3ds_io_read(io, b, 4);
+    // lib3ds_io_read(io, b, 4);
+		if (lib3ds_io_read(io, b, 4) != 4) lib3ds_io_read_error(io); // Kevin was here
     d = ((uint32_t)b[3] << 24) |
         ((uint32_t)b[2] << 16) |
         ((uint32_t)b[1] << 8) |
@@ -191,7 +193,8 @@ lib3ds_io_read_intb(Lib3dsIo *io) {
     int8_t b;
 
     assert(io);
-    lib3ds_io_read(io, &b, 1);
+    // lib3ds_io_read(io, &b, 1);
+		if (lib3ds_io_read(io, &b, 1) != 1) lib3ds_io_read_error(io); // Kevin was here
     return(b);
 }
 
@@ -205,7 +208,9 @@ lib3ds_io_read_intw(Lib3dsIo *io) {
     uint16_t w;
 
     assert(io);
-    lib3ds_io_read(io, b, 2);
+    // lib3ds_io_read(io, b, 2);
+		if (lib3ds_io_read(io, b, 2) != 2) lib3ds_io_read_error(io); // Kevin was here
+		
     w = ((uint16_t)b[1] << 8) |
         ((uint16_t)b[0]);
     return((int16_t)w);
@@ -221,7 +226,8 @@ lib3ds_io_read_intd(Lib3dsIo *io) {
     uint32_t d;
 
     assert(io);
-    lib3ds_io_read(io, b, 4);
+    // lib3ds_io_read(io, b, 4);
+		if (lib3ds_io_read(io, b, 4) != 4) lib3ds_io_read_error(io); // Kevin was here
     d = ((uint32_t)b[3] << 24) |
         ((uint32_t)b[2] << 16) |
         ((uint32_t)b[1] << 8) |
@@ -239,7 +245,8 @@ lib3ds_io_read_float(Lib3dsIo *io) {
     Lib3dsDwordFloat d;
 
     assert(io);
-    lib3ds_io_read(io, b, 4);
+    // lib3ds_io_read(io, b, 4);
+		if (lib3ds_io_read(io, b, 4) != 4) lib3ds_io_read_error(io); // Kevin was here
     d.dword_value = ((uint32_t)b[3] << 24) |
                     ((uint32_t)b[2] << 16) |
                     ((uint32_t)b[1] << 8) |

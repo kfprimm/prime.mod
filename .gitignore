@@ -4,4 +4,5 @@
 *.release.*.ppc.*
 *.debug.*.x86.*
 *.debug.*.pcc.*
-*.bmx.bak
+*.bak
+

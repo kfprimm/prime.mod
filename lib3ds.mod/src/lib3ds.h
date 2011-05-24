@@ -345,7 +345,7 @@ typedef enum Lib3dsFaceFlags {
   LIB3DS_FACE_WRAP_V    = 0x10,       /**< Bit 4: Face is at tex V wrap seam */
   LIB3DS_FACE_SELECT_3  = (1<<13),    /**< Bit 13: Selection of the face in selection 3*/
   LIB3DS_FACE_SELECT_2  = (1<<14),    /**< Bit 14: Selection of the face in selection 2*/
-  LIB3DS_FACE_SELECT_1  = (1<<15),    /**< Bit 15: Selection of the face in selection 1*/
+  LIB3DS_FACE_SELECT_1  = (1<<15)     /**< Bit 15: Selection of the face in selection 1*/
 } Lib3dsFaceFlags;
 
 typedef struct Lib3dsFace {
