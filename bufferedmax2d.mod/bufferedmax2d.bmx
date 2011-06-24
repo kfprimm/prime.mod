@@ -10,6 +10,9 @@ ModuleInfo "License: MIT"
 
 Import BRL.Max2D
 
+Const BUFFER_COLOR = 1
+Const BUFFER_DEPTH = 2
+
 Type TBuffer
 	Field _width,_height
 End Type
@@ -116,7 +119,7 @@ Type TBufferedMax2DDriver Extends TMax2DDriver
 		Return g
 	End Method
 
-	Method MakeBuffer:TBuffer(src:Object,width,height) Abstract
+	Method MakeBuffer:TBuffer(src:Object,width,height,flags) Abstract
 	
 	Method SetBuffer(buffer:TBuffer) Abstract
 	
@@ -124,19 +127,19 @@ Type TBufferedMax2DDriver Extends TMax2DDriver
 		Return _backbuffer
 	End Method	
 	
-	Method ImageBuffer:TBuffer(image:TImage,frame=0)
-		Return MakeBuffer(image.Frame(frame),image.width,image.height)		
+	Method ImageBuffer:TBuffer(image:TImage,frame=0,flags=BUFFER_COLOR)
+		Return MakeBuffer(image.Frame(frame),image.width,image.height,flags)		
 	End Method
 End Type
 
 Rem
-	returns: Width of the buffer.
+	bbdoc: Width of the buffer.
 End Rem
 Function BufferWidth(buffer:TBuffer)
 	Return buffer._width
 End Function
 Rem
-	returns: Height of the buffer.
+	bbdoc: Height of the buffer.
 End Rem
 Function BufferHeight(buffer:TBuffer)
 	Return buffer._height
