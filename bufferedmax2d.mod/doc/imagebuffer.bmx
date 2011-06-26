@@ -1,8 +1,8 @@
 
 Strict
 
-Import sys87.GLBufferedMax2D
-Import sys87.D3D9BufferedMax2D
+Framework sys87.GLBufferedMax2D
+'Import sys87.D3D9BufferedMax2D
 
 Graphics 800,600
 

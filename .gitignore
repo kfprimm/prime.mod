@@ -5,4 +5,4 @@
 *.debug.*.x86.*
 *.debug.*.pcc.*
 *.bak
-
+*.mod/doc/commands.html

@@ -125,4 +125,5 @@ Function GLBufferedMax2DDriver:TGLBufferedMax2DDriver()
 	End If
 End Function
 
-SetGraphicsDriver GLBufferedMax2DDriver()
+Local driver:TGLBufferedMax2DDriver=GLBufferedMax2DDriver()
+If driver SetGraphicsDriver driver
