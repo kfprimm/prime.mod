@@ -16,6 +16,10 @@ Const AXIS_Y = 1
 Const AXIS_Z = 2
 Const AXIS_W = 3
 
+Const INFINITY# = 100000.0
+Const EPSILON# = 1.0/100000.0
+Const TWO_PI# = Pi*2.0
+
 Type TVector
 	Field x#,y#,z#,w#
 	
@@ -34,7 +38,7 @@ Type TVector
 	End Method
 
 	Method Create3:TVector(a#,b#,c#)
-		Return Create4(a,b,c,0.0)
+		Return Create4(a,b,c,1.0)
 	End Method	
 	
 	Method To3:TVector()
@@ -50,33 +54,33 @@ Type TVector
 	End Method
 	
 	Method Copy:TVector()
-		Return Create4(x,y,z,w)
+		Return New TVector.Create4(x,y,z,w)
 	End Method
 	
 	Method Add:TVector(v:TVector)
-		Return Create4(x+v.x,y+v.y,z+v.z,w+v.w)
+		Return New TVector.Create4(x+v.x,y+v.y,z+v.z,w+v.w)
 	End Method
 	
 	Method Sub:TVector(v:TVector)
-		Return Create4(x-v.x,y-v.y,z-v.z,w-v.w)
+		Return New TVector.Create4(x-v.x,y-v.y,z-v.z,w-v.w)
 	End Method
 	
 	Method Mult:TVector(v:TVector)
-		Return Create4(x*v.x,y*v.y,z*v.z,w*v.w)
+		Return New TVector.Create4(x*v.x,y*v.y,z*v.z,w*v.w)
 	End Method
 	
 	Method Scale:TVector(s#)
-		Return Create4(x*s,y*s,z*s,w*s)
+		Return New TVector.Create4(x*s,y*s,z*s,w*s)
+	End Method
+	
+	Method Cross:TVector(v:TVector)
+		Return New TVector.Create3(y*v.z-z*v.y,z*v.x-x*v.z,x*v.y-y*v.x)
 	End Method
 	
 	Method Dot#(v:TVector)
 		Return x*v.x+y*v.y+z*v.z+w*v.w
 	End Method
-	
-	Method Cross:TVector(v:TVector)
-		Return Create3(y*v.z-z*v.y,z*v.x-x*v.z,x*v.y-y*v.x)
-	End Method
-	
+		
 	Method Length#()
 		Return Sqr(x*x+y*y+z*z+w*w)
 	End Method
@@ -105,8 +109,45 @@ Type TVector
 		Return axis
 	End Method
 	
+	Method FromTriangle:TVector(a:TVector,b:TVector,c:TVector)
+		Local v:TVector=(b.Sub(a).Cross(c.Sub(b))).Normalize()
+		Return Create3(v.x,v.y,v.z)
+	End Method 
+
 	Method Invert()
 		x:*-1;y:*-1;z:*-1;w:*-1
+	End Method
+End Type
+
+Type TRay
+	Field Origin:TVector=New TVector
+	Field Direction:TVector=New TVector
+	
+	Method Create:TRay(org:TVector,dir:TVector)
+		Origin.Equals(org);Direction.Equals(dir)
+		Direction.Normalize()
+		Return Self
+	End Method
+	
+	Method IntersectionPoint:TVector(distance#)
+		Return Origin.Add(Direction.Scale(distance))
+	End Method
+End Type
+
+Type TPlane Extends TVector
+	Method FromPoint:TPlane(v:TVector,p:TVector)
+		Return TPlane(Create4(v.x,v.y,v.z,-v.Dot(p)))
+	End Method 
+	
+	Method FromTriangle:TPlane(a:TVector,b:TVector,c:TVector)
+		Local v:TVector=(b.Sub(a).Cross(c.Sub(b))).Normalize()
+		Return TPlane(Create4(v.x,v.y,v.z,-v.Dot(a)))
+	End Method 
+	
+	Method RayIntersection(r:TRay)
+		Local costheta#=-r.Direction.Dot(Self)	
+		If Abs(costheta)<EPSILON Return -1	
+		Return r.Origin.Dot(Self)/costheta
 	End Method
 End Type
 

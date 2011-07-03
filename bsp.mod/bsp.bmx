@@ -7,42 +7,21 @@ End Rem
 Module sys87.BSP
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
-ModuleInfo "Credit: Adapted from the famouse BSP FAQ sample code."
+ModuleInfo "Credit: Adapted from the famous BSP FAQ sample code."
 
 Import sys87.Math3D
 Import BRL.LinkedList
 
-Const HC_IN       = -1
-Const HC_ON       =  0
-Const HC_OUT      =  1
-Const HC_SPANNING =  2
-
-Const INFINITY = 100000.0
-Const EPSILON = 1.0/100000.0
-Const TWO_PI = Pi*2.0
+Const BSP_IN       = -1
+Const BSP_ON       =  0
+Const BSP_OUT      =  1
+Const BSP_SPANNING =  2
 
 Function AppendListToList(l:TList,a:TList)
 	For Local o:Object=EachIn a
 		l.AddLast(o)
 	Next
 End Function
-
-Type TBSPPlane Extends TVector
-	Method FromPoint:TBSPPlane(v:TVector,p:TVector)
-		Return TBSPPlane(Create4(v.x,v.y,v.z,-v.Dot(p)))
-	End Method 
-	
-	Method FromNormal:TBSPPlane(a:TVector,b:TVector,c:TVector)
-		Local v:TVector=(b.Sub(a).Cross(c.Sub(b))).Normalize()
-		Return TBSPPlane(Create4(v.x,v.y,v.z,-v.Dot(a)))
-	End Method 
-	
-	Method RayIntersection(r:TBSPRay)
-		Local costheta#=-r.Direction.Dot(Self)	
-		If Abs(costheta)<EPSILON Return -1	
-		Return r.Origin.Dot(Self)/costheta
-	End Method
-End Type
 
 Type TBSPBounds
 	Field mx:TVector=New TVector.Create3(-INFINITY,-INFINITY,-INFINITY)
@@ -72,23 +51,8 @@ Type TBSPBounds
 	End Method	
 End Type
 
-Type TBSPRay
-	Field Origin:TVector=New TVector
-	Field Direction:TVector=New TVector
-	
-	Method Create:TBSPRay(org:TVector,dir:TVector)
-		Origin.Equals(org);Direction.Equals(dir)
-		Direction.Normalize()
-		Return Self
-	End Method
-	
-	Method IntersectionPoint:TVector(distance#)
-		Return Origin.Add(Direction.Scale(distance))
-	End Method
-End Type
-
 Type TBSPPolygon
-	Field Plane:TBSPPlane=New TBSPPlane
+	Field Plane:TPlane=New TPlane
 	Field Point:TVector[]
 	
 	Method Create:TBSPPolygon(pts:TVector[])
@@ -150,7 +114,7 @@ Type TBSPPolygon
 		Plane.Invert
 	End Method
 	
-	Method RayIntersection#(r:TBSPRay)
+	Method RayIntersection#(r:TRay)
 		Return Plane.RayIntersection(r)
 	End Method
 
@@ -171,7 +135,7 @@ Type TBSPNode
 	Field On:TList=New TList,BoundingBox:TBSPBounds=New TBSPBounds
 	Field In:TBSPTree=New TBSPTree
 	Field Out:TBSPTree=New TBSPTree
-	Field Plane:TBSPPlane=New TBSPPlane
+	Field Plane:TPlane=New TPlane
 	
 	Method Create:TBSPNode(poly:TBSPPolygon)
 		Plane.Equals(poly.Plane)
@@ -183,27 +147,27 @@ Type TBSPNode
 		Local inside:TList=New TList,outside:TList=New TList
 		Local inp:TBSPPolygon,outp:TBSPPolygon
 		For Local poly:TBSPPolygon=EachIn list
-			Local side=Split(poly,plane,inp,outp)
-			If side=HC_ON
+			Local side=Split(poly,Plane,inp,outp)
+			If side=BSP_ON
 				On.AddLast(poly)
 			Else
-				If side=HC_IN Or side=HC_SPANNING inside.AddLast(inp)
-				If side=HC_OUT Or side=HC_SPANNING outside.AddLast(outp)
+				If side=BSP_IN Or side=BSP_SPANNING inside.AddLast(inp)
+				If side=BSP_OUT Or side=BSP_SPANNING outside.AddLast(outp)
 			EndIf				
 		Next
-		If Not inside.IsEmpty() In.Insert(inside,keep,HC_IN)
-		If Not outside.IsEmpty() Out.Insert(outside,keep,HC_OUT)
+		If Not inside.IsEmpty() In.Insert(inside,keep,BSP_IN)
+		If Not outside.IsEmpty() Out.Insert(outside,keep,BSP_OUT)
 	End Method
 	
 	Method PushFace(poly:TBSPPolygon,result:TList,keep)
 		Local inside:TList=New TList,outside:TList=New TList
 		Local inp:TBSPPolygon,outp:TBSPPolygon
 		Local side=Split(poly,Plane,inp,outp)
-		If side=HC_ON
+		If side=BSP_ON
 			result.AddLast(poly)
 		Else
-			If side=HC_IN Or side=HC_SPANNING In.PushFace(inp,result,keep,HC_IN)
-			If side=HC_OUT Or side=HC_SPANNING Out.PushFace(outp,result,keep,HC_OUT)
+			If side=BSP_IN Or side=BSP_SPANNING In.PushFace(inp,result,keep,BSP_IN)
+			If side=BSP_OUT Or side=BSP_SPANNING Out.PushFace(outp,result,keep,BSP_OUT)
 		EndIf
 	End Method
 	
@@ -212,26 +176,26 @@ Type TBSPNode
 		Local inp:TBSPPolygon,outp:TBSPPolygon
 		For Local poly:TBSPPolygon=EachIn list
 			Local side=Split(poly,Plane,inp,outp)
-			If side=HC_ON
+			If side=BSP_ON
 				result.AddLast(poly)
 			Else
-				If side=HC_IN Or side=HC_SPANNING inside.AddLast(inp)
-				If side=HC_OUT Or side=HC_SPANNING outside.AddLast(outp)
+				If side=BSP_IN Or side=BSP_SPANNING inside.AddLast(inp)
+				If side=BSP_OUT Or side=BSP_SPANNING outside.AddLast(outp)
 			EndIf
 		Next
-		If Not inside.IsEmpty() In.Push(inside,result,keep,HC_IN)
-		If Not outside.IsEmpty() Out.Push(outside,result,keep,HC_OUT)
+		If Not inside.IsEmpty() In.Push(inside,result,keep,BSP_IN)
+		If Not outside.IsEmpty() Out.Push(outside,result,keep,BSP_OUT)
 	End Method
 	
 	Method Reduce()
 		Local results:TList=New TList,boundary:TList=New TList
 		For Local poly:TBSPPolygon=EachIn On
 			If Abs(poly.Plane.w+Plane.w)>EPSILON
-				In.PushFace(poly,results,HC_IN,HC_IN)
-				Out.Push(results,boundary,HC_OUT,HC_OUT)
+				In.PushFace(poly,results,BSP_IN,BSP_IN)
+				Out.Push(results,boundary,BSP_OUT,BSP_OUT)
 			Else
-				Out.PushFace(poly,results,HC_OUT,HC_OUT)
-				In.Push(results,boundary,HC_IN,HC_IN)
+				Out.PushFace(poly,results,BSP_OUT,BSP_OUT)
+				In.Push(results,boundary,BSP_IN,BSP_IN)
 			EndIf
 		Next
 		On=boundary
@@ -239,7 +203,7 @@ Type TBSPNode
 		Out.Reduce
 	End Method
 	
-	Method RayIntersection(r:TBSPRay Var,poly_hit:TBSPPolygon Var,ipt:TVector Var)
+	Method RayIntersection(r:TRay Var,poly_hit:TBSPPolygon Var,ipt:TVector Var)
 		Local dist#=r.Origin.Dot(plane),costheta#=r.Direction.Dot(plane)
 		If dist>EPSILON
 			If Out.RayIntersection(r,poly_hit,ipt) Return True
@@ -263,7 +227,7 @@ Type TBSPNode
 		Return False
 	End Method
 	
-	Method PlaneSearch(r:TBSPRay Var,poly_hit:TBSPPolygon Var,ipt:TVector Var)
+	Method PlaneSearch(r:TRay Var,poly_hit:TBSPPolygon Var,ipt:TVector Var)
 		Local dist#=Plane.RayIntersection(r)
 		If dist>0.0
 			ipt=r.IntersectionPoint(dist)
@@ -279,44 +243,44 @@ Type TBSPNode
 		Return False
 	End Method
 	
-	Function Split(poly:TBSPPolygon Var,plane:TBSPPlane Var,in:TBSPPolygon Var,out:TBSPPolygon Var)
+	Function Split(poly:TBSPPolygon Var,plane:TPlane Var,in:TBSPPolygon Var,out:TBSPPolygon Var)
 		Local outpts:TVector[64],inpts:TVector[64]
 		Local out_c,in_c
 		Local ptA:TVector,ptB:TVector
 		Local sideA#,sideB#
-		Local poly_class = HC_ON
+		Local poly_class = BSP_ON
 		ptA=poly.Point[poly.Count()-1]
 		sideA=ptA.Dot(plane)		
 		For Local i=0 To poly.Count()-1
 			ptB=poly.Point[i]
 			sideB=ptB.Dot(plane)
 			If sideB>EPSILON
-				If poly_class=HC_ON
-					poly_class=HC_OUT
-				ElseIf poly_class<>HC_OUT
-					poly_class=HC_SPANNING
+				If poly_class=BSP_ON
+					poly_class=BSP_OUT
+				ElseIf poly_class<>BSP_OUT
+					poly_class=BSP_SPANNING
 				EndIf
 				If sideA<-EPSILON
 					Local v:TVector=ptB.Sub(ptA)
 					Local p:TVector=ptA.Add(v.Scale(-ptA.Dot(plane)/v.Dot(plane)))
 					outpts[out_c]=p;inpts[in_c]=p
 					out_c:+1;in_c:+1
-					poly_class=HC_SPANNING
+					poly_class=BSP_SPANNING
 				EndIf
 				outpts[out_c]=ptB
 				out_c:+1
 			ElseIf sideB<-EPSILON
-				If poly_class=HC_ON
-					poly_class=HC_IN
-				ElseIf poly_class<>HC_IN
-					poly_class=HC_SPANNING
+				If poly_class=BSP_ON
+					poly_class=BSP_IN
+				ElseIf poly_class<>BSP_IN
+					poly_class=BSP_SPANNING
 				EndIf
 				If sideA>EPSILON
 					Local v:TVector=ptB.Sub(ptA)
 					Local p:TVector=ptA.Add(v.Scale(-ptA.Dot(plane)/v.Dot(plane)))
 					outpts[out_c]=p;inpts[in_c]=p
 					out_c:+1;in_c:+1
-					poly_class=HC_SPANNING
+					poly_class=BSP_SPANNING
 				EndIf
 				inpts[in_c]=ptB
 				in_c:+1
@@ -328,11 +292,11 @@ Type TBSPNode
 			sideA=sideB
 		Next	
 		Select poly_class
-		Case HC_OUT
+		Case BSP_OUT
 			out=poly
-		Case HC_IN
+		Case BSP_IN
 			in=poly
-		Case HC_SPANNING
+		Case BSP_SPANNING
 			out=New TBSPRCPolygon.Create(outpts[..out_c])
 			in=New TBSPRCPolygon.Create(inpts[..in_c])
 		End Select
@@ -348,9 +312,9 @@ Type TBSPTree
 		If Node
 			Node.Insert(list,keep)
 		Else
-			If cur=keep Or keep=HC_SPANNING
+			If cur=keep Or keep=BSP_SPANNING
 				Node=New TBSPNode.Create(TBSPPolygon(list.RemoveFirst()))
-				If Not list.IsEmpty() Node.Insert(list,HC_SPANNING)
+				If Not list.IsEmpty() Node.Insert(list,BSP_SPANNING)
 			EndIf
 		EndIf
 	End Method
@@ -376,7 +340,7 @@ Type TBSPTree
 		If Node Node.Reduce()
 	End Method
 	
-	Method RayIntersection(r:TBSPRay Var,poly_hit:TBSPPolygon Var,ipt:TVector Var)
+	Method RayIntersection(r:TRay Var,poly_hit:TBSPPolygon Var,ipt:TVector Var)
 		If Node Return Node.RayIntersection(r,poly_hit,ipt)
 		Return False
 	End Method
