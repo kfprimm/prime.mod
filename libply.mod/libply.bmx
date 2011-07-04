@@ -62,7 +62,7 @@ Type TPlyFile
 		Local stream:TStream=TStream(url),owns_stream
 		If stream=Null stream=ReadStream(url);owns_stream=True
 		If stream=Null Return Null
-		DebugStop
+		
 		If ReadLine(stream)<>"ply"
 			If owns_stream CloseStream stream
 			Return Null

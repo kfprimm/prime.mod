@@ -144,7 +144,7 @@ Type TPlane Extends TVector
 		Return TPlane(Create4(v.x,v.y,v.z,-v.Dot(a)))
 	End Method 
 	
-	Method RayIntersection(r:TRay)
+	Method RayIntersection#(r:TRay)
 		Local costheta#=-r.Direction.Dot(Self)	
 		If Abs(costheta)<EPSILON Return -1	
 		Return r.Origin.Dot(Self)/costheta
@@ -529,7 +529,7 @@ Type TFrustum
 	Method IntersectsPoint#(x#,y#,z#,radius#=0.001)
 		Local d#
 		For Local p=0 To 5
-			d# = _m[p,0] * x + _m[p,1] * y + _m[p,2] * -z + _m[p,3]
+			d# = _m[p,0] * x + _m[p,1] * y + _m[p,2] * z + _m[p,3]
 			If d <= -radius Then Return 0
 		Next
 		Return d + radius
