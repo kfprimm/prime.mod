@@ -20,6 +20,13 @@ Const INFINITY# = 100000.0
 Const EPSILON# = 1.0/100000.0
 Const TWO_PI# = Pi*2.0
 
+Function Vec3:TVector(x#,y#,z#)
+	Return New TVector.Create3(x,y,z)
+End Function
+Function Vec4:TVector(x#,y#,z#,w#)
+	Return New TVector.Create4(x,y,z,w)
+End Function
+
 Type TVector
 	Field x#,y#,z#,w#
 	
@@ -37,12 +44,12 @@ Type TVector
 		Return Self
 	End Method
 
-	Method Create3:TVector(a#,b#,c#)
+	Method Create3:TVector(a#,b#,c#)	
 		Return Create4(a,b,c,1.0)
 	End Method	
 	
 	Method To3:TVector()
-		Return New TVector.Create3(x,y,z)
+		Return Vec4(x,y,z,1.0)
 	End Method
 	
 	Method Equals(v:TVector)
@@ -54,27 +61,27 @@ Type TVector
 	End Method
 	
 	Method Copy:TVector()
-		Return New TVector.Create4(x,y,z,w)
+		Return Vec4(x,y,z,w)
 	End Method
 	
 	Method Add:TVector(v:TVector)
-		Return New TVector.Create4(x+v.x,y+v.y,z+v.z,w+v.w)
+		Return Vec4(x+v.x,y+v.y,z+v.z,w+v.w)
 	End Method
 	
 	Method Sub:TVector(v:TVector)
-		Return New TVector.Create4(x-v.x,y-v.y,z-v.z,w-v.w)
+		Return Vec4(x-v.x,y-v.y,z-v.z,w-v.w)
 	End Method
 	
 	Method Mult:TVector(v:TVector)
-		Return New TVector.Create4(x*v.x,y*v.y,z*v.z,w*v.w)
+		Return Vec4(x*v.x,y*v.y,z*v.z,w*v.w)
 	End Method
 	
 	Method Scale:TVector(s#)
-		Return New TVector.Create4(x*s,y*s,z*s,w*s)
+		Return Vec4(x*s,y*s,z*s,w*s)
 	End Method
 	
 	Method Cross:TVector(v:TVector)
-		Return New TVector.Create3(y*v.z-z*v.y,z*v.x-x*v.z,x*v.y-y*v.x)
+		Return Vec3(y*v.z-z*v.y,z*v.x-x*v.z,x*v.y-y*v.x)
 	End Method
 	
 	Method Dot#(v:TVector)
@@ -117,6 +124,10 @@ Type TVector
 	Method Invert()
 		x:*-1;y:*-1;z:*-1;w:*-1
 	End Method
+	
+	Method ToString$()
+		Return x+","+y+","+z+","+w
+	End Method
 End Type
 
 Type TRay
@@ -148,6 +159,11 @@ Type TPlane Extends TVector
 		Local costheta#=-r.Direction.Dot(Self)	
 		If Abs(costheta)<EPSILON Return -1	
 		Return r.Origin.Dot(Self)/costheta
+	End Method
+	
+	Method LineIntersection:TVector(ptA:TVector,ptB:TVector)
+		Local v:TVector=ptB.Sub(ptA)
+		Return ptA.Add(v.Scale(-ptA.Dot(Self)/v.Dot(Self)))
 	End Method
 End Type
 
@@ -365,9 +381,7 @@ Type TMatrix
 	End Function
 End Type
 
-Type TQuaternion
-	Field w#,x#,y#,z#
-
+Type TQuaternion Extends TVector
 	Function Matrix:TMatrix(w#,x#,y#,z#)
 		Local q#[]=[w,x,y,z]
 		

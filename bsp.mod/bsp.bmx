@@ -136,6 +136,7 @@ Type TBSPNode
 	Field In:TBSPTree=New TBSPTree
 	Field Out:TBSPTree=New TBSPTree
 	Field Plane:TPlane=New TPlane
+	Field Data:Object,Dirty
 	
 	Method Create:TBSPNode(poly:TBSPPolygon)
 		Plane.Equals(poly.Plane)
@@ -150,6 +151,7 @@ Type TBSPNode
 			Local side=Split(poly,Plane,inp,outp)
 			If side=BSP_ON
 				On.AddLast(poly)
+				Dirty=True
 			Else
 				If side=BSP_IN Or side=BSP_SPANNING inside.AddLast(inp)
 				If side=BSP_OUT Or side=BSP_SPANNING outside.AddLast(outp)
@@ -165,6 +167,7 @@ Type TBSPNode
 		Local side=Split(poly,Plane,inp,outp)
 		If side=BSP_ON
 			result.AddLast(poly)
+			Dirty=True
 		Else
 			If side=BSP_IN Or side=BSP_SPANNING In.PushFace(inp,result,keep,BSP_IN)
 			If side=BSP_OUT Or side=BSP_SPANNING Out.PushFace(outp,result,keep,BSP_OUT)
@@ -178,6 +181,7 @@ Type TBSPNode
 			Local side=Split(poly,Plane,inp,outp)
 			If side=BSP_ON
 				result.AddLast(poly)
+				Dirty=True
 			Else
 				If side=BSP_IN Or side=BSP_SPANNING inside.AddLast(inp)
 				If side=BSP_OUT Or side=BSP_SPANNING outside.AddLast(outp)
@@ -201,6 +205,7 @@ Type TBSPNode
 		On=boundary
 		In.Reduce
 		Out.Reduce
+		Dirty=True
 	End Method
 	
 	Method RayIntersection(r:TRay Var,poly_hit:TBSPPolygon Var,ipt:TVector Var)
@@ -261,8 +266,9 @@ Type TBSPNode
 					poly_class=BSP_SPANNING
 				EndIf
 				If sideA<-EPSILON
-					Local v:TVector=ptB.Sub(ptA)
-					Local p:TVector=ptA.Add(v.Scale(-ptA.Dot(plane)/v.Dot(plane)))
+					'Local v:TVector=ptB.Sub(ptA)
+					'Local p:TVector=ptA.Add(v.Scale(-ptA.Dot(plane)/v.Dot(plane)))
+					Local p:TVector=plane.LineIntersection(ptA,ptB)
 					outpts[out_c]=p;inpts[in_c]=p
 					out_c:+1;in_c:+1
 					poly_class=BSP_SPANNING
@@ -276,8 +282,9 @@ Type TBSPNode
 					poly_class=BSP_SPANNING
 				EndIf
 				If sideA>EPSILON
-					Local v:TVector=ptB.Sub(ptA)
-					Local p:TVector=ptA.Add(v.Scale(-ptA.Dot(plane)/v.Dot(plane)))
+					'Local v:TVector=ptB.Sub(ptA)
+					'Local p:TVector=ptA.Add(v.Scale(-ptA.Dot(plane)/v.Dot(plane)))
+					Local p:TVector=plane.LineIntersection(ptA,ptB)
 					outpts[out_c]=p;inpts[in_c]=p
 					out_c:+1;in_c:+1
 					poly_class=BSP_SPANNING
