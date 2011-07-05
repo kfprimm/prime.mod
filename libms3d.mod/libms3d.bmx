@@ -30,7 +30,7 @@ Type TMS3DFile
 		Local stream:TStream=ReadStream(url)
 		If stream=Null Return Null
 		
-		id=ReadString(stream,10)
+		id=ReadString(stream,10).Trim()
 		If id<>MS3D_FILE_ID
 			CloseStream stream
 			Return Null
@@ -95,7 +95,7 @@ Type TMS3DFile
 		Materials=New TMS3DMaterial[material_count]
 		For Local i=0 To material_count-1
 			Materials[i]=New TMS3DMaterial
-			Materials[i].name=ReadString(stream,32)
+			Materials[i].name=ReadString(stream,32).Trim()
 			stream.ReadBytes Materials[i].ambient,4*4
 			stream.ReadBytes Materials[i].ambient,4*4
 			stream.ReadBytes Materials[i].ambient,4*4
@@ -103,8 +103,8 @@ Type TMS3DFile
 			Materials[i].shininess=ReadFloat(stream)
 			Materials[i].transparency=ReadFloat(stream)
 			Materials[i].mode=ReadByte(stream)
-			Materials[i].texture=ReadString(stream,128)
-			Materials[i].alphamap=ReadString(stream,128)
+			Materials[i].texture=ReadString(stream,128).Trim()
+			Materials[i].alphamap=ReadString(stream,128).Trim()
 		Next
 		
 		AnimationFPS=ReadFloat(stream)
@@ -116,8 +116,8 @@ Type TMS3DFile
 		For Local i=0 To joint_count-1
 			Joints[i]=New TMS3DJoint
 			Joints[i].flags=ReadByte(stream)
-			Joints[i].name=ReadString(stream,32)
-			Joints[i].parentName=ReadString(stream,32)
+			Joints[i].name=ReadString(stream,32).Trim()
+			Joints[i].parentName=ReadString(stream,32).Trim()
 			stream.ReadBytes Joints[i].rotation,4*3
 			stream.ReadBytes Joints[i].position,4*3
 			Joints[i].numKeyFramesRot=ReadShort(stream)
@@ -138,6 +138,27 @@ Type TMS3DFile
 		
 		CloseStream stream		
 		Return Self
+	End Method
+	
+	Method ObjectEnumerator:Object()
+		Return New TMS3DEnumerator.Create(Vertices+Triangles+Groups+Materials+Joints)
+	End Method
+End Type
+
+Type TMS3DEnumerator
+	Field _objs:Object[],_pos=-1
+	
+	Method Create:TMS3DEnumerator(objs:Object[])
+		_objs=objs
+		Return Self
+	End Method
+	
+	Method HasNext()
+		Return _pos>_objs.length-1
+	End Method	
+	Method NextObject:Object()
+		_pos:+1
+		Return _objs[_pos]
 	End Method
 End Type
 
@@ -200,3 +221,4 @@ Type TMS3DJoint
 	Field keyFramesRot:TMS3DKeyframe[]
 	Field keyFramesTrans:TMS3DKeyframe[]
 End Type
+
