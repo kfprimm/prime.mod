@@ -266,8 +266,6 @@ Type TBSPNode
 					poly_class=BSP_SPANNING
 				EndIf
 				If sideA<-EPSILON
-					'Local v:TVector=ptB.Sub(ptA)
-					'Local p:TVector=ptA.Add(v.Scale(-ptA.Dot(plane)/v.Dot(plane)))
 					Local p:TVector=plane.LineIntersection(ptA,ptB)
 					outpts[out_c]=p;inpts[in_c]=p
 					out_c:+1;in_c:+1
@@ -282,8 +280,6 @@ Type TBSPNode
 					poly_class=BSP_SPANNING
 				EndIf
 				If sideA>EPSILON
-					'Local v:TVector=ptB.Sub(ptA)
-					'Local p:TVector=ptA.Add(v.Scale(-ptA.Dot(plane)/v.Dot(plane)))
 					Local p:TVector=plane.LineIntersection(ptA,ptB)
 					outpts[out_c]=p;inpts[in_c]=p
 					out_c:+1;in_c:+1

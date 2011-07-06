@@ -45,11 +45,11 @@ Type TVector
 	End Method
 
 	Method Create3:TVector(a#,b#,c#)	
-		Return Create4(a,b,c,1.0)
+		Return Create4(a,b,c,0.0)
 	End Method	
 	
 	Method To3:TVector()
-		Return Vec4(x,y,z,1.0)
+		Return Vec4(x,y,z,0.0)
 	End Method
 	
 	Method Equals(v:TVector)
@@ -162,7 +162,7 @@ Type TPlane Extends TVector
 	End Method
 	
 	Method LineIntersection:TVector(ptA:TVector,ptB:TVector)
-		Local v:TVector=ptB.Sub(ptA)
+		Local v:TVector=ptB.Sub(ptA).To3()
 		Return ptA.Add(v.Scale(-ptA.Dot(Self)/v.Dot(Self)))
 	End Method
 End Type
