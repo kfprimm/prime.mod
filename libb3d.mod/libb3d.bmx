@@ -504,7 +504,7 @@ Type TChunk
 			str:+Chr(c)
 			c=ReadByte(stream)
 		Wend
-		Return str
+		Return str.Trim()
 	End Function
 	
 	Function ReadFloats(stream:TStream,array:Float Ptr,length)

@@ -82,7 +82,7 @@ Type TMS3DFile
 		For Local i=0 To group_count-1
 			Groups[i]=New TMS3DGroup
 			Groups[i].flags=ReadByte(stream)
-			Groups[i].name=ReadString(stream,32)
+			Groups[i].name=ReadString(stream,32).Trim()
 			Groups[i].numtriangles=ReadShort(stream)
 			Groups[i].triangleIndices=New Int[Groups[i].numtriangles]
 			For Local j=0 To Groups[i].numtriangles-1
