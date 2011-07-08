@@ -30,7 +30,7 @@ Type TMS3DFile
 		Local stream:TStream=ReadStream(url)
 		If stream=Null Return Null
 		
-		id=ReadString(stream,10).Trim()
+		id=ReadString(stream,10)
 		If id<>MS3D_FILE_ID
 			CloseStream stream
 			Return Null
@@ -82,7 +82,7 @@ Type TMS3DFile
 		For Local i=0 To group_count-1
 			Groups[i]=New TMS3DGroup
 			Groups[i].flags=ReadByte(stream)
-			Groups[i].name=ReadString(stream,32).Trim()
+			Groups[i].name=ReadCString(stream,32)
 			Groups[i].numtriangles=ReadShort(stream)
 			Groups[i].triangleIndices=New Int[Groups[i].numtriangles]
 			For Local j=0 To Groups[i].numtriangles-1
@@ -95,7 +95,7 @@ Type TMS3DFile
 		Materials=New TMS3DMaterial[material_count]
 		For Local i=0 To material_count-1
 			Materials[i]=New TMS3DMaterial
-			Materials[i].name=ReadString(stream,32).Trim()
+			Materials[i].name=ReadCString(stream,32)
 			stream.ReadBytes Materials[i].ambient,4*4
 			stream.ReadBytes Materials[i].ambient,4*4
 			stream.ReadBytes Materials[i].ambient,4*4
@@ -103,8 +103,8 @@ Type TMS3DFile
 			Materials[i].shininess=ReadFloat(stream)
 			Materials[i].transparency=ReadFloat(stream)
 			Materials[i].mode=ReadByte(stream)
-			Materials[i].texture=ReadString(stream,128).Trim()
-			Materials[i].alphamap=ReadString(stream,128).Trim()
+			Materials[i].texture=ReadCString(stream,128)
+			Materials[i].alphamap=ReadCString(stream,128)
 		Next
 		
 		AnimationFPS=ReadFloat(stream)
@@ -116,8 +116,8 @@ Type TMS3DFile
 		For Local i=0 To joint_count-1
 			Joints[i]=New TMS3DJoint
 			Joints[i].flags=ReadByte(stream)
-			Joints[i].name=ReadString(stream,32).Trim()
-			Joints[i].parentName=ReadString(stream,32).Trim()
+			Joints[i].name=ReadCString(stream,32)
+			Joints[i].parentName=ReadCString(stream,32)
 			stream.ReadBytes Joints[i].rotation,4*3
 			stream.ReadBytes Joints[i].position,4*3
 			Joints[i].numKeyFramesRot=ReadShort(stream)
@@ -138,6 +138,12 @@ Type TMS3DFile
 		
 		CloseStream stream		
 		Return Self
+	End Method
+	
+	Method ReadCString$(stream:TStream,count)
+		Local buf:Byte[count]
+		stream.ReadBytes buf,count
+		Return String.FromCString(buf)
 	End Method
 	
 	Method ObjectEnumerator:Object()

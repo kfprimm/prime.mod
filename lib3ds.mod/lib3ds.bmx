@@ -65,7 +65,7 @@ Const A3DS_ANIM_SCALE        =$B022 'ok
 Const A3DS_ANIM_HIERARCHYPOS =$B030 'ok
 
 Type T3DSColor
-	Field r#,g#,b#
+	Field r#=1.0,g#=1.0,b#=1.0
 End Type
 
 Type T3DSMaterial
@@ -164,6 +164,7 @@ Type T3DSFile
 	
 	Method ParseChunk(stream:TStream)		
 		Global _material:T3DSMaterial,_mesh:T3DSMesh,_animation:T3DSAnimation
+		Global _color:T3DSColor
 		
 		If Eof(stream) Return				
 		Local id=ReadShort(stream),length=ReadInt(stream),pos=StreamPos(stream)
@@ -183,29 +184,33 @@ Type T3DSFile
 		Case A3DS_MAT_NAME
 			_material.Name=ReadCString(stream)
 		Case A3DS_MAT_AMBIENT
-			SkipAhead stream,6
-			_material.AmbientColor.r=ReadFloat(stream)
-			_material.AmbientColor.g=ReadFloat(stream)
-			_material.AmbientColor.b=ReadFloat(stream)
-			SkipChunk stream,pos,length
+			_color=_material.AmbientColor
+			ParseChunk stream
 		Case A3DS_MAT_DIFFUSE
-			SkipAhead stream,6
-			_material.DiffuseColor.r=ReadFloat(stream)
-			_material.DiffuseColor.g=ReadFloat(stream)
-			_material.DiffuseColor.b=ReadFloat(stream)
-			SkipChunk stream,pos,length
+			_color=_material.DiffuseColor
+			ParseChunk stream
 		Case A3DS_MAT_SPECULAR
-			'GetSpecularColour(tempChunk)		
+			_color=_material.SpecularColor
+			ParseChunk stream
 		'Case A3DS_MAT_SHININESS '? in %
 			'GetShininessColour(tempChunk)		
 		'Case A3DS_MAT_FALLOFF
 			'GetFallOffColour(tempChunk)		
 		Case A3DS_MAT_EMISSIVE
-			'GetEmissiveColour(tempChunk)		
+			_color=_material.EmissiveColor
+			ParseChunk stream
 		Case A3DS_MAT_TEXMAP
 			DebugLog "MAT_TEXMAP"
 		Case A3DS_MAT_TEXFLNM
 			_material.TextureFile=ReadCString(stream)	
+		Case A3DS_COLOR_F
+			_color.r=ReadFloat(stream)
+			_color.g=ReadFloat(stream)
+			_color.b=ReadFloat(stream)
+		Case A3DS_COLOR_24
+			_color.r=ReadByte(stream)/255.0
+			_color.g=ReadByte(stream)/255.0
+			_color.b=ReadByte(stream)/255.0
 		Case A3DS_NAMED_OBJECT
 			_mesh=New T3DSMesh
 			Meshes:+[_mesh]
@@ -213,7 +218,7 @@ Type T3DSFile
 		Case A3DS_OBJ_MESH
 		Case A3DS_MESH_VERTICES
 			Local vertices:T3DSVertex[]=New T3DSVertex[ReadShort(stream)]
-			For Local i=0 To _mesh.Vertices.length-1
+			For Local i=0 To vertices.length-1
 				vertices[i]=New T3DSVertex
 				vertices[i].x=ReadFloat(stream)
 				vertices[i].y=ReadFloat(stream)
