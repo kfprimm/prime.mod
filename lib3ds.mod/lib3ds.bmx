@@ -4,306 +4,324 @@ Strict
 Module sys87.lib3ds
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
+ModuleInfo "Credit: Based on Markus Rauch's BlitzBasic code archives entry."
 
-Import "src/*.h"
-Import "src/lib3ds_atmosphere.c"
-Import "src/lib3ds_background.c"
-Import "src/lib3ds_camera.c"
-Import "src/lib3ds_chunk.c"
-Import "src/lib3ds_chunktable.c"
-Import "src/lib3ds_file.c"
-Import "src/lib3ds_io.c"
-Import "src/lib3ds_light.c"
-Import "src/lib3ds_material.c"
-Import "src/lib3ds_math.c"
-Import "src/lib3ds_matrix.c"
-Import "src/lib3ds_mesh.c"
-Import "src/lib3ds_node.c"
-Import "src/lib3ds_quat.c"
-Import "src/lib3ds_shadow.c"
-Import "src/lib3ds_track.c"
-Import "src/lib3ds_util.c"
-Import "src/lib3ds_vector.c"
-Import "src/lib3ds_viewport.c"
+Import BRL.Stream
+Import BRL.Retro ' Just for testing.
 
-Import "lib3ds_file_wrapper.c"
-Import "lib3ds_mesh_wrapper.c"
+Const A3DS_PRIMARY = $4D4D
 
+Const A3DS_EDIT3DS           =$3D3D  ' Start of our actual objects
+Const A3DS_KEYF3DS           =$B000  ' Start of the keyframe information
 
-Const LIB3DS_SEEK_SET     = 0
-Const LIB3DS_SEEK_CUR     = 1
-Const LIB3DS_SEEK_END     = 2
+Const A3DS_VERSION           =$0002 'ok
+Const A3DS_MESH_VERSION      =$3D3E
+Const A3DS_KFVERSION         =$0005
+Const A3DS_COLOR_F           =$0010
+Const A3DS_COLOR_24          =$0011
+Const A3DS_LIN_COLOR_24      =$0012
+Const A3DS_LIN_COLOR_F       =$0013
+Const A3DS_INT_PERCENTAGE    =$0030
+Const A3DS_FLOAT_PERC        =$0031
+Const A3DS_MASTER_SCALE      =$0100
+Const A3DS_IMAGE_FILE        =$1100
+Const A3DS_AMBIENT_LIGHT     =$2100
 
-Const LIB3DS_LOG_ERROR    = 0
-Const LIB3DS_LOG_WARN     = 1
-Const LIB3DS_LOG_INFO     = 2
-Const LIB3DS_LOG_DEBUG    = 3
+Const A3DS_NAMED_OBJECT      =$4000 'ok
+Const A3DS_OBJ_MESH          =$4100 'ok
+Const A3DS_MESH_VERTICES     =$4110 'ok
+Const A3DS_VERTEX_FLAGS      =$4111
+Const A3DS_MESH_FACES        =$4120 'ok
+Const A3DS_MESH_MATER        =$4130 'ok
+Const A3DS_MESH_TEX_VERT     =$4140 'ok
+Const A3DS_MESH_XFMATRIX     =$4160 'ok Local coordinate system
+Const A3DS_MESH_COLOR_IND    =$4165
+Const A3DS_MESH_TEX_INFO     =$4170
+Const A3DS_HEIRARCHY         =$4F00 '? skip
 
-Const LIB3DS_VIEW_NOT_USED   = 0
-Const LIB3DS_VIEW_TOP        = 1
-Const LIB3DS_VIEW_BOTTOM     = 2
-Const LIB3DS_VIEW_LEFT       = 3
-Const LIB3DS_VIEW_RIGHT      = 4
-Const LIB3DS_VIEW_FRONT      = 5
-Const LIB3DS_VIEW_BACK       = 6
-Const LIB3DS_VIEW_USER       = 7
-Const LIB3DS_VIEW_SPOTLIGHT  = 18
-Const LIB3DS_VIEW_CAMERA     = 65535
+Const A3DS_MATERIAL          =$AFFF 'ok
+Const A3DS_MAT_NAME          =$A000 'ok
+Const A3DS_MAT_AMBIENT       =$A010 'ok
+Const A3DS_MAT_DIFFUSE       =$A020 'ok
+Const A3DS_MAT_SPECULAR      =$A030 'ok
+Const A3DS_MAT_SHININESS     =$A040 '...
+Const A3DS_MAT_FALLOFF       =$A052 'ok
+Const A3DS_MAT_EMISSIVE      =$A080 'ok
+Const A3DS_MAT_SHADER        =$A100
+Const A3DS_MAT_TEXMAP        =$A200 'ok
+Const A3DS_MAT_TEXFLNM       =$A300 'ok
 
-Const LIB3DS_LAYOUT_SINGLE                    = 0
-Const LIB3DS_LAYOUT_TWO_PANE_VERT_SPLIT       = 1
-Const LIB3DS_LAYOUT_TWO_PANE_HORIZ_SPLIT      = 2
-Const LIB3DS_LAYOUT_FOUR_PANE                 = 3
-Const LIB3DS_LAYOUT_THREE_PANE_LEFT_SPLIT     = 4
-Const LIB3DS_LAYOUT_THREE_PANE_BOTTOM_SPLIT   = 5
-Const LIB3DS_LAYOUT_THREE_PANE_RIGHT_SPLIT    = 6
-Const LIB3DS_LAYOUT_THREE_PANE_TOP_SPLIT      = 7
-Const LIB3DS_LAYOUT_THREE_PANE_VERT_SPLIT     = 8
-Const LIB3DS_LAYOUT_THREE_PANE_HORIZ_SPLIT    = 9
-Const LIB3DS_LAYOUT_FOUR_PANE_LEFT_SPLIT      = 10
-Const LIB3DS_LAYOUT_FOUR_PANE_RIGHT_SPLIT     = 11
+Const A3DS_OBJ_LIGHT         =$4600
+Const A3DS_OBJ_CAMERA        =$4700
 
-Const LIB3DS_TEXTURE_DECALE       = $0001
-Const LIB3DS_TEXTURE_MIRROR       = $0002
-Const LIB3DS_TEXTURE_NEGATE       = $0008
-Const LIB3DS_TEXTURE_NO_TILE      = $0010
-Const LIB3DS_TEXTURE_SUMMED_AREA  = $0020
-Const LIB3DS_TEXTURE_ALPHA_SOURCE = $0040
-Const LIB3DS_TEXTURE_TINT         = $0080
-Const LIB3DS_TEXTURE_IGNORE_ALPHA = $0100
-Const LIB3DS_TEXTURE_RGB_TINT     = $0200
+Const A3DS_ANIM_HEADER       =$B00A 'skip
+Const A3DS_ANIM_OBJ          =$B002 'ok
+Const A3DS_ANIM_S_E_TIME     =$B008 'ok
+Const A3DS_ANIM_NAME         =$B010 'ok
+Const A3DS_ANIM_PIVOT        =$B013 'ok
+Const A3DS_ANIM_POS          =$B020 'ok
+Const A3DS_ANIM_ROT          =$B021 'ok 
+Const A3DS_ANIM_SCALE        =$B022 'ok
+Const A3DS_ANIM_HIERARCHYPOS =$B030 'ok
 
-Const LIB3DS_AUTOREFL_USE                     = $0001
-Const LIB3DS_AUTOREFL_READ_FIRST_FRAME_ONLY   = $0004
-Const LIB3DS_AUTOREFL_FLAT_MIRROR             = $0008 
-
-Const LIB3DS_SHADING_WIRE_FRAME = 0
-Const LIB3DS_SHADING_FLAT       = 1 
-Const LIB3DS_SHADING_GOURAUD    = 2 
-Const LIB3DS_SHADING_PHONG      = 3 
-Const LIB3DS_SHADING_METAL      = 4
-
-
-Const LIB3DS_OBJECT_HIDDEN          = $01 
-Const LIB3DS_OBJECT_VIS_LOFTER      = $02 
-Const LIB3DS_OBJECT_DOESNT_CAST     = $04 
-Const LIB3DS_OBJECT_MATTE           = $08 
-Const LIB3DS_OBJECT_DONT_RCVSHADOW  = $10 
-Const LIB3DS_OBJECT_FAST            = $20 
-Const LIB3DS_OBJECT_FROZEN          = $40 
-
-Const LIB3DS_MAP_NONE           = -1
-Const LIB3DS_MAP_PLANAR         = 0
-Const LIB3DS_MAP_CYLINDRICAL    = 1
-Const LIB3DS_MAP_SPHERICAL      = 2
-
-Const LIB3DS_FACE_VIS_AC    = $01
-Const LIB3DS_FACE_VIS_BC    = $02 
-Const LIB3DS_FACE_VIS_AB    = $04 
-Const LIB3DS_FACE_WRAP_U    = $08
-Const LIB3DS_FACE_WRAP_V    = $10 
-Const LIB3DS_FACE_SELECT_3  = (1 Shl 13) 
-Const LIB3DS_FACE_SELECT_2  = (1 Shl 14)    
-Const LIB3DS_FACE_SELECT_1  = (1 Shl 15)
-
-Const LIB3DS_NODE_AMBIENT_COLOR   = 0
-Const LIB3DS_NODE_MESH_INSTANCE   = 1
-Const LIB3DS_NODE_CAMERA          = 2
-Const LIB3DS_NODE_CAMERA_TARGET   = 3
-Const LIB3DS_NODE_OMNILIGHT       = 4
-Const LIB3DS_NODE_SPOTLIGHT       = 5
-Const LIB3DS_NODE_SPOTLIGHT_TARGET= 6
-
-Const LIB3DS_NODE_HIDDEN           = $000800
-Const LIB3DS_NODE_SHOW_PATH        = $010000
-Const LIB3DS_NODE_SMOOTHING        = $020000
-Const LIB3DS_NODE_MOTION_BLUR      = $100000
-Const LIB3DS_NODE_MORPH_MATERIALS  = $400000
-
-Const LIB3DS_KEY_USE_TENS         = $01
-Const LIB3DS_KEY_USE_CONT         = $02
-Const LIB3DS_KEY_USE_BIAS         = $04
-Const LIB3DS_KEY_USE_EASE_TO      = $08
-Const LIB3DS_KEY_USE_EASE_FROM    = $10
-
-Const LIB3DS_TRACK_BOOL   = 0
-Const LIB3DS_TRACK_FLOAT  = 1
-Const LIB3DS_TRACK_VECTOR = 3
-Const LIB3DS_TRACK_QUAT   = 4
-
-Const LIB3DS_TRACK_REPEAT   = $0001
-Const LIB3DS_TRACK_SMOOTH   = $0002
-Const LIB3DS_TRACK_LOCK_X   = $0008
-Const LIB3DS_TRACK_LOCK_Y   = $0010
-Const LIB3DS_TRACK_LOCK_Z   = $0020
-Const LIB3DS_TRACK_UNLINK_X = $0100
-Const LIB3DS_TRACK_UNLINK_Y = $0200
-Const LIB3DS_TRACK_UNLINK_Z = $0400
-
-Type Lib3dsIo
-	Field impl:Byte Ptr
-	Field self_:Byte Ptr
-	Field seek_func:Byte Ptr ' Function seek_func:long(self_:byte ptr, offset:long, origin)
-	Field tell_func:Byte Ptr ' Function tell_func:long(self_:byte ptr)
-	Field read_func:Byte Ptr ' Function write_func(self_:byte ptr,buffer:byte ptr,size)
-	Field write_func:Byte Ptr ' Function read_func(self_:byte ptr,buffer:byte ptr,size)
-	Field log_func:Byte Ptr ' Function log_func(self_:byte ptr, level, indent, msg:Byte ptr)
+Type T3DSColor
+	Field r#,g#,b#
 End Type
 
-Extern
-	' lib functions
-	Function lib3ds_file_open:Byte Ptr(filename:Byte Ptr)
-	Function lib3ds_file_save(file:Byte Ptr, filename:Byte Ptr)
-	Function lib3ds_file_new:Byte Ptr()
-	Function lib3ds_file_free(file:Byte Ptr)
-	Function lib3ds_file_eval(file:Byte Ptr, t#)
-	Function lib3ds_file_read(file:Byte Ptr, io:Byte Ptr)
-	Function lib3ds_file_write(file:Byte Ptr, io:Byte Ptr)
-	Function lib3ds_file_reserve_materials(file:Byte Ptr, size, force)
-	Function lib3ds_file_insert_material(file:Byte Ptr, material:Byte Ptr, index)
-	Function lib3ds_file_remove_material(file:Byte Ptr, index)
-	Function lib3ds_file_material_by_name(file:Byte Ptr, name:Byte Ptr)
-	Function lib3ds_file_reserve_cameras(file:Byte Ptr, size, force)
-	Function lib3ds_file_insert_camera(file:Byte Ptr, camera:Byte Ptr, index)
-	Function lib3ds_file_remove_camera(file:Byte Ptr, index)
-	Function lib3ds_file_camera_by_name(file:Byte Ptr, name:Byte Ptr)
-	Function lib3ds_file_reserve_lights(file:Byte Ptr, size, force)
-	Function lib3ds_file_insert_light(file:Byte Ptr, light:Byte Ptr, index)
-	Function lib3ds_file_remove_light(file:Byte Ptr, index)
-	Function lib3ds_file_light_by_name(file:Byte Ptr, name:Byte Ptr)
-	Function lib3ds_file_reserve_meshes(file:Byte Ptr, size, force)
-	Function lib3ds_file_insert_mesh(file:Byte Ptr, mesh:Byte Ptr, index)
-	Function lib3ds_file_remove_mesh(file:Byte Ptr, index)
-	Function lib3ds_file_mesh_by_name(file:Byte Ptr, name:Byte Ptr)
-	Function lib3ds_file_mesh_for_node:Byte Ptr(file:Byte Ptr, node:Byte Ptr)
-	Function lib3ds_file_node_by_name:Byte Ptr(file:Byte Ptr, name:Byte Ptr, type_)
-	Function lib3ds_file_node_by_id:Byte Ptr(file:Byte Ptr, node_id:Short)
-	Function lib3ds_file_append_node(file:Byte Ptr, node:Byte Ptr, parent:Byte Ptr)
-	Function lib3ds_file_insert_node(file:Byte Ptr, node:Byte Ptr, at:Byte Ptr)
-	Function lib3ds_file_remove_node(file:Byte Ptr, node:Byte Ptr)
-	Function lib3ds_file_minmax_node_id(file:Byte Ptr, min_id:Short Ptr, max_id:Short Ptr)
-	Function lib3ds_file_create_nodes_for_meshes(file:Byte Ptr)
-	Function lib3ds_file_bounding_box_of_objects(file:Byte Ptr, include_meshes, include_cameras, include_lights, bmin:Float Ptr, bmax:Float Ptr)
-	Function lib3ds_file_bounding_box_of_nodes(file:Byte Ptr, include_meshes, include_cameras, include_lights, bmin:Float Ptr, bmax:Float Ptr, matrix:Float Ptr)
-	
-	Function lib3ds_material_new:Byte Ptr(name:Byte Ptr)
-	Function lib3ds_material_free(material:Byte Ptr)
-	Function lib3ds_camera_new:Byte Ptr(name:Byte Ptr)
-	Function lib3ds_camera_free(camera:Byte Ptr)
-	Function lib3ds_light_new:Byte Ptr(name:Byte Ptr)
-	Function lib3ds_light_free(light:Byte Ptr)
-	Function lib3ds_mesh_new:Byte Ptr(name:Byte Ptr)
-	Function lib3ds_mesh_free(mesh:Byte Ptr)
-	Function lib3ds_mesh_resize_vertices(mesh:Byte Ptr, nvertices, use_texcos, use_flags)
-	Function lib3ds_mesh_resize_faces(mesh:Byte Ptr, nfaces)
-	Function lib3ds_mesh_bounding_box(mesh:Byte Ptr, bmin:Float Ptr, bmax:Float Ptr)
-	Function lib3ds_mesh_calculate_face_normals(mesh:Byte Ptr, face_normals:Float Ptr)
-	Function lib3ds_mesh_calculate_vertex_normals(mesh:Byte Ptr, normals:Float Ptr)
-	
-	Function lib3ds_node_new:Byte Ptr(type_)
-	Function lib3ds_node_new_ambient_color:Byte Ptr(color0:Float Ptr)
-	Function lib3ds_node_new_mesh_instance:Byte Ptr(mesh:Byte Ptr, instance_name:Byte Ptr, pos0:Float Ptr, scl0:Float Ptr, rot0:Float Ptr)
-	Function lib3ds_node_new_camera:Byte Ptr(camera:Byte Ptr)
-	Function lib3ds_node_new_camera_target:Byte Ptr(camera:Byte Ptr)
-	Function lib3ds_node_new_omnilight:Byte Ptr(light:Byte Ptr)
-	Function lib3ds_node_new_spotlight:Byte Ptr(light:Byte Ptr)
-	Function lib3ds_node_new_spotlight_target:Byte Ptr(light:Byte Ptr)
-	Function lib3ds_node_free(node:Byte Ptr)
-	Function lib3ds_node_eval(node:Byte Ptr, t#)
-	Function lib3ds_node_by_name:Byte Ptr(node:Byte Ptr, name:Byte Ptr, type_)
-	Function lib3ds_node_by_id:Byte Ptr(node:Byte Ptr, node_id:Short)
-	
-	Function lib3ds_track_new:Byte Ptr(type_, nkeys)
-	Function lib3ds_track_free(track:Byte Ptr)
-	Function lib3ds_track_resize(track:Byte Ptr, nkeys)
-	Function lib3ds_track_eval_bool(track:Byte Ptr, b:Int Ptr, t#)
-	Function lib3ds_track_eval_float(track:Byte Ptr, f:Float Ptr, t#)
-	Function lib3ds_track_eval_vector(track:Byte Ptr, v:Float Ptr, t#)
-	Function lib3ds_track_eval_quat(track:Byte Ptr, q:Float Ptr, t#)
-	
-	Function lib3ds_math_ease#(fp#, fc#, fn#, ease_from#, ease_to#)
-	Function lib3ds_math_cubic_interp(v:Float Ptr, a:Float Ptr, p:Float Ptr, q:Float Ptr, b:Float Ptr, n, t#)
-	
-	Function lib3ds_vector_copy(dst:Float Ptr, src:Float Ptr)
-	Function lib3ds_vector_neg(c:Float Ptr)
-	Function lib3ds_vector_make(c:Float Ptr, x#, y#, z#)
-	Function lib3ds_vector_zero(c:Float Ptr)
-	Function lib3ds_vector_add(c:Float Ptr, a:Float Ptr, b:Float Ptr)
-	Function lib3ds_vector_sub(c:Float Ptr, a:Float Ptr, b:Float Ptr)
-	Function lib3ds_vector_scalar_mul(c:Float Ptr, a:Float Ptr, k#)
-	Function lib3ds_vector_cross(c:Float Ptr, a:Float Ptr, b:Float Ptr)
-	Function lib3ds_vector_dot#(a:Float Ptr, b:Float Ptr)
-	Function lib3ds_vector_length#(c:Float Ptr)
-	Function lib3ds_vector_normalize(c:Float Ptr)
-	Function lib3ds_vector_normal(n:Float Ptr, a:Float Ptr, b:Float Ptr, c:Float Ptr)
-	Function lib3ds_vector_min(c:Float Ptr, a:Float Ptr)
-	Function lib3ds_vector_max(c:Float Ptr, a:Float Ptr)
-	Function lib3ds_vector_transform(c:Float Ptr, m:Float Ptr, a:Float Ptr)
-	
-	Function lib3ds_quat_identity(c:Float Ptr)
-	Function lib3ds_quat_copy(dest:Float Ptr, src:Float Ptr)
-	Function lib3ds_quat_axis_angle(c:Float Ptr, axis:Float Ptr, angle#)
-	Function lib3ds_quat_neg(c:Float Ptr)
-	Function lib3ds_quat_cnj(c:Float Ptr)
-	Function lib3ds_quat_mul(c:Float Ptr, a:Float Ptr, b:Float Ptr)
-	Function lib3ds_quat_scalar(c:Float Ptr, k#)
-	Function lib3ds_quat_normalize(c:Float Ptr)
-	Function lib3ds_quat_inv(c:Float Ptr)
-	Function lib3ds_quat_dot#(a:Float Ptr, b:Float Ptr)
-	Function lib3ds_quat_norm#(c:Float Ptr)
-	Function lib3ds_quat_ln(c:Float Ptr)
-	Function lib3ds_quat_ln_dif(c:Float Ptr, a:Float Ptr, b:Float Ptr)
-	Function lib3ds_quat_exp(c:Float Ptr)
-	Function lib3ds_quat_slerp(c:Float Ptr, a:Float Ptr, b:Float Ptr, t#)
-	Function lib3ds_quat_squad(c:Float Ptr, a:Float Ptr, p:Float Ptr, q:Float Ptr, b:Float Ptr, t#)
-	Function lib3ds_quat_tangent(c:Float Ptr, p:Float Ptr, q:Float Ptr, n:Float Ptr)
+Type T3DSMaterial
+	Field Name$
+	Field AmbientColor:T3DSColor=New T3DSColor
+	Field DiffuseColor:T3DSColor=New T3DSColor
+	Field SpecularColor:T3DSColor=New T3DSColor
+	Field EmissiveColor:T3DSColor=New T3DSColor
+	Field TextureFile$
+End Type
 
-	Function lib3ds_matrix_zero(m:Float Ptr)
-	Function lib3ds_matrix_identity(m:Float Ptr)
-	Function lib3ds_matrix_copy(dest:Float Ptr, src:Float Ptr)
-	Function lib3ds_matrix_neg(m:Float Ptr)
-	Function lib3ds_matrix_transpose(m:Float Ptr)
-	Function lib3ds_matrix_add(m:Float Ptr, a:Float Ptr, b:Float Ptr)
-	Function lib3ds_matrix_sub(m:Float Ptr, a:Float Ptr, b:Float Ptr)
-	Function lib3ds_matrix_mult(m:Float Ptr, a:Float Ptr, b:Float Ptr)
-	Function lib3ds_matrix_scalar(m:Float Ptr, k#)
-	Function lib3ds_matrix_det#(m:Float Ptr)
-	Function lib3ds_matrix_inv(m:Float Ptr)
-	Function lib3ds_matrix_translate(m:Float Ptr, x#, y#, z#)
-	Function lib3ds_matrix_scale(m:Float Ptr, x#, y#, z#)
-	Function lib3ds_matrix_rotate_quat(m:Float Ptr, q:Float Ptr)
-	Function lib3ds_matrix_rotate(m:Float Ptr, angle#, ax:Float Ptr, ay:Float Ptr, az:Float Ptr)
-	Function lib3ds_matrix_camera(m:Float Ptr, pos:Float Ptr, tgt:Float Ptr, roll#)
+Type T3DSVertex
+	Field x#,y#,z#
+End Type
+
+Type T3DSFace
+	Field a,b,c
+	Field Material:T3DSMaterial
+End Type
+
+Type T3DSTex
+	Field u#,v#
+End Type
+
+Type T3DSMesh
+	Field Name$
+	Field Vertices:T3DSVertex[]
+	Field Faces:T3DSFace[]
+	Field Texs:T3DSTex[]
+	Field OriginX#,OriginY#,OriginZ#
 	
-	' wrapper functions
-	Function lib3ds_file_get_user_id (file:Byte Ptr)
-	Function lib3ds_file_get_user_ptr:Byte Ptr (file:Byte Ptr)
-	Function lib3ds_file_get_mesh_version (file:Byte Ptr)
-	Function lib3ds_file_get_keyf_revision (file:Byte Ptr)
-	Function lib3ds_file_get_name:Byte Ptr (file:Byte Ptr)
-	Function lib3ds_file_get_master_scale# (file:Byte Ptr)
-	Function lib3ds_file_get_construction_plane:Float Ptr (file:Byte Ptr)
-	Function lib3ds_file_get_ambient:Float Ptr (file:Byte Ptr)
-	Function lib3ds_file_get_shadow:Byte Ptr (file:Byte Ptr)
-	Function lib3ds_file_get_background:Byte Ptr (file:Byte Ptr)
-	Function lib3ds_file_get_atmosphere:Byte Ptr (file:Byte Ptr)
-	Function lib3ds_file_get_viewport:Byte Ptr (file:Byte Ptr)
-	Function lib3ds_file_get_viewport_keyf:Byte Ptr (file:Byte Ptr)
-	Function lib3ds_file_get_frames (file:Byte Ptr)
-	Function lib3ds_file_get_segment_from (file:Byte Ptr)
-	Function lib3ds_file_get_segment_to (file:Byte Ptr)
-	Function lib3ds_file_get_current_frame (file:Byte Ptr)
-	Function lib3ds_file_get_materials_size (file:Byte Ptr)
-	Function lib3ds_file_get_nmaterials (file:Byte Ptr)
-	Function lib3ds_file_get_materials:Byte Ptr (file:Byte Ptr) 
-	Function lib3ds_file_get_cameras_size (file:Byte Ptr)
-	Function lib3ds_file_get_ncameras (file:Byte Ptr)
-	Function lib3ds_file_get_camera:Byte Ptr (file:Byte Ptr)
-	Function lib3ds_file_get_lights_size (file:Byte Ptr)
-	Function lib3ds_file_get_nlights (file:Byte Ptr)
-	Function lib3ds_file_get_lights:Byte Ptr (file:Byte Ptr)
-	Function lib3ds_file_get_meshes_size (file:Byte Ptr)
-	Function lib3ds_file_get_nmeshes (file:Byte Ptr)
-	Function lib3ds_file_get_meshes:Byte Ptr (file:Byte Ptr)
-	Function lib3ds_file_get_nodes:Byte Ptr (file:Byte Ptr)
-End Extern
+  Field AxisXX#,AxisXY#,AxisXZ#
+  Field AxisYX#,AxisYY#,AxisYZ#
+  Field AxisZX#,AxisZY#,AxisZZ#
+End Type
+
+Type T3DSAnimPosition
+	Field Frame
+	Field x#,y#,z#
+End Type
+
+Type T3DSAnimScale
+	Field Frame
+	Field x#,y#,z#
+End Type
+
+Type T3DSAnimRotation
+	Field Frame
+	Field Rotation# ' In radians
+	Field AxisX#
+	Field AxisY#
+	Field AxisZ#	
+End Type
+
+Type T3DSAnimation
+	Field Parent,Pos
+	Field Name$
+	Field PosKeys:T3DSAnimPosition[]
+	Field RotKeys:T3DSAnimRotation[]
+	Field ScaleKeys:T3DSAnimScale[]
+End Type
+
+Type T3DSFile
+	Field Version
+	Field Materials:T3DSMaterial[]
+	Field Meshes:T3DSMesh[]
+	Field Animations:T3DSAnimation[]
+	
+	Function Read:T3DSFile(url:Object)
+		Local stream:TStream=ReadStream(url)
+		If stream=Null Return Null
+		
+		Local file:T3DSFile=New T3DSFile
+		If file.ParseChunk(stream)<>A3DS_PRIMARY
+			CloseStream stream
+			Return Null
+		EndIf
+		CloseStream stream
+		Return file
+	End Function
+	
+	Method DumpInfo()
+		DebugLog "Version: "+Version
+		DebugLog "Material count: "+Materials.length
+		DebugLog "Mesh count: "+Meshes.length
+		DebugLog "Animation count: "+Animations.length
+	End Method
+	
+	Method SkipChunk(stream:TStream,pos,length)
+		SeekStream stream,(pos-6)+length
+	End Method
+	
+	Method SkipAhead(stream:TStream,length)
+		SeekStream stream,StreamPos(stream)+length
+	End Method
+	
+	Method ParseChunk(stream:TStream)		
+		Global _material:T3DSMaterial,_mesh:T3DSMesh,_animation:T3DSAnimation
+		
+		If Eof(stream) Return				
+		Local id=ReadShort(stream),length=ReadInt(stream),pos=StreamPos(stream)
+
+		Select id
+		Case A3DS_EDIT3DS
+		Case A3DS_PRIMARY
+		Case A3DS_VERSION
+			Version=ReadInt(stream)
+		'Case A3DS_MESH_VERSION
+		'	DebugLog "MESH_VERSION"
+		'	SkipChunk stream,pos,length
+		'	ParseChunk stream
+		Case A3DS_MATERIAL
+			_material=New T3DSMaterial
+			Materials:+[_material]
+		Case A3DS_MAT_NAME
+			_material.Name=ReadCString(stream)
+		Case A3DS_MAT_AMBIENT
+			SkipAhead stream,6
+			_material.AmbientColor.r=ReadFloat(stream)
+			_material.AmbientColor.g=ReadFloat(stream)
+			_material.AmbientColor.b=ReadFloat(stream)
+			SkipChunk stream,pos,length
+		Case A3DS_MAT_DIFFUSE
+			SkipAhead stream,6
+			_material.DiffuseColor.r=ReadFloat(stream)
+			_material.DiffuseColor.g=ReadFloat(stream)
+			_material.DiffuseColor.b=ReadFloat(stream)
+			SkipChunk stream,pos,length
+		Case A3DS_MAT_SPECULAR
+			'GetSpecularColour(tempChunk)		
+		'Case A3DS_MAT_SHININESS '? in %
+			'GetShininessColour(tempChunk)		
+		'Case A3DS_MAT_FALLOFF
+			'GetFallOffColour(tempChunk)		
+		Case A3DS_MAT_EMISSIVE
+			'GetEmissiveColour(tempChunk)		
+		Case A3DS_MAT_TEXMAP
+			DebugLog "MAT_TEXMAP"
+		Case A3DS_MAT_TEXFLNM
+			_material.TextureFile=ReadCString(stream)	
+		Case A3DS_NAMED_OBJECT
+			_mesh=New T3DSMesh
+			Meshes:+[_mesh]
+			_mesh.Name=ReadCString(stream)
+		Case A3DS_OBJ_MESH
+		Case A3DS_MESH_VERTICES
+			Local vertices:T3DSVertex[]=New T3DSVertex[ReadShort(stream)]
+			For Local i=0 To _mesh.Vertices.length-1
+				vertices[i]=New T3DSVertex
+				vertices[i].x=ReadFloat(stream)
+				vertices[i].y=ReadFloat(stream)
+				vertices[i].z=ReadFloat(stream)
+			Next
+			_mesh.Vertices=vertices
+			SkipChunk stream,pos,length
+		Case A3DS_MESH_TEX_VERT '0x4140
+			Local texs:T3DSTex[]=New T3DSTex[ReadShort(stream)]
+			For Local i=0 To texs.length-1
+				texs[i]=New T3DSTex
+				texs[i].u=ReadFloat(stream)
+				texs[i].v=ReadFloat(stream)
+			Next	
+			_mesh.Texs=texs
+			SkipChunk stream,pos,length	
+		Case A3DS_MESH_FACES '0x4120
+			Local faces:T3DSFace[]=New T3DSFace[ReadShort(stream)]
+			For Local i=0 To faces.length-1
+				faces[i]=New T3DSFace
+				faces[i].a=ReadShort(stream)
+				faces[i].b=ReadShort(stream)
+				faces[i].c=ReadShort(stream)
+				Local flag=ReadShort(stream)
+			Next
+			_mesh.Faces=faces
+		Case A3DS_MESH_MATER '0x4130
+			Local name$=ReadCString(stream)	
+			Local count=ReadShort(stream)
+			For Local i=0 To count-1
+				Local face=ReadShort(stream)
+				For Local material:T3DSMaterial=EachIn Materials
+					If material.Name=name _mesh.Faces[face].Material=material
+				Next
+			Next
+		Case A3DS_MESH_XFMATRIX
+			_mesh.AxisXX=ReadFloat(stream)
+			_mesh.AxisXY=ReadFloat(stream)
+			_mesh.AxisXZ=ReadFloat(stream)
+			
+			_mesh.AxisYX=ReadFloat(stream)
+			_mesh.AxisYY=ReadFloat(stream)
+			_mesh.AxisYZ=ReadFloat(stream)
+			
+			_mesh.AxisZX=ReadFloat(stream)
+			_mesh.AxisZY=ReadFloat(stream)
+			_mesh.AxisZZ=ReadFloat(stream)
+			
+			_mesh.OriginX=ReadFloat(stream)
+			_mesh.OriginY=ReadFloat(stream)
+			_mesh.OriginZ=ReadFloat(stream)				
+		Case A3DS_HEIRARCHY
+			SkipChunk stream,pos,length	
+		Case A3DS_KEYF3DS
+		Case A3DS_ANIM_HEADER
+			SkipChunk stream,pos,length		
+		Case A3DS_ANIM_S_E_TIME '0xB008
+			'StartEndFrames(tempChunk)		
+		Case A3DS_ANIM_OBJ '0xB002
+			_animation=New T3DSAnimation
+			Animations:+[_animation]
+		Case A3DS_ANIM_NAME
+			_animation.Name=ReadCString(stream)
+			Local flag1=ReadShort(stream)
+			Local flag2=ReadShort(stream)
+			_animation.Parent=ReadShort(stream)
+			SkipChunk stream,pos,length
+		Case A3DS_ANIM_HIERARCHYPOS
+			_animation.Pos=ReadShort(stream)
+		Case A3DS_ANIM_PIVOT '0xB013
+			Local x#=ReadFloat(stream)
+			Local y#=ReadFloat(stream)
+			Local z#=ReadFloat(stream)
+		Case A3DS_ANIM_POS '0xB020
+			DebugLog "ANIM_POS"
+			'SkipAhead stream,10
+			'Local keys=ReadShort(stream)
+			'SkipAhead stream,2
+			SkipChunk stream,pos,length
+		Case A3DS_ANIM_SCALE '0xB022
+			DebugLog "ANIM_SCALE"
+			'ReadAnimScale(tempChunk)
+			SkipChunk stream,pos,length
+		Case A3DS_ANIM_ROT '0xB021
+			DebugLog "ANIM_ROT"
+			'ReadAnimRot(tempChunk)			
+			SkipChunk stream,pos,length
+		Default
+			DebugLog "Skipped! ID: "+Hex(id)+" size="+length
+			SkipAhead stream,length-6
+		End Select
+		ParseChunk stream
+		Return id
+	End Method	
+		
+	Function ReadCString$(stream:TStream)
+		Local str$,c=ReadByte(stream)
+		While c<>0
+			str:+Chr(c)
+			c=ReadByte(stream)
+		Wend
+		Return str.Trim()
+	End Function
+	
+	Function WriteCString(stream:TStream,str$)
+		For Local i=0 To str.length-1
+			WriteByte stream,str[i]
+		Next
+		WriteByte stream,0
+	End Function
+End Type

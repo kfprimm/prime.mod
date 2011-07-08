@@ -498,6 +498,12 @@ Type TChunk
 		SeekStream stream,StreamPos(stream)+length
 	End Function
 	
+	Function ReadFloats(stream:TStream,array:Float Ptr,length)
+		For Local i=0 To length-1
+			array[i]=ReadFloat(stream)
+		Next
+	End Function
+	
 	Function ReadCString$(stream:TStream)
 		Local str$,c=ReadByte(stream)
 		While c<>0
@@ -507,12 +513,6 @@ Type TChunk
 		Return str.Trim()
 	End Function
 	
-	Function ReadFloats(stream:TStream,array:Float Ptr,length)
-		For Local i=0 To length-1
-			array[i]=ReadFloat(stream)
-		Next
-	End Function
-		
 	Function WriteFloats(stream:TStream,array:Float Ptr,length)
 		For Local f#=0 To length-1
 			WriteFloat stream,f
@@ -530,5 +530,5 @@ Type TChunk
 			WriteByte stream,str[i]
 		Next
 		WriteByte stream,0
-	End Function
+	End Function	
 End Type
