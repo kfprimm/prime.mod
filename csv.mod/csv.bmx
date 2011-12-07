@@ -1,7 +1,7 @@
 
 Strict
 
-Module sys87.CSV
+Module Prime.CSV
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 

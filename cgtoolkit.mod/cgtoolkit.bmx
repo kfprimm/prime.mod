@@ -1,7 +1,7 @@
 
 Strict
 
-Module sys87.CgToolkit
+Module Prime.CgToolkit
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 

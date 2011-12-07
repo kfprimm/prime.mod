@@ -1,7 +1,7 @@
 
 Strict
 
-Module sys87.AssetPacker
+Module Prime.AssetPacker
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 

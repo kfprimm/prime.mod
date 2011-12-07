@@ -1,7 +1,7 @@
 
 Strict
 
-Module sys87.AssetManager
+Module Prime.AssetManager
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 

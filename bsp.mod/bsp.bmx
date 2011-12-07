@@ -4,12 +4,12 @@ Strict
 Rem
 	bbdoc: Binary space partitioning tree.
 End Rem
-Module sys87.BSP
+Module Prime.BSP
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 ModuleInfo "Credit: Adapted from the famous BSP FAQ sample code."
 
-Import sys87.Math3D
+Import Prime.Math3D
 Import BRL.LinkedList
 
 Const BSP_IN       = -1

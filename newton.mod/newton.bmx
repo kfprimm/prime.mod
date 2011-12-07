@@ -4,11 +4,12 @@ Strict
 Rem
 	bbdoc: Netwon Module for BlitzMax
 End Rem
-Module sys87.Newton
+Module Prime.Newton
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 ModuleInfo "Version: 0.01"
 ModuleInfo "Newton Version: 2.33"
+
 ?Linux
 ModuleInfo "CC_OPTS: -Wall -Wno-strict-aliasing -D_LINUX_VER -O2 -g -fpic -msse -msse2 -ffloat-store -ffast-math -freciprocal-math -funsafe-math-optimizations -fsingle-precision-constant"
 

@@ -1,11 +1,11 @@
 
 Strict
 
-Module sys87.XMLAsset
+Module Prime.XMLAsset
 ModuleInfo "Author: Kevin Primm"
 
 Import PUB.MaXML
-Import sys87.AssetManager
+Import Prime.AssetManager
 
 Type TXMLAssetLoader Extends TAssetLoader
 	Method Run:Object(url:Object)

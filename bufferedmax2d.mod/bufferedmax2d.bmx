@@ -4,7 +4,7 @@ Strict
 Rem
 	bbdoc: Buffering system for Max2D
 End Rem
-Module sys87.BufferedMax2D
+Module Prime.BufferedMax2D
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 

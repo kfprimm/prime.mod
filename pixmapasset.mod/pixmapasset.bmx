@@ -1,12 +1,12 @@
 
 Strict
 
-Module sys87.PixmapAsset
+Module Prime.PixmapAsset
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 
 Import BRL.Pixmap
-Import sys87.AssetManager
+Import Prime.AssetManager
 
 Type TPixmapAssetLoader Extends TAssetLoader
 	Method Run:Object(url:Object)

@@ -4,7 +4,7 @@ Strict
 Rem
 	bbdoc: DirectX (.x) model file library
 End Rem
-Module sys87.libx
+Module Prime.libx
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 

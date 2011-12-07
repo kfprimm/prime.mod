@@ -1,7 +1,7 @@
 
 Strict
 
-Module sys87.lib3ds
+Module Prime.lib3ds
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 ModuleInfo "Credit: Based on Markus Rauch's BlitzBasic code archives entry."

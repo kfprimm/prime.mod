@@ -4,7 +4,7 @@ Strict
 Rem
 	bbdoc: Blitz3D model file library
 End Rem
-Module sys87.libB3D
+Module Prime.libB3D
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 

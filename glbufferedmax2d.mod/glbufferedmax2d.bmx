@@ -4,12 +4,12 @@ Strict
 Rem
 	bbdoc: Buffered OpenGL driver for Max2D
 End Rem
-Module sys87.GLBufferedMax2D
+Module Prime.GLBufferedMax2D
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "Version: 0.01"
 ModuleInfo "License: MIT"
 
-Import sys87.BufferedMax2D
+Import Prime.BufferedMax2D
 Import BRL.GLMax2D
 Import PUB.GLew
 

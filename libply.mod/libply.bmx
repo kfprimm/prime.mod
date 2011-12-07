@@ -1,7 +1,7 @@
 
 Strict
 
-Module sys87.libply
+Module Prime.libply
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 

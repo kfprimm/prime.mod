@@ -4,7 +4,7 @@ Strict
 Rem
 	bbdoc: Milkshape 3D file format library.
 End Rem
-Module sys87.libMS3D
+Module Prime.libMS3D
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 

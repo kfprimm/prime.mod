@@ -1,12 +1,12 @@
 
 Strict
 
-Module sys87.Max2DAsset
+Module Prime.Max2DAsset
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 
 Import BRL.Max2D
-Import sys87.AssetManager
+Import Prime.AssetManager
 
 Type TImageAssetLoader Extends TAssetLoader
 	Method Run:Object(url:Object)

@@ -4,7 +4,7 @@ Strict
 Rem
 	bbdoc: 3D Math
 End Rem
-Module sys87.Math3D
+Module Prime.Math3D
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 ModuleInfo "Credit: Matrix and frustum code adapted from MiniB3D source."

@@ -1,10 +1,10 @@
 
 Strict
 
-'Rem
-'bbdoc: PCX Pixmap loader
-'End Rem
-Module sys87.PCXLoader
+Rem
+bbdoc: PCX Pixmap loader
+End Rem
+Module Prime.PCXLoader
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 

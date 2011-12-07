@@ -1,7 +1,7 @@
 
 Strict
 
-Module sys87.Archive
+Module Prime.Archive
 ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 
