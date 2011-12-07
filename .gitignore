@@ -1,8 +1,9 @@
-*.x86.a
-*.x86.i
+*.*.*.a
+*.*.*.i
 *.debug
 *.exe
-*.bak
 *.html
 .*.bmx
 .bmx/
+*.debug*
+*.mod/doc/commands.html
