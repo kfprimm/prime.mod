@@ -9,29 +9,16 @@ ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 
 Import BRL.Max2D
-
-Const BUFFER_COLOR = 1
-Const BUFFER_DEPTH = 2
-
-Type TBuffer
-	Field _width,_height
-End Type
-
-Type TBufferedImageFrame Extends TImageFrame
-	Field _parent:TImageFrame
-	Field _buffer:TBuffer
-	
-	Method Draw( x0#,y0#,x1#,y1#,tx#,ty#,sx#,sy#,sw#,sh# )
-		Return _parent.Draw( x0,y0,x1,y1,tx,ty,sx,sy,sw,sh )
-	End Method 
-End Type
+Import "buffers.bmx"
+Import "shaders.bmx"
 
 Type TMax2DExDriver Extends TMax2DDriver
 	Global _parent:TMax2DDriver
 	
 	Field _current:TGraphics
 	Field _backbuffer:TBuffer=New TBuffer,_currentbuffer:TBuffer
-	
+  Field _shaderdriver:TShaderDriver
+
 	Method CreateFrameFromPixmap:TImageFrame(pixmap:TPixmap,flags) 
 		Local bf:TBufferedImageFrame=New TBufferedImageFrame
 		bf._parent=_parent.CreateFrameFromPixmap(pixmap,flags)
@@ -130,6 +117,10 @@ Type TMax2DExDriver Extends TMax2DDriver
 	Method ImageBuffer:TBuffer(image:TImage,frame=0,flags=BUFFER_COLOR)
 		Return MakeBuffer(image.Frame(frame),image.width,image.height,flags)		
 	End Method
+	
+	Method SetShaderDriver(driver:TShaderDriver)
+		_shaderdriver=driver
+	End Method
 End Type
 
 Rem
@@ -167,4 +158,46 @@ Rem
 End Rem
 Function ImageBuffer:TBuffer(image:TImage,frame=0)
 	Return TMax2DExDriver(GetGraphicsDriver()).ImageBuffer(image,frame)
+End Function
+Rem
+	bbdoc: Needs documentation. #TODO
+End Rem
+Function SetShaderDriver(driver:TShaderDriver)
+	Return TMax2DExDriver(GetGraphicsDriver()).SetShaderDriver(driver)
+End Function
+Rem
+	bbdoc: Needs documentation. #TODO
+End Rem
+Function CreateShader:TShader(name$)
+	Return New TShader.Create(name)
+End Function
+Rem
+	bbdoc: Needs documentation. #TODO
+End Rem
+Function LoadShader:TShader(url:Object)
+	Return New TShader.Load(url)
+End Function
+Rem
+	bbdoc: Needs documentation. #TODO
+End Rem
+Function CreateShaderFrag:TShaderFrag(code$,typ)
+	Return TShaderFrag.Create(code,typ)
+End Function
+Rem
+	bbdoc: Needs documentation. #TODO
+End Rem
+Function AddShaderCode:TShaderCode(shader:TShader,driver$="")
+	Return shader.AddCode(driver)
+End Function
+Rem
+	bbdoc: Needs documentation. #TODO
+End Rem
+Function AddShaderCodeFrag(code:TShaderCode,frag:TShaderFrag)
+	Return code.AddFrag(frag)
+End Function
+Rem
+	bbdoc: Needs documentation. #TODO
+End Rem
+Function AddShaderCodeFrags(code:TShaderCode,frags:TShaderFrag[])
+	Return code.AddFrags(frags)
 End Function
