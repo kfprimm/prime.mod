@@ -70,6 +70,7 @@ End Type
 
 Type TWidget Extends TAppObject
 	Field _gadget:TGadget
+	Field _paddingx,_paddingy
 	
 	Method SetSize(width,height)
 		CalcSize width,height
@@ -102,6 +103,11 @@ Type TWidget Extends TAppObject
 		SetGadgetLayout _gadget,lft,rght,tp,bttm
 	End Method
 	
+	Method SetPadding(x,y)
+		_paddingx=x
+		_paddingy=y
+	End Method
+	
 	Method Show() Final
 		SetVisibility True
 	End Method
@@ -131,11 +137,12 @@ Type TWidget Extends TAppObject
 		Local gadget:TWidget=TWidget(obj)
 		If gadget=Null gadget=TWidget(_parent)
 		If gadget
-			Local pwidth,pheight
+			Local pwidth,pheight,padx,pady
 			gadget.GetClientSize pwidth,pheight
-			DebugLog width+","+pwidth
-			If width<1 If width<0 width=pwidth-Abs(width) Else width=pwidth-x
-			If height<1 If height<0 height=pheight-Abs(height) Else height=pheight-y
+			padx=gadget._paddingx;pady=gadget._paddingy
+			
+			If width<0 width=pwidth-Abs(width) Else width=(pwidth-x)-padx
+			If height<0 height=pheight-Abs(height) Else height=(pheight-y)-pady
 		End If
 	End Method
 	
@@ -173,7 +180,9 @@ Type TWidget Extends TAppObject
 		Return True
 	End Method
 	
-	Method GetGadget:TGadget(param=True);End Method
+	Method GetGadget:TGadget(param=True)
+		Return _gadget
+	End Method
 End Type
 
 Type TCollectionGadget Extends TWidget
@@ -373,12 +382,22 @@ Type TPanel Extends TWidget
 	Method Create:TPanel(x=0,y=0,width=0,height=0,parent:TAppObject,style=0,title$="")
 		CalcSize width,height,x,y,parent
 		_gadget=CreatePanel(x,y,width,height,TWidget(parent)._gadget,style,title)
-		DebugLog width
 		_SetOwnership(parent)
 		If OnCreate()=CALLBACK_CANCELACTION Free();Return Null
 		Return Self
 	End Method
 End Type
+
+Type TTextArea Extends TWidget
+	Method Create:TTextArea(x=0,y=0,width=0,height=0,parent:TAppObject,style=0)
+		CalcSize width,height,x,y,parent
+		_gadget=CreateTextArea(x,y,width,height,TWidget(parent)._gadget,style)
+		_SetOwnership(parent)
+		If OnCreate()=CALLBACK_CANCELACTION Free();Return Null
+		Return Self
+	End Method
+End Type
+
 
 Type TTabber Extends TCollectionGadget Final
 	Method Create:TTabber(x=0,y=0,width=0,height=0,parent:TAppObject,style=0)
@@ -511,12 +530,12 @@ Type TEventHandler
 		
 	Method Run(evnt:TEvent)
 		Local arg:Object[]=New Object[_methd.ArgTypes().length]
-		Local param$[]=_methd.MetaData("PFEventParams").Split(",")
+		Local param$[]=_methd.MetaData("args").Split(",")
 		For Local i=0 To Min(param.length,arg.length)-1
 			Select param[i].ToLower()
-			Case "eventdata" arg[i]=String(evnt.data)
-			Case "eventx" arg[i]=String(evnt.x)
-			Case "eventy" arg[i]=String(evnt.y)
+			Case "data" arg[i]=String(evnt.data)
+			Case "x" arg[i]=String(evnt.x)
+			Case "y" arg[i]=String(evnt.y)
 			End Select
 		Next
 		_methd.Invoke _obj,arg

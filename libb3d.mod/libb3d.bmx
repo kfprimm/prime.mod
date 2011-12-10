@@ -108,7 +108,7 @@ Type TVRTSChunk Extends TChunk
 		For Local i=0 To vertexcnt-1
 			xyz[i*3+0]=ReadFloat(stream);xyz[i*3+1]=ReadFloat(stream);xyz[i*3+2]=ReadFloat(stream)
 			If flags&1 nxyz[i*3+0]=ReadFloat(stream);nxyz[i*3+1]=ReadFloat(stream);nxyz[i*3+2]=ReadFloat(stream)
-			If flags&2 rgba[i*3+0]=ReadFloat(stream);rgba[i*3+1]=ReadFloat(stream);rgba[i*3+2]=ReadFloat(stream);rgba[i*3+3]=ReadFloat(stream)
+			If flags&2 rgba[i*4+0]=ReadFloat(stream);rgba[i*4+1]=ReadFloat(stream);rgba[i*4+2]=ReadFloat(stream);rgba[i*4+3]=ReadFloat(stream)
 			tex_coords[i]=New Float[tex_coord_sets,tex_coord_set_size]
 			For Local j=0 To tex_coord_sets-1
 				For Local k=0 To tex_coord_set_size-1
