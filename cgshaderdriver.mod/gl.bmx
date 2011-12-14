@@ -28,8 +28,8 @@ Type TCgGLShaderDriver Extends TCgShaderDriver
 	End Method	
 	
 	Method Compatible(driver:TGraphicsDriver)
-		Local d:TMaxB3DDriver=TMaxB3DDriver(driver)
-		If d=Null Return False
+		'Local d:TMaxB3DDriver=TMaxB3DDriver(driver)
+		'If d=Null Return False
 		Return True
 		'Return TGLGraphicsDriver(d._parent._parent)=True
 	End Method

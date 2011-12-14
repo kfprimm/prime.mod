@@ -1,7 +1,7 @@
 
 Strict
 
-Import MaxB3D.Core
+Import Prime.Max2DEx
 Import Prime.CgToolkit
 
 Type TCgData
