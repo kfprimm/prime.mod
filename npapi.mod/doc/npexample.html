@@ -1,0 +1,36 @@
+<html>
+<head>
+  <title>BlitzMax Example Plugin Test</title>
+  
+  <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.js" type="text/javascript"></script>
+  <script type="text/javascript">
+		var example = undefined;
+		
+		function updateExample() {
+			example.Update();
+			
+			setTimeout(function() {
+				updateExample();
+			}, 2000);
+		}
+		
+    $(function() {
+			example = $("#example")[0];
+			example();
+			example.Start("Kevin", "to demostrate that the plugin module works!");
+			
+			updateExample();			
+    });
+  </script>
+  
+  <style type="text/css">
+    #example { background: black; }
+  </style>
+</head>
+<body>
+  <object id="example" type="application/x-bmx-npapi">
+    <p>Install the BlitzMax Example Plugin!</p>
+  </object>
+	<p>Example plugin testing.</p>
+</body>
+</html>

@@ -1,0 +1,99 @@
+
+#define IDD_MAIN 101
+#define IDC_BUTTON_GO 1002
+#define IDC_STATIC_UA 1003
+#define IDC_BUTTON1 1005
+#define IDC_BUTTON_DONT 1005
+
+#ifdef APSTUDIO_INVOKED
+#ifndef APSTUDIO_READONLY_SYMBOLS
+#define _APS_NEXT_RESOURCE_VALUE 102
+#define _APS_NEXT_COMMAND_VALUE 40001
+#define _APS_NEXT_CONTROL_VALUE 1006
+#define _APS_NEXT_SYMED_VALUE 101
+#endif
+#endif
+
+#define APSTUDIO_READONLY_SYMBOLS
+#ifndef _WIN32_WCE
+#include <winresrc.h>
+#else // _WIN32_WCE
+#include <dlgs.h>
+#include <winbase.h>
+#include <commctrl.h>
+#include <resdefce.h>
+#endif // _WIN32_WCE
+
+#undef APSTUDIO_READONLY_SYMBOLS
+
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+#endif //_WIN32
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 0,0,1,0
+ PRODUCTVERSION 0,0,1,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x2L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904e4"
+        BEGIN
+            VALUE "CompanyName", PLUGIN_COMPANYNAME
+            VALUE "FileDescription", PLUGIN_DESCRIPTION
+            VALUE "FileExtents", ""
+            VALUE "FileOpenName", PLUGIN_DESC
+            VALUE "FileVersion", "0, 0, 1, 0"
+            VALUE "InternalName", PLUGIN_INTERNALNAME
+            VALUE "LegalCopyright", PLUGIN_COPYRIGHT
+            VALUE "MIMEType", PLUGIN_MIME
+            VALUE "OriginalFilename", PLUGIN_FILENAME
+            VALUE "ProductName", PLUGIN_NAME
+            VALUE "ProductVersion", "0, 0, 1, 0"
+            VALUE "Language", "English"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1252
+    END
+END
+
+#ifdef APSTUDIO_INVOKED
+
+1 TEXTINCLUDE
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE
+BEGIN
+    "#include ""winresrc.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif 
+
+#endif 
+
+#ifndef APSTUDIO_INVOKED
+
+#endif 
+

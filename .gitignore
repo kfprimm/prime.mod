@@ -2,7 +2,8 @@
 *.*.*.i
 *.debug
 *.exe
-*.html
+*.dll
+*.def
 .*.bmx
 .bmx/
 *.debug*

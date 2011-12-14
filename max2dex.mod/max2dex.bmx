@@ -17,7 +17,7 @@ Type TMax2DExDriver Extends TMax2DDriver
 	
 	Field _current:TGraphics
 	Field _backbuffer:TBuffer=New TBuffer,_currentbuffer:TBuffer
-  Field _shaderdriver:TShaderDriver
+  Field _shader:TShader, _shaderdriver:TShaderDriver
 
 	Method CreateFrameFromPixmap:TImageFrame(pixmap:TPixmap,flags) 
 		Local bf:TBufferedImageFrame=New TBufferedImageFrame
@@ -121,6 +121,11 @@ Type TMax2DExDriver Extends TMax2DDriver
 	Method SetShaderDriver(driver:TShaderDriver)
 		_shaderdriver=driver
 	End Method
+	
+	Method SetShader( shader:TShader )
+		_shader = shader
+		_shaderdriver.Use _shader, Null
+	End Method
 End Type
 
 Rem
@@ -168,6 +173,12 @@ End Function
 Rem
 	bbdoc: Needs documentation. #TODO
 End Rem
+Function SetShader( shader:TShader )
+	Return TMax2DExDriver(GetGraphicsDriver()).SetShader(shader)
+End Function
+Rem
+	bbdoc: Needs documentation. #TODO
+End Rem
 Function CreateShader:TShader(name$)
 	Return New TShader.Create(name)
 End Function
@@ -180,7 +191,7 @@ End Function
 Rem
 	bbdoc: Needs documentation. #TODO
 End Rem
-Function CreateShaderFrag:TShaderFrag(code$,typ)
+Function CreateShaderFrag:TShaderFrag(code$, typ)
 	Return TShaderFrag.Create(code,typ)
 End Function
 Rem
