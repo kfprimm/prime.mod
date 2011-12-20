@@ -6,6 +6,7 @@ ModuleInfo "Author: Kevin Primm"
 ModuleInfo "License: MIT"
 ModuleInfo "LD_OPTS: --exclude-all-symbols --enable-stdcall-fixup"
 
+?Win32
 Import BRL.FileSystem
 Import BRL.TextStream
 Import BRL.RamStream
@@ -15,9 +16,7 @@ Import BRL.Map
 Import BRL.GLMax2D
 Import "glue.c"
 
-?Win32
 Incbin "npapi.rc"
-?
 
 Extern
 	Function _npapi_set_string(v:Byte Ptr, text:Byte Ptr, length)
@@ -174,7 +173,6 @@ Type TNPAPIPlugin
 	
 	Method Run()
 		_plugin.Initialize
-		?Win32
 		If ExtractExt(AppFile) = "exe"
 			Local base$ = StripAll(StripAll(AppFile))
 			Local def$ = "LIBRARY ~q"+base+".dll~q~nEXPORTS~n~nNP_GetEntryPoints~nNP_Initialize~nNP_Shutdown~nNP_Shutdown@0~n"
@@ -199,7 +197,6 @@ Type TNPAPIPlugin
 			Local src$=ExtractDir(AppFile)+"/"+base+".bmx", opts$ = ""
 			system_ BMX_PATH+"/bin/bmk makelib -a -r "+src
 		End If
-		?
 	End Method
 	
 	Method MIMEDescription$()
@@ -269,3 +266,4 @@ End Type
 
 AddHook EmitEventHook, TNPAPIObject.EventHook
 
+?
