@@ -2,8 +2,7 @@
 Strict
 
 Framework Prime.NPAPI
-Import "resource.o"
-Import MaxGUI.Drivers
+'Import "resource.o"
 
 Type TExampleObject Extends TNPAPIObject
 	Field test
