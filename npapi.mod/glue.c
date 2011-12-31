@@ -2,7 +2,7 @@
 #ifdef WIN32
 
 #include <windows.h>
-typedef char bool;
+typedef unsigned int bool;
 #define false 0
 #define true 1 
 
@@ -32,6 +32,10 @@ char  *_npapi_get_string(NPVariant *v)
 	return NPVARIANT_TO_STRING(*v).UTF8Characters;
 }
 
+void _npapi_get_url_notify(NPP instance, const  char* url, const  char* target, void* notifyData)
+{
+	npnfuncs->geturlnotify(instance, url, NULL, (void*)42342342);
+}
 
 typedef struct BMX
 {
@@ -56,13 +60,13 @@ static bool BMX_HasMethod(NPObject* obj, NPIdentifier methodName) {
 
 static bool BMX_InvokeDefault(NPObject *obj, const NPVariant *args, uint32_t argCount, NPVariant *result) {
 	BMX *bmx = obj;
-	return _prime_npapi_TNPAPIObject_OnInvoke(bmx->ptr, NULL, args, argCount, result);;
+	return _prime_npapi_TNPAPIObject_OnInvoke(bmx->ptr, NULL, args, argCount, result);
 }
 
 static bool BMX_Invoke(NPObject* obj, NPIdentifier methodName, const NPVariant *args, uint32_t argCount, NPVariant *result) {
 	BMX *bmx = obj;
 	char *name = npnfuncs->utf8fromidentifier(methodName);
-	int res = _prime_npapi_TNPAPIObject_OnInvoke(bmx->ptr, name, args, argCount, result);;
+	int res = _prime_npapi_TNPAPIObject_OnInvoke(bmx->ptr, name, args, argCount, result);
 	npnfuncs->memfree(name);
 	return res;
 }
@@ -90,7 +94,7 @@ NPClass bmxObject = {
 };
 
 static NPError BMX_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char *argn[], char *argv[], NPSavedData *saved) {
-	instance->pdata = _prime_npapi_TNPAPIPlugin_OnNew(pluginType, argc, argn, argv);
+	instance->pdata = _prime_npapi_TNPAPIPlugin_OnNew(instance, pluginType, argc, argn, argv);
 	if (instance->pdata == NULL)
 		return NPERR_GENERIC_ERROR;
 	
@@ -143,12 +147,46 @@ static NPError OSCALL BMX_HandleEvent(NPP instance, void *ev) {
 }
 
 static NPError OSCALL BMX_SetWindow(NPP instance, NPWindow* window) {
-	HWND hwnd;
-	npnfuncs->getvalue(instance, NPNVnetscapeWindow, (void*) &hwnd);
 	_prime_npapi_TNPAPIObject_OnSetWindow(instance->pdata, window->window);
-	_prime_npapi_TNPAPIObject_OnSetWindow(instance->pdata, hwnd);
-	
 	return NPERR_NO_ERROR;
+}
+
+static NPError OSCALL BMX_NewStream(NPP instance, NPMIMEType type, NPStream* stream, NPBool  seekable, uint16_t* stype)
+{	
+	*stype = NP_ASFILEONLY;
+	//stream->pdata = _prime_npapi_TNPAPIObject_OnNewStream(instance->pdata, stream);
+	return NPERR_NO_ERROR;
+}
+
+static NPError OSCALL BMX_DestroyStream(NPP instance, NPStream* stream, NPReason reason)
+{		
+	_prime_npapi_TNPAPIPlugin_Message("!!!");
+	//_prime_npapi_TNPAPIObject_OnDestroyStream(instance->pdata, stream->pdata);
+	return NPERR_NO_ERROR;
+}
+
+static void OSCALL BMX_URLNotify(NPP instance, const char* url, NPReason reason, void* notifyData)
+{
+	_prime_npapi_TNPAPIPlugin_Message("!!!");
+	_prime_npapi_TNPAPIObject_OnURLNotify(instance->pdata, url, reason, notifyData);
+}
+
+static void OSCALL BMX_StreamAsFile(NPP instance, NPStream* stream, const char* fname)
+{
+	_prime_npapi_TNPAPIPlugin_Message("!!!");
+	_prime_npapi_TNPAPIObject_OnStreamAsFile(instance->pdata, stream->pdata, fname);	
+}
+
+static int32_t OSCALL BMX_Write(NPP instance, NPStream* stream, int32_t offset, int32_t len, void* buf)
+{
+	_prime_npapi_TNPAPIPlugin_Message("!!!");
+	return _prime_npapi_TNPAPIObject_OnWrite(instance->pdata, stream->pdata, offset, len, buf);		
+}
+
+static int32_t OSCALL BMX_WriteReady(NPP instance, NPStream* stream)
+{
+	_prime_npapi_TNPAPIPlugin_Message("!!!");
+	return _prime_npapi_TNPAPIObject_OnWriteReady(instance->pdata, stream->pdata);
 }
 
 NPError OSCALL NP_GetEntryPoints(NPPluginFuncs *nppfuncs) {
@@ -164,6 +202,13 @@ NPError OSCALL NP_GetEntryPoints(NPPluginFuncs *nppfuncs) {
 	nppfuncs->getvalue      = BMX_GetValue;
 	nppfuncs->event         = BMX_HandleEvent;
 	nppfuncs->setwindow     = BMX_SetWindow;
+	nppfuncs->newstream     = BMX_NewStream;
+	nppfuncs->destroystream = BMX_DestroyStream;
+	nppfuncs->urlnotify     = BMX_URLNotify;
+	nppfuncs->asfile        = BMX_StreamAsFile;
+	nppfuncs->write         = BMX_Write;
+	nppfuncs->writeready    = BMX_WriteReady;
+	
 	return NPERR_NO_ERROR;
 }
 
@@ -179,8 +224,6 @@ __declspec(dllexport) NPError OSCALL NP_Initialize(NPNetscapeFuncs *npnf
 
 	if(HIBYTE(npnf->version) > NP_VERSION_MAJOR)
 		return NPERR_INCOMPATIBLE_VERSION_ERROR;
-    	
-
 	npnfuncs = npnf;
 #ifndef WIN32
 	NP_GetEntryPoints(nppfuncs);

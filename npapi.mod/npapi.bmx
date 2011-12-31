@@ -12,28 +12,52 @@ Import BRL.RamStream
 Import BRL.System
 Import BRL.Reflection
 Import BRL.Map
-Import BRL.GLMax2D
+Import PUB.Win32
 Import "glue.c"
 
 ?Win32
 Incbin "npapi.rc"
 ?
 
+Const URLNOTIFY_DONE  = 0
+Const URLNOTIFY_ERR   = 1
+Const URLNOTIFY_BREAK = 2
+
+Global EVENT_URLNOTIFY = AllocUserEventId()
+Global EVENT_STREAMASFILE = AllocUserEventId()
+
 Extern
 	Function _npapi_set_string(v:Byte Ptr, text:Byte Ptr, length)
 	Function _npapi_get_string:Byte Ptr(v:Byte Ptr)
+	Function _npapi_get_url_notify(instance:Byte Ptr, url:Byte Ptr, target:Byte Ptr, data:Byte Ptr)
 End Extern
 
+Type TNPAPIStream
+	Field _ptr:Byte Ptr, _link:TLink
+End Type
+
 Type TNPAPIObject
-	Global _methodmap:TMap = New TMap
+	Global _methodmap:TMap = New TMap, _hwndmap:TMap = New TMap
 	Field _hwnd, _result:Byte Ptr
-	Field _graphics:TGraphics
+	Field _instance:Byte Ptr, _scriptobject:Byte Ptr
+	Field _wndproc:Byte Ptr
+	Field _streams:TList = New TList
 	
 	Method Initialize(args:TMap) ; End Method
 	Method Scriptable() ; End Method
 	Method InvokeDefault() ; End Method
 	Method Destroy() ; End Method
 	Method OnEvent( event:TEvent ) ; End Method
+	Method Thread:Object() ; End Method
+	
+	Method GetUrlNotify(url$, target$, notifyData:Object = Null)
+		Local u:Byte Ptr = url.ToCString(), t:Byte Ptr = Null, d:Byte Ptr = Null
+		If target.length <> 0 t = target.ToCString()
+		If notifyData d = Byte Ptr(notifyData) - 8 
+		_npapi_get_url_notify(_instance, u, t, d)
+		MemFree u
+		MemFree t
+	End Method
 	
 	Method NPVoid()
 		Int Ptr(_result + 0)[0] = 0
@@ -70,14 +94,18 @@ Type TNPAPIObject
 		Return True
 	End Method
 	
-	Method Hwnd()
-		Return _hwnd
-	End Method
-
 	Method NPObject(obj:TNPAPIObject)
 		Int Ptr(_result + 0)[0] = 6
 		Byte Ptr Ptr(_result + 1)[0] = (Byte Ptr(obj) - 8)
 	End Method
+	
+	Method Hwnd()
+		Return _hwnd
+	End Method
+	
+	Function ThreadFunc:Object( data:Object )
+		Return TNPAPIObject(data).Thread()
+	End Function
 
 	Method RegisterMethods()
 		Local typ:TTypeId = TTypeId.ForObject(Self), name$ = typ.Name()
@@ -89,12 +117,7 @@ Type TNPAPIObject
 			_methodmap.Insert name, methods
 		EndIf
 	End Method
-	
-	Method GetGraphics:TGraphics( flags = GRAPHICS_BACKBUFFER|GRAPHICS_DEPTHBUFFER )
-		If _graphics = Null _graphics = brl.Graphics.AttachGraphics(Hwnd(), flags)
-		Return _graphics
-	End Method
-	
+		
 	Method FindMethod:TMethod(name$)
 		Return TMethod(TMap(_methodmap.ValueForKey(TTypeId.ForObject(Self).Name())).ValueForKey(name))
 	End Method
@@ -133,7 +156,8 @@ Type TNPAPIObject
 			End Select
 		Next
 		obj._result = result
-		Return Int(String(meth.Invoke(obj, args)))
+		obj.NPVoid()
+		Return Int(String(meth.Invoke(obj, args))) <> -1
 	End Function
 	
 	Function OnHandleEvent(obj:TNPAPIObject, event, wParam, lParam)
@@ -148,10 +172,54 @@ Type TNPAPIObject
 	End Function
 		
 	Function OnSetWindow(obj:TNPAPIObject, hwnd)
+		If obj._hwnd <> hwnd And hwnd <> 0
+			If obj._hwnd <> 0 SetWindowLongA(obj._hwnd,GWL_WNDPROC, Int(obj._wndproc))
+			
+			obj._wndproc = Byte Ptr(GetWindowLongA(hwnd,GWL_WNDPROC))
+			SetWindowLongA(hwnd,GWL_WNDPROC, Int(Byte Ptr(WndProc)))
+		
+			_hwndmap.Insert String(hwnd), obj			
+		EndIf
 		obj._hwnd = hwnd
 	End Function
 	
-	Field ded = 4, _scriptobject:Byte Ptr
+	Function OnNewStream:Byte Ptr(obj:TNPAPIObject, p:Byte Ptr)
+		Local stream:TNPAPIStream = New TNPAPIStream
+		stream._ptr = p
+		stream._link = obj._streams.AddLast(stream)
+		Return Byte Ptr(stream) - 8
+	End Function
+	
+	Function OnDestroyStream(obj:TNPAPIObject, stream:TNPAPIStream)
+		Notify "DestroyStream"
+		stream._link.Remove()
+	End Function
+	
+	Function OnURLNotify(obj:TNPAPIObject, url:Byte Ptr, reason, data:Object)
+		Notify "URLNotify"
+		EmitEvent CreateEvent(EVENT_URLNOTIFY, obj, reason,,,,String.FromCString(url))
+	End Function
+	
+	Function OnStreamAsFile(obj:TNPAPIObject, stream:TNPAPIStream, fname:Byte Ptr)
+		Notify "StreamAsFile"
+		EmitEvent CreateEvent(EVENT_STREAMASFILE, obj,,,,,String.FromCString(fname))
+	End Function
+	
+	Function OnWrite(obj:TNPAPIObject, stream:TNPAPIStream, offset, length, buf:Byte Ptr)		
+			Notify "OnWrite"
+
+	End Function
+	
+	Function OnWriteReady(obj:TNPAPIObject, stream:TNPAPIStream)
+			Notify "OnWriteREady"
+
+	End Function
+		
+	Function WndProc(hwnd, msg, wParam, lParam)
+		Local obj:TNPAPIObject = TNPAPIObject(_hwndmap.ValueForKey(String(hwnd)))
+		OnHandleEvent(obj, msg, wParam, lParam)
+		Return CallWindowProcA(obj._wndproc, hwnd, msg, wParam, lParam)
+	End Function
 End Type
 
 Type TNPAPIPlugin
@@ -174,6 +242,7 @@ Type TNPAPIPlugin
 	
 	Method Run()
 		_plugin.Initialize
+		AddHook EmitEventHook, TNPAPIObject.EventHook
 		?Win32
 		If ExtractExt(AppFile) = "exe"
 			Local base$ = StripAll(StripAll(AppFile))
@@ -218,7 +287,7 @@ Type TNPAPIPlugin
 		
 	Method Shutdown() ; End Method
 	
-	Function OnNew:Byte Ptr(mime:Byte Ptr, argc, argn:Byte Ptr Ptr, argv:Byte Ptr Ptr) "C"
+	Function OnNew:Byte Ptr(instance:Byte Ptr, mime:Byte Ptr, argc, argn:Byte Ptr Ptr, argv:Byte Ptr Ptr) "C"
 		Local m$=String.FromCString(mime)
 		For Local i=0 To _plugin._objects.length-1
 			If m = _plugin._mimes[i] 
@@ -228,6 +297,7 @@ Type TNPAPIPlugin
 				Next
 				Local obj:TNPAPIObject = TNPAPIObject(_plugin._objects[i].NewObject())
 				If obj.Initialize(map) <> 0 Return Null
+				obj._instance = instance
 				_plugin._instances :+ [obj]
 				Return Byte Ptr(obj) - 8
 			EndIf
@@ -265,7 +335,10 @@ Type TNPAPIPlugin
 		If str = Null str = _plugin.Description().ToCString()
 		Return str
 	End Function
+	
+	Function Message(msg:Byte Ptr)
+		Notify String.FromCString(msg)
+	End Function
 End Type
 
-AddHook EmitEventHook, TNPAPIObject.EventHook
 
