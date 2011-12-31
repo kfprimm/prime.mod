@@ -5,7 +5,16 @@
 typedef unsigned int bool;
 #define false 0
 #define true 1 
+#define OSDECL __declspec(dllexport)
 
+#else
+
+#define OSDECL
+
+#endif
+
+#ifndef HIBYTE
+#define HIBYTE(x) ((((uint32_t)(x)) & 0xff00) >> 8)
 #endif
 
 #include <stdint.h>
@@ -27,9 +36,9 @@ void _npapi_set_string(NPVariant *v, char *txt, int length)
 	STRINGN_TO_NPVARIANT(t, length, *v);
 }
 
-char  *_npapi_get_string(NPVariant *v)
+char *_npapi_get_string(NPVariant *v)
 { 
-	return NPVARIANT_TO_STRING(*v).UTF8Characters;
+	return (char*)NPVARIANT_TO_STRING(*v).UTF8Characters;
 }
 
 void _npapi_get_url_notify(NPP instance, const  char* url, const  char* target, void* notifyData)
@@ -51,7 +60,7 @@ NPObject *BMX_Allocate(NPP npp, NPClass *aClass)
 }
 
 static bool BMX_HasMethod(NPObject* obj, NPIdentifier methodName) {
-	BMX *bmx = obj;
+	BMX *bmx = (BMX*)obj;
 	char *name = npnfuncs->utf8fromidentifier(methodName);
 	int result = _prime_npapi_TNPAPIObject_OnHasMethod(bmx->ptr, name);
 	npnfuncs->memfree(name);
@@ -59,12 +68,12 @@ static bool BMX_HasMethod(NPObject* obj, NPIdentifier methodName) {
 }
 
 static bool BMX_InvokeDefault(NPObject *obj, const NPVariant *args, uint32_t argCount, NPVariant *result) {
-	BMX *bmx = obj;
+	BMX *bmx = (BMX*)obj;
 	return _prime_npapi_TNPAPIObject_OnInvoke(bmx->ptr, NULL, args, argCount, result);
 }
 
 static bool BMX_Invoke(NPObject* obj, NPIdentifier methodName, const NPVariant *args, uint32_t argCount, NPVariant *result) {
-	BMX *bmx = obj;
+	BMX *bmx = (BMX*)obj;
 	char *name = npnfuncs->utf8fromidentifier(methodName);
 	int res = _prime_npapi_TNPAPIObject_OnInvoke(bmx->ptr, name, args, argCount, result);
 	npnfuncs->memfree(name);
@@ -94,7 +103,7 @@ NPClass bmxObject = {
 };
 
 static NPError BMX_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char *argn[], char *argv[], NPSavedData *saved) {
-	instance->pdata = _prime_npapi_TNPAPIPlugin_OnNew(instance, pluginType, argc, argn, argv);
+	instance->pdata = (void*)_prime_npapi_TNPAPIPlugin_OnNew(pluginType, argc, argn, argv);
 	if (instance->pdata == NULL)
 		return NPERR_GENERIC_ERROR;
 	
@@ -117,17 +126,17 @@ static NPError BMX_GetValue(NPP instance, NPPVariable variable, void *value) {
 	default:
 		return NPERR_GENERIC_ERROR;
 	case NPPVpluginNameString:
-		*((char **)value) = _prime_npapi_TNPAPIPlugin_GetName();
+		*((char **)value) = (char*)_prime_npapi_TNPAPIPlugin_GetName();
 		break;
 	case NPPVpluginDescriptionString:
-		*((char **)value) = _prime_npapi_TNPAPIPlugin_GetDescription();
+		*((char **)value) = (char*)_prime_npapi_TNPAPIPlugin_GetDescription();
 		break;
 	case NPPVpluginScriptableNPObject:		
 		so = _prime_npapi_TNPAPIObject_GetData(instance->pdata, &bmx);  	
 		if (bmx == NULL && so)
 		{
-			bmx = npnfuncs->createobject(instance, &bmxObject);
-			npnfuncs->retainobject(bmx);
+			bmx = (BMX*)npnfuncs->createobject(instance, &bmxObject);
+			npnfuncs->retainobject((NPObject*)bmx);
 			bmx->ptr = instance->pdata;
 			_prime_npapi_TNPAPIObject_SetData(instance->pdata, bmx);
 		}
@@ -141,13 +150,20 @@ static NPError BMX_GetValue(NPP instance, NPPVariable variable, void *value) {
 }
 
 static NPError OSCALL BMX_HandleEvent(NPP instance, void *ev) {
-	NPEvent *event = ev;
+	NPEvent *event = (NPEvent*)ev;
+#ifdef WIN32
 	_prime_npapi_TNPAPIObject_OnHandleEvent(instance->pdata, event->event, event->wParam, event->lParam);
+#endif
 	return NPERR_NO_ERROR;
 }
 
 static NPError OSCALL BMX_SetWindow(NPP instance, NPWindow* window) {
+#ifdef WIN32
+	HWND hwnd;
+	npnfuncs->getvalue(instance, NPNVnetscapeWindow, (void*) &hwnd);
 	_prime_npapi_TNPAPIObject_OnSetWindow(instance->pdata, window->window);
+	_prime_npapi_TNPAPIObject_OnSetWindow(instance->pdata, hwnd);
+#endif
 	return NPERR_NO_ERROR;
 }
 
@@ -212,7 +228,7 @@ NPError OSCALL NP_GetEntryPoints(NPPluginFuncs *nppfuncs) {
 	return NPERR_NO_ERROR;
 }
 
-__declspec(dllexport) NPError OSCALL NP_Initialize(NPNetscapeFuncs *npnf 
+OSDECL NPError OSCALL NP_Initialize(NPNetscapeFuncs *npnf 
 #ifdef WIN32
                              )
 #else
@@ -241,7 +257,7 @@ const
 #endif
 char *NP_GetMIMEDescription(void)
 {
-	return _prime_npapi_TNPAPIPlugin_GetMIMEDescription();
+	return (char*)_prime_npapi_TNPAPIPlugin_GetMIMEDescription();
 }
 
 NPError OSCALL NP_GetValue(void *npp, NPPVariable variable, void *value)

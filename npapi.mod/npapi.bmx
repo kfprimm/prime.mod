@@ -242,32 +242,31 @@ Type TNPAPIPlugin
 	
 	Method Run()
 		_plugin.Initialize
-		AddHook EmitEventHook, TNPAPIObject.EventHook
-		?Win32
-		If ExtractExt(AppFile) = "exe"
-			Local base$ = StripAll(StripAll(AppFile))
-			Local def$ = "LIBRARY ~q"+base+".dll~q~nEXPORTS~n~nNP_GetEntryPoints~nNP_Initialize~nNP_Shutdown~nNP_Shutdown@0~n"
-			SaveText def, AppDir+"/"+base+".def"
-				
-			Local header$=""
-			header:+ "#define PLUGIN_COMPANYNAME ~q"+Author()+"~q~n"
-			header:+ "#define PLUGIN_DESCRIPTION ~q"+Description()+"~q~n"
-			header:+ "#define PLUGIN_DESC ~q"+"|".Join(_descriptions)+"~q~n"
-			header:+ "#define PLUGIN_INTERNALNAME ~q"+Name().Replace(" ","")+"~q~n"
-			header:+ "#define PLUGIN_COPYRIGHT ~q"+Copyright()+"~q~n"
-			header:+ "#define PLUGIN_MIME ~q"+"|".Join(_mimes)+"~q~n"
-			header:+ "#define PLUGIN_FILENAME ~q"+base+".dll~q~n"
-			header:+ "#define PLUGIN_NAME ~q"+Name()+"~q~n"
+		
+		?Debug
+		Local base$ = StripAll(StripAll(AppFile))
+		?Win32Debug	
+		Local def$ = "LIBRARY ~q"+base+".dll~q~nEXPORTS~n~nNP_GetEntryPoints~nNP_Initialize~nNP_Shutdown~nNP_Shutdown@0~n"
+		SaveText def, AppDir+"/"+base+".def"
+			
+		Local header$=""
+		header:+ "#define PLUGIN_COMPANYNAME ~q"+Author()+"~q~n"
+		header:+ "#define PLUGIN_DESCRIPTION ~q"+Description()+"~q~n"
+		header:+ "#define PLUGIN_DESC ~q"+"|".Join(_descriptions)+"~q~n"
+		header:+ "#define PLUGIN_INTERNALNAME ~q"+Name().Replace(" ","")+"~q~n"
+		header:+ "#define PLUGIN_COPYRIGHT ~q"+Copyright()+"~q~n"
+		header:+ "#define PLUGIN_MIME ~q"+"|".Join(_mimes)+"~q~n"
+		header:+ "#define PLUGIN_FILENAME ~q"+base+".dll~q~n"
+		header:+ "#define PLUGIN_NAME ~q"+Name()+"~q~n"
 
-			
-			Local rc$ = LoadText("incbin::npapi.rc")
-			SaveText header+rc, AppDir+"/"+base+".rc"
-			system_ "windres ~q"+AppDir+"/"+base+".rc"+"~q ~q"+AppDir+"/resource.o~q"
-			
-			Local BMX_PATH$=getenv_("BMX_PATH")
-			Local src$=ExtractDir(AppFile)+"/"+base+".bmx", opts$ = ""
-			system_ BMX_PATH+"/bin/bmk makelib -a -r "+src
-		End If
+		
+		Local rc$ = LoadText("incbin::npapi.rc")
+		SaveText header+rc, AppDir+"/"+base+".rc"
+		system_ "windres ~q"+AppDir+"/"+base+".rc"+"~q ~q"+AppDir+"/resource.o~q"
+		?Debug
+		Local BMX_PATH$=getenv_("BMX_PATH")
+		Local src$=ExtractDir(AppFile)+"/"+base+".bmx", opts$ = ""
+		system_ BMX_PATH+"/bin/bmk makelib -a -r "+src
 		?
 	End Method
 	
@@ -341,4 +340,4 @@ Type TNPAPIPlugin
 	End Function
 End Type
 
-
+AddHook EmitEventHook, TNPAPIObject.EventHook

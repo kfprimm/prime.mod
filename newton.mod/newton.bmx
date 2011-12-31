@@ -90,50 +90,38 @@ Import "source/physics/dgContact.cpp"
 Import "source/newton/Newton.cpp"
 Import "source/newton/NewtonClass.cpp"
 ?
+
+Const NEWTON_MAJOR_VERSION = 2
+Const NEWTON_MINOR_VERSION = 31
+
+Const NEWTON_PROFILER_WORLD_UPDATE						= 0
+
+Const NEWTON_PROFILER_COLLISION_UPDATE					= 1
+Const NEWTON_PROFILER_FORCE_CALLBACK_UPDATE				= 2
+Const NEWTON_PROFILER_COLLISION_UPDATE_BROAD_PHASE		= 3
+Const NEWTON_PROFILER_COLLISION_UPDATE_NARROW_PHASE		= 4
+
+Const NEWTON_PROFILER_DYNAMICS_UPDATE					= 5
+Const NEWTON_PROFILER_DYNAMICS_CONSTRAINT_GRAPH			= 6
+Const NEWTON_PROFILER_DYNAMICS_SOLVE_CONSTRAINT_GRAPH	= 7 
+
+Const SERIALIZE_ID_BOX					= 0	
+Const SERIALIZE_ID_CONE					= 1
+Const SERIALIZE_ID_SPHERE				= 2
+Const SERIALIZE_ID_CAPSULE				= 3
+Const SERIALIZE_ID_CYLINDER				= 4
+Const SERIALIZE_ID_COMPOUND				= 5
+Const SERIALIZE_ID_CONVEXHULL			= 6
+Const SERIALIZE_ID_CONVEXMODIFIER		= 7
+Const SERIALIZE_ID_CHAMFERCYLINDER		= 8
+Const SERIALIZE_ID_TREE					= 9
+Const SERIALIZE_ID_NULL					= 10
+Const SERIALIZE_ID_HEIGHTFIELD			= 11
+Const SERIALIZE_ID_USERMESH				= 12
+Const SERIALIZE_ID_SCENE				= 13
+Const SERIALIZE_ID_COMPOUND_BREAKABLE	= 14
+
 Rem
-
-#define NEWTON_MAJOR_VERSION 2 
-#define NEWTON_MINOR_VERSION 31 
-
-	#define NEWTON_PROFILER_WORLD_UPDATE					0
-
-	#define NEWTON_PROFILER_COLLISION_UPDATE				1
-	#define NEWTON_PROFILER_FORCE_CALLBACK_UPDATE			2
-	#define NEWTON_PROFILER_COLLISION_UPDATE_BROAD_PHASE	3
-	#define NEWTON_PROFILER_COLLISION_UPDATE_NARROW_PHASE	4
-
-	#define NEWTON_PROFILER_DYNAMICS_UPDATE					5
-	#define NEWTON_PROFILER_DYNAMICS_CONSTRAINT_GRAPH		6
-	#define NEWTON_PROFILER_DYNAMICS_SOLVE_CONSTRAINT_GRAPH	7
-
-	typedef struct NewtonMesh{} NewtonMesh;
-	typedef struct NewtonBody{} NewtonBody;
-	typedef struct NewtonWorld{} NewtonWorld;
-	typedef struct NewtonJoint{} NewtonJoint;
-	typedef struct NewtonMaterial{} NewtonMaterial;
-	typedef struct NewtonCollision{} NewtonCollision;
-	typedef struct NewtonSceneProxy{} NewtonSceneProxy;
-	typedef struct NewtonbreakableComponentMesh{} NewtonbreakableComponentMesh;
-
-'	typedef struct NewtonRagDoll{} NewtonRagDoll;
-'	typedef struct NewtonRagDollBone{} NewtonRagDollBone;
-
-	#define SERIALIZE_ID_BOX					0	
-	#define SERIALIZE_ID_CONE					1
-	#define SERIALIZE_ID_SPHERE					2
-	#define SERIALIZE_ID_CAPSULE				3
-	#define SERIALIZE_ID_CYLINDER				4
-	#define SERIALIZE_ID_COMPOUND				5
-	#define SERIALIZE_ID_CONVEXHULL				6
-	#define SERIALIZE_ID_CONVEXMODIFIER			7
-	#define SERIALIZE_ID_CHAMFERCYLINDER		8
-	#define SERIALIZE_ID_TREE					9
-	#define SERIALIZE_ID_NULL					10
-	#define SERIALIZE_ID_HEIGHTFIELD			11
-	#define SERIALIZE_ID_USERMESH				12
-	#define SERIALIZE_ID_SCENE					13
-	#define SERIALIZE_ID_COMPOUND_BREAKABLE		14
-
 	struct NewtonCollisionInfoRecord
 	{
 		dFloat m_offsetMatrix[4][4];
@@ -305,20 +293,20 @@ End Rem
 Rem
 	' Newton callback functions
 	typedef void* (*NewtonAllocMemory) (int sizeInBytes)
-	typedef void (*NewtonFreeMemory) (void* const ptr, int sizeInBytes)
-	typedef void (*NewtonDestroyWorld) (newtonWorld:Byte Ptr)
+	Function (*NewtonFreeMemory) (void* const ptr, int sizeInBytes)
+	Function (*NewtonDestroyWorld) (newtonWorld:Byte Ptr)
 
 	typedef unsigned (*NewtonGetTicksCountCallback) ()
 
-	typedef void (*NewtonSerialize) (void* const serializeHandle, const void* buffer, int size)
-	typedef void (*NewtonDeserialize) (void* const serializeHandle, void* buffer, int size)
+	Function NewtonSerialize) (void* const serializeHandle, const void* buffer, int size)
+	Function NewtonDeserialize) (void* const serializeHandle, void* buffer, int size)
 	
 	' user collision callbacks	
-	typedef void (*NewtonUserMeshCollisionDestroyCallback) (void* const userData)
-	typedef void (*NewtonUserMeshCollisionCollideCallback) (NewtonUserMeshCollisionCollideDesc* const collideDescData)
+	Function (*NewtonUserMeshCollisionDestroyCallback) (void* const userData)
+	Function (*NewtonUserMeshCollisionCollideCallback) (NewtonUserMeshCollisionCollideDesc* const collideDescData)
 	typedef dFloat (*NewtonUserMeshCollisionRayHitCallback) (NewtonUserMeshCollisionRayHitDesc* const lineDescData)
-	typedef void (*NewtonUserMeshCollisionGetCollisionInfo) (void* const userData, NewtonCollisionInfoRecord* const infoRecord)
-	typedef int (*NewtonUserMeshCollisionGetFacesInAABB) (void* const userData, const dFloat* const p0, const dFloat* const p1,
+	Function (*NewtonUserMeshCollisionGetCollisionInfo) (void* const userData, NewtonCollisionInfoRecord* const infoRecord)
+	Function (*NewtonUserMeshCollisionGetFacesInAABB) (void* const userData, const dFloat* const p0, const dFloat* const p1,
 														  const dFloat** const vertexArray, int* const vertexCount, int* const vertexStrideInBytes, 
 		                          const int* const indexList, int maxIndexCount, const int* const userDataList)
 
@@ -327,42 +315,42 @@ Rem
 
 	
 	' collision tree call back (obsoleted no recommended)
-	typedef void (*NewtonTreeCollisionCallback) (body:Byte PtrWithTreeCollision, body:Byte Ptr, int faceID, 
+	Function (*NewtonTreeCollisionCallback) (body:Byte PtrWithTreeCollision, body:Byte Ptr, int faceID, 
 												 int vertexCount, const dFloat* const vertex, int vertexStrideInBytes) 
 
-	typedef void (*NewtonBodyDestructor) (body:Byte Ptr)
-	typedef void (*NewtonApplyForceAndTorque) (body:Byte Ptr, dFloat timestep, int threadIndex)
-	typedef void (*NewtonSetTransform) (body:Byte Ptr, const matrix:Float Ptr, int threadIndex)
+	Function NewtonBodyDestructor (body:Byte Ptr)
+	Function NewtonApplyForceAndTorque (body:Byte Ptr, dFloat timestep, int threadIndex)
+	Function NewtonSetTransform (body:Byte Ptr, const matrix:Float Ptr, int threadIndex)
 
-	typedef int (*NewtonIslandUpdate) (newtonWorld:Byte Ptr, const void* islandHandle, int bodyCount)
-	typedef void (*NewtonBodyLeaveWorld) (body:Byte Ptr, int threadIndex)
-	typedef void (*NewtonDestroyBodyByExeciveForce) (body:Byte Ptr, const NewtonJoint* const contact)
-	typedef void (*NewtonCollisionDestructor) (newtonWorld:Byte Ptr, collision:Byte Ptr)
+	Function (*NewtonIslandUpdate) (newtonWorld:Byte Ptr, const void* islandHandle, int bodyCount)
+	Function (*NewtonBodyLeaveWorld) (body:Byte Ptr, int threadIndex)
+	Function (*NewtonDestroyBodyByExeciveForce) (body:Byte Ptr, const NewtonJoint* const contact)
+	Function (*NewtonCollisionDestructor) (newtonWorld:Byte Ptr, collision:Byte Ptr)
 
-	typedef int (*NewtonCollisionCompoundBreakableCallback) (NewtonMesh* const mesh, void* const userData, dFloat* const planeMatrixOut)
+	Function (*NewtonCollisionCompoundBreakableCallback) (NewtonMesh* const mesh, void* const userData, dFloat* const planeMatrixOut)
 
-	typedef int (*NewtonGetBuoyancyPlane) (const int collisionID, void* const context, const dFloat* const globalSpaceMatrix, dFloat* const globalSpacePlane)
+	Function (*NewtonGetBuoyancyPlane) (const int collisionID, void* const context, const dFloat* const globalSpaceMatrix, dFloat* const globalSpacePlane)
 	typedef unsigned (*NewtonWorldRayPrefilterCallback)(body:Byte Ptr, collision:Byte Ptr, void* const userData)
-	typedef dFloat (*NewtonWorldRayFilterCallback)(body:Byte Ptr, const dFloat* const hitNormal, int collisionID, void* const userData, dFloat intersectParam)
+	Function NewtonWorldRayFilterCallback#(body:Byte Ptr, const dFloat* const hitNormal, int collisionID, void* const userData, dFloat intersectParam)
 	
 
-	typedef int  (*NewtonOnAABBOverlap) (const NewtonMaterial* const material, body:Byte Ptr0, body:Byte Ptr1, int threadIndex)
-	typedef void (*NewtonContactsProcess) (const NewtonJoint* const contact, dFloat timestep, int threadIndex)
+	Function  (*NewtonOnAABBOverlap) (const NewtonMaterial* const material, body:Byte Ptr0, body:Byte Ptr1, int threadIndex)
+	Function (*NewtonContactsProcess) (const NewtonJoint* const contact, dFloat timestep, int threadIndex)
 
-	typedef void (*NewtonBodyIterator) (body:Byte Ptr, void* const userData)
-	typedef void (*NewtonJointIterator) (joint:Byte Ptr, void* const userData)
-	typedef void (*NewtonCollisionIterator) (void* const userData, int vertexCount, const dFloat* const faceArray, int faceId)
+	Function (*NewtonBodyIterator) (body:Byte Ptr, void* const userData)
+	Function (*NewtonJointIterator) (joint:Byte Ptr, void* const userData)
+	Function (*NewtonCollisionIterator) (void* const userData, int vertexCount, const dFloat* const faceArray, int faceId)
 
-	typedef void (*NewtonBallCallBack) (ball:Byte Ptr, dFloat timestep)
+	Function (*NewtonBallCallBack) (ball:Byte Ptr, dFloat timestep)
 	typedef unsigned (*NewtonHingeCallBack) (hinge:Byte Ptr, NewtonHingeSliderUpdateDesc* const desc)
 	typedef unsigned (*NewtonSliderCallBack) (const NewtonJoint* const slider, NewtonHingeSliderUpdateDesc* const desc)
 	typedef unsigned (*NewtonUniversalCallBack) (universal:Byte Ptr, NewtonHingeSliderUpdateDesc* const desc)
 	typedef unsigned (*NewtonCorkscrewCallBack) (corkscrew:Byte Ptr, NewtonHingeSliderUpdateDesc* const desc)
 
-	typedef void (*NewtonUserBilateralCallBack) (const NewtonJoint* const userJoint, dFloat timestep, int threadIndex)
-	typedef void (*NewtonUserBilateralGetInfoCallBack) (const NewtonJoint* const userJoint, NewtonJointRecord* const info)
+	Function NewtonUserBilateralCallBack) (const NewtonJoint* const userJoint, dFloat timestep, int threadIndex)
+	Function NewtonUserBilateralGetInfoCallBack) (const NewtonJoint* const userJoint, NewtonJointRecord* const info)
 
-	typedef void (*NewtonConstraintDestructor) (const NewtonJoint*const  me)
+	Function NewtonConstraintDestructor) (const NewtonJoint*const  me)
 
 '	typedef void (*NewtonSetRagDollTransform) (const NewtonRagDollBone* const bone)
 '	typedef void (*NewtonBodyActivationState) (body:Byte Ptr, unsigned state)
@@ -467,8 +455,8 @@ Rem
 	NEWTON_API NewtonMaterial* NewtonWorldGetFirstMaterial (newtonWorld:Byte Ptr)
 	NEWTON_API NewtonMaterial* NewtonWorldGetNextMaterial (newtonWorld:Byte Ptr, const NewtonMaterial* const material)
 
-	NEWTON_API NewtonBody* NewtonWorldGetFirstBody (newtonWorld:Byte Ptr)
-	NEWTON_API NewtonBody* NewtonWorldGetNextBody (newtonWorld:Byte Ptr, const NewtonBody* const curBody)
+	Function NewtonWorldGetFirstBody:Byte Ptr(newtonWorld:Byte Ptr)
+	Function NewtonWorldGetNextBody:Byte Ptr(newtonWorld:Byte Ptr, curBody:Byte Ptr)
 
 
 	' **********************************************************************************************
