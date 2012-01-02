@@ -161,7 +161,9 @@ Type TNPAPIObject
 	End Function
 	
 	Function OnHandleEvent(obj:TNPAPIObject, event, wParam, lParam)
+?Win32
 		bbSystemEmitOSEvent( obj.Hwnd(), event,wParam,lParam,obj )
+?
 	End Function
 	
 	Function EventHook:Object(id, data:Object, context:Object)
@@ -172,6 +174,7 @@ Type TNPAPIObject
 	End Function
 		
 	Function OnSetWindow(obj:TNPAPIObject, hwnd)
+?Win32
 		If obj._hwnd <> hwnd And hwnd <> 0
 			If obj._hwnd <> 0 SetWindowLongA(obj._hwnd,GWL_WNDPROC, Int(obj._wndproc))
 			
@@ -181,6 +184,7 @@ Type TNPAPIObject
 			_hwndmap.Insert String(hwnd), obj			
 		EndIf
 		obj._hwnd = hwnd
+?
 	End Function
 	
 	Function OnNewStream:Byte Ptr(obj:TNPAPIObject, p:Byte Ptr)
@@ -214,12 +218,13 @@ Type TNPAPIObject
 			Notify "OnWriteREady"
 
 	End Function
-		
+?Win32		
 	Function WndProc(hwnd, msg, wParam, lParam)
 		Local obj:TNPAPIObject = TNPAPIObject(_hwndmap.ValueForKey(String(hwnd)))
 		OnHandleEvent(obj, msg, wParam, lParam)
 		Return CallWindowProcA(obj._wndproc, hwnd, msg, wParam, lParam)
 	End Function
+?
 End Type
 
 Type TNPAPIPlugin
