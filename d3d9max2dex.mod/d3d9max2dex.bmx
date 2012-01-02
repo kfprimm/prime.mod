@@ -40,7 +40,7 @@ Rem
 End Rem
 Function D3D9Max2DExDriver:TD3D9Max2DExDriver ()
 	If D3D9Max2DDriver()
-		Global driver:TD3D9Max2DExDriver =New TD3D9Max2DExDriver 
+		Global driver:TD3D9Max2DExDriver = New TD3D9Max2DExDriver 
 		driver._parent=D3D9Max2DDriver()
 		Return driver
 	End If

@@ -2,7 +2,7 @@
 Strict
 
 Rem
-	bbdoc: Max2D extensions to support buffering
+	bbdoc: Max2D extensions to support buffering and shaders
 End Rem
 Module Prime.Max2DEx
 ModuleInfo "Author: Kevin Primm"
@@ -13,8 +13,7 @@ Import "buffers.bmx"
 Import "shaders.bmx"
 
 Type TMax2DExDriver Extends TMax2DDriver
-	Global _parent:TMax2DDriver
-	
+	Field _parent:TMax2DDriver	
 	Field _current:TGraphics
 	Field _backbuffer:TBuffer=New TBuffer,_currentbuffer:TBuffer
   Field _shader:TShader, _shaderdriver:TShaderDriver
