@@ -72,9 +72,11 @@ Type TXFile
 	
 	Method ParseBinary(stream:TStream)
 		While Not Eof(stream)
-			Select ParseToken(stream:TStream)
+			Select ParseToken(stream)
 			Case X_TOKEN_NAME
 				Entries:+[ParseEntry(stream)]
+			Case X_TOKEN_TEMPLATE
+				Templates:+[ParseTemplate(stream)]
 			Default
 				Error
 			End Select
@@ -86,71 +88,176 @@ Type TXFile
 		Local id=ReadShort(stream)
 		Select id
 		Case X_TOKEN_NAME
-			'DebugLog "X_TOKEN_NAME"
+'			DebugLog "X_TOKEN_NAME"
 		Case X_TOKEN_STRING
-			'DebugLog "X_TOKEN_STRING"
+'			DebugLog "X_TOKEN_STRING"
 		Case X_TOKEN_INTEGER
-			'DebugLog "X_TOKEN_INTEGER"
+'			DebugLog "X_TOKEN_INTEGER"
 		Case X_TOKEN_GUID
-			'DebugLog "X_TOKEN_GUID"
+'			DebugLog "X_TOKEN_GUID"
 		Case X_TOKEN_INTEGER_LIST
-			'DebugLog "X_TOKEN_INTEGER_LIST"
+'			DebugLog "X_TOKEN_INTEGER_LIST"
 		Case X_TOKEN_FLOAT_LIST	
-			'DebugLog "X_TOKEN_FLOAT_LIST"
+'			DebugLog "X_TOKEN_FLOAT_LIST"
 		Case X_TOKEN_OBRACE
-			'DebugLog "X_TOKEN_OBRACE"
+'			DebugLog "X_TOKEN_OBRACE"
 		Case X_TOKEN_CBRACE
-			'DebugLog "X_TOKEN_CBRACE"
+'			DebugLog "X_TOKEN_CBRACE"
 		Case X_TOKEN_OPAREN
-			'DebugLog "X_TOKEN_OPAREN"
+'			DebugLog "X_TOKEN_OPAREN"
 		Case X_TOKEN_CPAREN
-			'DebugLog "X_TOKEN_CPAREN"
+'			DebugLog "X_TOKEN_CPAREN"
 		Case X_TOKEN_OBRACKET
-			'DebugLog "X_TOKEN_OBRACKET"
+'			DebugLog "X_TOKEN_OBRACKET"
 		Case X_TOKEN_CBRACKET
-			'DebugLog "X_TOKEN_CBRACKET"
+'			DebugLog "X_TOKEN_CBRACKET"
 		Case X_TOKEN_OANGLE
-			'DebugLog "X_TOKEN_OANGLE"
+'			DebugLog "X_TOKEN_OANGLE"
 		Case X_TOKEN_CANGLE
-			'DebugLog "X_TOKEN_CANGLE"
+'			DebugLog "X_TOKEN_CANGLE"
 		Case X_TOKEN_DOT
-			'DebugLog "X_TOKEN_DOT"
+'			DebugLog "X_TOKEN_DOT"
 		Case X_TOKEN_COMMA
-			'DebugLog "X_TOKEN_COMMA"
+'			DebugLog "X_TOKEN_COMMA"
 		Case X_TOKEN_SEMICOLON
-			'DebugLog "X_TOKEN_SEMICOLON"
+'			DebugLog "X_TOKEN_SEMICOLON"
 		Case X_TOKEN_TEMPLATE
-			'DebugLog "X_TOKEN_TEMPLATE"
+'			DebugLog "X_TOKEN_TEMPLATE"
 		Case X_TOKEN_WORD
-			'DebugLog "X_TOKEN_WORD"
+'			DebugLog "X_TOKEN_WORD"
 		Case X_TOKEN_DWORD
-			'DebugLog "X_TOKEN_DWORD"
+'			DebugLog "X_TOKEN_DWORD"
 		Case X_TOKEN_FLOAT
-			'DebugLog "X_TOKEN_FLOAT"
+'			DebugLog "X_TOKEN_FLOAT"
 		Case X_TOKEN_DOUBLE
-			'DebugLog "X_TOKEN_DOUBLE"
+'			DebugLog "X_TOKEN_DOUBLE"
 		Case X_TOKEN_CHAR
-			'DebugLog "X_TOKEN_CHAR"
+'			DebugLog "X_TOKEN_CHAR"
 		Case X_TOKEN_UCHAR
-			'DebugLog "X_TOKEN_UCHAR"
+'			DebugLog "X_TOKEN_UCHAR"
 		Case X_TOKEN_SWORD
-			'DebugLog "X_TOKEN_SWORD"
+'			DebugLog "X_TOKEN_SWORD"
 		Case X_TOKEN_SDWORD
-			'DebugLog "X_TOKEN_SDWORD"
+'			DebugLog "X_TOKEN_SDWORD"
 		Case X_TOKEN_VOID
-			'DebugLog "X_TOKEN_VOID"
+'			DebugLog "X_TOKEN_VOID"
 		Case X_TOKEN_LPSTR
-			'DebugLog "X_TOKEN_LPSTR"
+'			DebugLog "X_TOKEN_LPSTR"
 		Case X_TOKEN_UNICODE
-			'DebugLog "X_TOKEN_UNICODE"
+'			DebugLog "X_TOKEN_UNICODE"
 		Case X_TOKEN_CSTRING
-			'DebugLog "X_TOKEN_CSTRING"
+'			DebugLog "X_TOKEN_CSTRING"
 		Case X_TOKEN_ARRAY
-			'DebugLog "X_TOKEN_ARRAY"
+'			DebugLog "X_TOKEN_ARRAY"
 		Default
 			id=0
+			DebugLog "Unrecognized token."
 		End Select
 		Return id
+	End Method
+	
+	Method ParseTemplate:TXTemplate(stream:TStream)
+		Local template:TXTemplate=New TXTemplate
+		 
+		While True
+			Select ParseToken(stream)
+			Case X_TOKEN_NAME
+				template.Name=TXToken.GetName(stream)
+			Case X_TOKEN_GUID
+				template.GUID=TXToken.GetGUID(stream)
+				ParseTemplateParts(stream, template)
+				Return
+			Case X_TOKEN_OBRACE
+			Default
+				Error
+			End Select
+		Wend		
+		
+		Return template
+	End Method
+	
+	Method ParseTemplateParts(stream:TStream, template:TXTemplate)
+		ParseTemplateMembersPart(stream, template)
+	End Method
+	
+	Method ParseTemplateMembersPart(stream:TStream, template:TXTemplate)
+		ParseTemplateMembersList(stream, template)
+	End Method
+	
+	Method ParseTemplateMembersList(stream:TStream, template:TXTemplate)
+		ParseTemplateMembers(stream, template)
+	End Method	
+	
+	Method ParseTemplateMembers(stream:TStream, template:TXTemplate)
+		Local member:TXMember = new TXMember
+		While True
+			Local token = ParseToken(stream)
+			Select token
+			Case X_TOKEN_WORD, X_TOKEN_DWORD, X_TOKEN_FLOAT, X_TOKEN_DOUBLE, X_TOKEN_CHAR, X_TOKEN_UCHAR, X_TOKEN_SWORD, X_TOKEN_SDWORD, X_TOKEN_LPSTR, X_TOKEN_UNICODE, X_TOKEN_CSTRING
+				ParsePrimitive(stream, member, token)
+			Case X_TOKEN_ARRAY
+				ParseArray(stream, member)
+			Case X_TOKEN_NAME
+				ParseTemplateReference(stream, member)				
+			Case X_TOKEN_CBRACE
+				Exit
+			Default
+				Error
+			End Select
+			template.Members:+[member]
+			member = New TXMember
+		Wend
+	End Method	
+	
+	Method ParsePrimitive(stream:TStream, member:TXMember, datatype)
+		member.DataType = datatype
+		While True
+			Select ParseToken(stream)
+			Case X_TOKEN_NAME
+				member.Name = TXToken.GetName(stream)
+			Case X_TOKEN_SEMICOLON
+				Exit
+			End Select
+		Wend
+	End Method
+	
+	Method ParseArray(stream:TStream, member:TXMember)
+		member.IsArray = True
+		While True
+			Select ParseToken(stream)
+			Case X_TOKEN_NAME
+				member.Name = TXToken.GetName(stream)
+			Case X_TOKEN_OBRACKET
+				ParseDimension(stream, member)
+			Case X_TOKEN_SEMICOLON
+				Exit
+			End Select
+		Wend
+	End Method
+	
+	Method ParseDimension(stream:TStream, member:TXMember)
+		While True
+			Select ParseToken(stream)
+			Case X_TOKEN_INTEGER
+				member.ArraySize = TXToken.GetInt(stream)
+			Case X_TOKEN_NAME
+				member.Name = TXToken.GetName(stream)
+			Case X_TOKEN_CBRACKET
+				Exit
+			Default
+				Error
+			End Select
+		Wend
+	End Method
+		
+	Method ParseTemplateReference(stream:TStream, member:TXMember)
+		member.Name = TXToken.GetName(stream)
+		While True
+			Select ParseToken(stream)
+			Case X_TOKEN_SEMICOLON
+				Exit
+			End Select
+		Wend		
 	End Method
 	
 	Method ParseEntry:TXEntry(stream:TStream)
@@ -168,13 +275,11 @@ Type TXFile
 			End Select
 		Wend		
 				
-		DebugLog entry.Name+" ("+entry.TemplateName+")"
-
 		While True
 			Local data:TXData
 			Select ParseToken(stream)
 			Case X_TOKEN_INTEGER
-				data=TXData.FromInt(ReadInt(stream))			
+				data=TXData.FromInt(ReadInt(stream))		
 			Case X_TOKEN_INTEGER_LIST
 				data=TXData.FromInts(TXToken.GetInts(stream))		
 			Case X_TOKEN_FLOAT_LIST
@@ -185,38 +290,44 @@ Type TXFile
 				EndIf
 			Case X_TOKEN_STRING
 				data=TXData.FromString(TXToken.GetString(stream))
-				DebugLog data.ToString()
 			Case X_TOKEN_NAME
 				entry.AddChild ParseEntry(stream)
 			Case X_TOKEN_OBRACE
 				ParseToken(stream)
 				data=TXData.FromString(TXToken.GetString(stream))
-				'ParseToken(stream)
 			Case X_TOKEN_CBRACE
 				Exit
 			Default
 				Error
 			End Select			
-			If data entry.AddData data			
+			If data
+				entry.AddData data			
+				data = Null
+			EndIf
 		Wend
 		Return entry
 	End Method
 
 	Method DumpInfo()
+		DebugLog "Templates:"
+		For Local template:TXTemplate=EachIn Templates
+			template.DumpInfo()
+		Next
+		Debuglog "Entries: "
 		For Local entry:TXEntry=EachIn Entries
 			entry.DumpInfo()
 		Next
 	End Method
 	
-	Method Error()
-		End
+	Method Error(msg$ = "Error")
+		Throw msg
 	End Method
 End Type
 
 Type TXGUID
 	Field data0
-	Field data1
-	Field data2
+	Field data1:Short
+	Field data2:Short
 	Field data3:Byte[8]
 End Type
 
@@ -239,7 +350,7 @@ Type TXToken
 	
 	Function GetGUID:TXGUID(stream:TStream)
 		Local guid:TXGUID=New TXGUID
-		stream.ReadBytes Varptr guid.data0,4*3
+		stream.ReadBytes Varptr guid.data0,4*2
 		stream.ReadBytes guid.data3,8
 		Return guid
 	End Function
@@ -258,14 +369,21 @@ Type TXToken
 	
 	Function GetInts[](stream:TStream)
 		Local count=ReadInt(stream),i[count]
-		DebugLog count
 		stream.ReadBytes i,4*count
 		Return i
 	End Function
 End Type
 
 Type TXTemplate
+	Field Name$, GUID:TXGUID
 	Field Members:TXMember[]
+	
+	Method DumpInfo(level=0)
+		DebugLog Name
+		For Local member:TXMember=EachIn Members
+			DebugLog " "+member.Name
+		Next
+	End Method
 End Type
 
 Type TXMember
@@ -339,9 +457,21 @@ Type TXData
 	Method ToInt()
 		Return Int Ptr(Contents[0])[0]
 	End Method
+
+	Method ToIntArray[]()
+		Local array[ContentCount]
+		MemCopy array,Contents,ContentCount*4
+		Return array
+	End Method
 	
 	Method ToFloat#()
 		Return Float Ptr(Contents[0])[0]
+	End Method
+
+	Method ToFloatArray#[]()
+		Local array#[ContentCount]
+		MemCopy array,Contents,ContentCount*4
+		Return array
 	End Method
 	
 	Method ToDouble!()
