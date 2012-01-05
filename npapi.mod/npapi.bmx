@@ -13,6 +13,7 @@ Import BRL.System
 Import BRL.Reflection
 Import BRL.Map
 Import PUB.Win32
+Import BRL.Threads
 Import "glue.c"
 
 ?Win32
@@ -48,7 +49,25 @@ Type TNPAPIObject
 	Method InvokeDefault() ; End Method
 	Method Destroy() ; End Method
 	Method OnEvent( event:TEvent ) ; End Method
+	
+	?Threaded
+	Field _thread:TThread
+	
 	Method Thread:Object() ; End Method
+
+	Method EmitEvent(event:TEvent)
+		Return brl.event.EmitEvent(event)
+	End Method
+	
+	Function ThreadFunc:Object( data:Object )
+		Return TNPAPIObject(data).Thread()
+	End Function
+	
+	Method New()
+		_thread = CreateThread(ThreadFunc, Self)
+	End Method
+
+	?
 	
 	Method GetUrlNotify(url$, target$, notifyData:Object = Null)
 		Local u:Byte Ptr = url.ToCString(), t:Byte Ptr = Null, d:Byte Ptr = Null
@@ -103,10 +122,6 @@ Type TNPAPIObject
 		Return _hwnd
 	End Method
 	
-	Function ThreadFunc:Object( data:Object )
-		Return TNPAPIObject(data).Thread()
-	End Function
-
 	Method RegisterMethods()
 		Local typ:TTypeId = TTypeId.ForObject(Self), name$ = typ.Name()
 		If _methodmap.ValueForKey(name) = Null
@@ -207,12 +222,10 @@ Type TNPAPIObject
 	
 	Function OnWrite(obj:TNPAPIObject, stream:TNPAPIStream, offset, length, buf:Byte Ptr)		
 			Notify "OnWrite"
-
 	End Function
 	
 	Function OnWriteReady(obj:TNPAPIObject, stream:TNPAPIStream)
 			Notify "OnWriteREady"
-
 	End Function
 		
 	Function WndProc(hwnd, msg, wParam, lParam)
@@ -244,8 +257,7 @@ Type TNPAPIPlugin
 		_plugin.Initialize
 		
 		?Debug
-		Local base$ = StripAll(StripAll(AppFile))
-		?Win32Debug	
+		Local base$ = StripAll(AppFile).Replace(".debug", "").Replace(".mt", "")
 		Local def$ = "LIBRARY ~q"+base+".dll~q~nEXPORTS~n~nNP_GetEntryPoints~nNP_Initialize~nNP_Shutdown~nNP_Shutdown@0~n"
 		SaveText def, AppDir+"/"+base+".def"
 			
@@ -258,12 +270,11 @@ Type TNPAPIPlugin
 		header:+ "#define PLUGIN_MIME ~q"+"|".Join(_mimes)+"~q~n"
 		header:+ "#define PLUGIN_FILENAME ~q"+base+".dll~q~n"
 		header:+ "#define PLUGIN_NAME ~q"+Name()+"~q~n"
-
 		
 		Local rc$ = LoadText("incbin::npapi.rc")
 		SaveText header+rc, AppDir+"/"+base+".rc"
 		system_ "windres ~q"+AppDir+"/"+base+".rc"+"~q ~q"+AppDir+"/resource.o~q"
-		?Debug
+
 		Local BMX_PATH$=getenv_("BMX_PATH")
 		Local src$=ExtractDir(AppFile)+"/"+base+".bmx", opts$ = ""
 		system_ BMX_PATH+"/bin/bmk makelib -a -r "+src

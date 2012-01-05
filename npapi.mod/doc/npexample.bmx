@@ -3,10 +3,6 @@ Strict
 
 Framework Prime.NPAPI
 Import "resource.o"
-Import MaxGUI.Drivers
-
-Import Prime.SerialIO
-Import Prime.PrintLib
 
 Type TExampleObject Extends TNPAPIObject
 	Field test
