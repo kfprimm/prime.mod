@@ -382,6 +382,14 @@ Type TMatrix
 End Type
 
 Type TQuaternion Extends TVector
+	Method ToMatrix:TMatrix()
+		Return Matrix(w,x,y,z)
+	End Method
+	
+	Method ToEuler(pitch# Var,yaw# Var,roll# Var)
+		Return ToMatrix().GetRotation(pitch,yaw,roll)
+	End Method
+	
 	Function Matrix:TMatrix(w#,x#,y#,z#)
 		Local q#[]=[w,x,y,z]
 		
