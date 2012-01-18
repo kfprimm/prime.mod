@@ -377,7 +377,14 @@ Type TMatrix
 	End Function
 	
 	Function Unproject(modelview:TMatrix, projection:TMatrix, viewport[], wx#, wy#, wz#, x# Var, y# Var, z# Var)
-	
+		x=((wx-viewport[0])*2/viewport[2]) - 1
+		y=((wy-viewport[1])*2/viewport[3]) - 1
+		z=wz*2-1
+		Local w#=1.0
+		projection.Multiply(modelview).Inverse().TransformVec4 x,y,z,w
+		If w=0 Return False
+		x:/w;y:/-w;z:/-w
+		Return True
 	End Function
 	
 	Method ToPtr:Float Ptr()

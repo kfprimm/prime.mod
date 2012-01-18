@@ -64,7 +64,7 @@ Type TMax2DExDriver Extends TMax2DDriver
 	Method DrawPoly( xy#[],handlex#,handley#,originx#,originy# )
 		Return _parent.DrawPoly(xy,handlex,handlex,originx,originy)
 	End Method
-		
+	
 	Method DrawPixmap( pixmap:TPixmap,x,y )
 		Return _parent.DrawPixmap(pixmap,x,y)
 	End Method
@@ -126,6 +126,30 @@ Type TMax2DExDriver Extends TMax2DDriver
 		_shaderdriver.Use _shader, Null
 	End Method
 End Type
+
+Rem
+	bbdoc: Needs documentation. #TODO
+End Rem
+Function DrawRoundRect( x#,y#,width#,height#,radius# )
+	radius = Max(Min(radius,Min(width,height)/2.0),0)
+	Local segs=Int(Max(Abs(radius)*2,12))&~3,xy#[4*segs*2]
+	Function MakeArc(xy#[],index,segs,x#,y#,radius#,ang0#,ang1#)
+		Local ang# = ang0, delta#=(ang1-ang0)/segs
+		For Local i = index To index+(segs-2)
+			xy[i*2+0] = x+(Cos(ang)*radius)
+			xy[i*2+1] = y-(Sin(ang)*radius)
+			ang:+delta
+		Next
+		xy[(index+segs-1)*2+0] = x+(Cos(ang1)*radius)
+		xy[(index+segs-1)*2+1] = y-(Sin(ang1)*radius)
+	End Function
+	
+	MakeArc xy,0,segs,x+radius,y+radius,radius,180,90
+	MakeArc xy,segs*1,segs,(x+width)-radius,y+radius,radius,90,0
+	MakeArc xy,segs*2,segs,(x+width)-radius,(y+height)-radius,radius,0,-90
+	MakeArc xy,segs*3,segs,x+radius,(y+height)-radius,radius,270,180
+	DrawPoly xy
+End Function
 
 Rem
 	bbdoc: Width of the buffer.
