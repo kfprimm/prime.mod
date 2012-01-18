@@ -362,6 +362,24 @@ Type TMatrix
 		Return out
 	End Method
 	
+	Function Project(modelview:TMatrix, projection:TMatrix, viewport[], x# Var, y# Var, z# Var)
+		Local w#=1.0
+		modelview.TransformVec4 x,y,z,w
+		projection.TransformVec4 x,y,z,w
+		If w=0 Return False
+		x:/w;y:/w;z:/w
+
+		x=x*0.5+0.5;y=-y*0.5+0.5;z=z*0.5+0.5;
+
+		x=x*viewport[2]+viewport[0]
+		y=y*viewport[3]+viewport[1]
+		Return True
+	End Function
+	
+	Function Unproject(modelview:TMatrix, projection:TMatrix, viewport[], wx#, wy#, wz#, x# Var, y# Var, z# Var)
+	
+	End Function
+	
 	Method ToPtr:Float Ptr()
 		Return Varptr _m[0,0]
 	End Method
