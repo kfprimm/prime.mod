@@ -45,8 +45,14 @@ Type TVector
 	End Method
 
 	Method Create3:TVector(a#,b#,c#)	
-		Return Create4(a,b,c,0.0)
+		Return Create4(a,b,c,1.0)
 	End Method	
+	
+	Method Get3(x# Var,y# Var,z# Var)
+		x = Self.x
+		y = Self.y
+		z = Self.z
+	End Method
 	
 	Method To3:TVector()
 		Return Vec4(x,y,z,0.0)
@@ -81,7 +87,8 @@ Type TVector
 	End Method
 	
 	Method Cross:TVector(v:TVector)
-		Return Vec3(y*v.z-z*v.y,z*v.x-x*v.z,x*v.y-y*v.x)
+'		Return Vec3(y*v.z-z*v.y,z*v.x-x*v.z,x*v.y-y*v.x)
+		Return Vec4((y-v.y)*(z+v.z),(z-v.z)*(x+v.x),(x-v.x)*(y+v.y),0.0)
 	End Method
 	
 	Method Dot#(v:TVector)
@@ -89,7 +96,7 @@ Type TVector
 	End Method
 		
 	Method Length#()
-		Return Sqr(x*x+y*y+z*z+w*w)
+		Return Sqr(x*x+y*y+z*z)
 	End Method
 	
 	Method Normalize:TVector()
@@ -147,12 +154,12 @@ End Type
 
 Type TPlane Extends TVector
 	Method FromPoint:TPlane(v:TVector,p:TVector)
-		Return TPlane(Create4(v.x,v.y,v.z,-v.Dot(p)))
+		Return TPlane(Create4(v.x,v.y,v.z,-v.Dot(p.To3())))
 	End Method 
 	
 	Method FromTriangle:TPlane(a:TVector,b:TVector,c:TVector)
 		Local v:TVector=(b.Sub(a).Cross(c.Sub(b))).Normalize()
-		Return TPlane(Create4(v.x,v.y,v.z,-v.Dot(a)))
+		Return TPlane(Create4(v.x,v.y,v.z,-v.Dot(a.To3())))
 	End Method 
 	
 	Method RayIntersection#(r:TRay)
@@ -162,7 +169,7 @@ Type TPlane Extends TVector
 	End Method
 	
 	Method LineIntersection:TVector(ptA:TVector,ptB:TVector)
-		Local v:TVector=ptB.Sub(ptA).To3()
+		Local v:TVector=ptB.Sub(ptA)
 		Return ptA.Add(v.Scale(-ptA.Dot(Self)/v.Dot(Self)))
 	End Method
 End Type
@@ -213,6 +220,16 @@ Type TMatrix
 		matrix._m[2,3]=near*far/(far-near)
 		matrix._m[3,2]=-1
 		matrix._m[3,3]=0
+		Return matrix
+	End Function
+	
+	Function OrthoRH:TMatrix(width#,height#,near#,far#)
+		Local matrix:TMatrix=New TMatrix
+		matrix._m[0,0]=2.0/width
+		matrix._m[1,1]=2.0/height
+		matrix._m[2,2]=1.0/(near-far)
+		matrix._m[2,3]=near/(near-far)
+		matrix._m[3,3]=1.0
 		Return matrix
 	End Function
 		

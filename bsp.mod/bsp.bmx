@@ -65,10 +65,7 @@ Type TBSPPolygon
 		Local sum:TVector=New TVector
 		Local last=Count()-1
 		For Local i=0 To Count()-1
-			Local A:TVector=Point[last],B:TVector=Point[i]
-			sum.x:+(A.y-B.y)*(A.z+B.z)
-			sum.y:+(A.z-B.z)*(A.x+B.x)
-			sum.z:+(A.x-B.x)*(A.y+B.y)
+			sum = sum.Add(Point[last].Cross(Point[i]))
 			last=i
 		Next
 		Return sum.Normalize()
