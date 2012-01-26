@@ -9,3 +9,4 @@
 .bmx/
 *.debug*
 *.mod/doc/commands.html
+.DS_Store
