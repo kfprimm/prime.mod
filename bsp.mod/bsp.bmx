@@ -17,47 +17,31 @@ Const BSP_ON       =  0
 Const BSP_OUT      =  1
 Const BSP_SPANNING =  2
 
+Private
 Function AppendListToList(l:TList,a:TList)
 	For Local o:Object=EachIn a
 		l.AddLast(o)
 	Next
 End Function
 
-Type TBSPBounds
-	Field mx:TVector=New TVector.Create3(-INFINITY,-INFINITY,-INFINITY)
-	Field mn:TVector=New TVector.Create3(INFINITY,INFINITY,INFINITY)
-	
-	Method Add(obj:Object)
-		Local box:TBSPBounds=TBSPBounds(obj),pt:TVector=TVector(obj)
-		If box
-			If box.mx.x>mx.x mx.x=box.mx.x+EPSILON
-			If box.mx.y>mx.y mx.y=box.mx.y+EPSILON
-			If box.mx.z>mx.z mx.z=box.mx.z+EPSILON
-			If box.mn.x<mn.x mn.x=box.mn.x-EPSILON
-			If box.mn.y<mn.y mn.y=box.mn.y-EPSILON
-			If box.mn.z<mn.z mn.z=box.mn.z-EPSILON
-		Else
-			If pt.x>mx.x mx.x=pt.x+EPSILON
-			If pt.y>mx.y mx.y=pt.y+EPSILON
-			If pt.z>mx.z mx.z=pt.z+EPSILON
-			If pt.x<mn.x mn.x=pt.x-EPSILON
-			If pt.y<mn.y mn.y=pt.y-EPSILON
-			If pt.z<mn.z mn.z=pt.z-EPSILON
-		EndIf
-	End Method
-	
-	Method Contains(pt:TVector)
-		Return pt.x<=mx.x And pt.x>=mn.x And pt.y<=mx.y And pt.y>=mn.y And pt.z<=mx.z And pt.z>=mn.z
-	End Method	
-End Type
+Public
+
+Function BSPPolygon:TBSPPolygon(pts:TVector[])
+	Return New TBSPPolygon.Create(pts)
+End Function
 
 Type TBSPPolygon
 	Field Plane:TPlane=New TPlane
-	Field Point:TVector[]
+	Field Point:TVector[], Center:TVector
 	
 	Method Create:TBSPPolygon(pts:TVector[])
-		Point=pts[..]
-		Plane.FromPoint(Normal(),pts[0])
+		Point = pts[..]
+		Center = Vec4(0,0,0,0)
+		For Local p:TVector = EachIn Point
+			Center = Center.Add(p)
+		Next
+		Center = Center.Scale(1.0/Point.length)
+		Plane.FromPoint(Normal(), Center)
 		Return Self
 	End Method
 	
@@ -120,16 +104,8 @@ Type TBSPPolygon
 	End Method
 End Type
 
-Type TBSPRCPolygon Extends TBSPPolygon
-	Field RefCount
-	
-	Method Create:TBSPPolygon(pts:TVector[])
-		Return Super.Create(pts)
-	End Method
-End Type
-
 Type TBSPNode
-	Field On:TList=New TList,BoundingBox:TBSPBounds=New TBSPBounds
+	Field On:TList=New TList,BoundingBox:TBoundingBox=New TBoundingBox
 	Field In:TBSPTree=New TBSPTree
 	Field Out:TBSPTree=New TBSPTree
 	Field Plane:TPlane=New TPlane
@@ -137,8 +113,17 @@ Type TBSPNode
 	
 	Method Create:TBSPNode(poly:TBSPPolygon)
 		Plane.Equals(poly.Plane)
-		On.AddLast(poly)
+		AddPolygon(poly)
 		Return Self
+	End Method
+	
+	Method AddPolygon(poly:TBSPPolygon)
+		On.AddLast(poly)
+		Dirty = True
+	End Method
+	
+	Method Polygons()
+		Return On.Count() 
 	End Method
 	
 	Method Insert(list:TList,keep)
@@ -147,8 +132,7 @@ Type TBSPNode
 		For Local poly:TBSPPolygon=EachIn list
 			Local side=Split(poly,Plane,inp,outp)
 			If side=BSP_ON
-				On.AddLast(poly)
-				Dirty=True
+				AddPolygon(poly)
 			Else
 				If side=BSP_IN Or side=BSP_SPANNING inside.AddLast(inp)
 				If side=BSP_OUT Or side=BSP_SPANNING outside.AddLast(outp)
@@ -164,7 +148,6 @@ Type TBSPNode
 		Local side=Split(poly,Plane,inp,outp)
 		If side=BSP_ON
 			result.AddLast(poly)
-			Dirty=True
 		Else
 			If side=BSP_IN Or side=BSP_SPANNING In.PushFace(inp,result,keep,BSP_IN)
 			If side=BSP_OUT Or side=BSP_SPANNING Out.PushFace(outp,result,keep,BSP_OUT)
@@ -178,7 +161,6 @@ Type TBSPNode
 			Local side=Split(poly,Plane,inp,outp)
 			If side=BSP_ON
 				result.AddLast(poly)
-				Dirty=True
 			Else
 				If side=BSP_IN Or side=BSP_SPANNING inside.AddLast(inp)
 				If side=BSP_OUT Or side=BSP_SPANNING outside.AddLast(outp)
@@ -186,6 +168,18 @@ Type TBSPNode
 		Next
 		If Not inside.IsEmpty() In.Push(inside,result,keep,BSP_IN)
 		If Not outside.IsEmpty() Out.Push(outside,result,keep,BSP_OUT)
+	End Method
+	
+	Method Invert()
+		For Local poly:TBSPPolygon=EachIn On
+			poly.Invert
+		Next
+		Plane = TPlane(Plane.Scale(-1))
+		In.Invert
+		Out.Invert
+		Local temp:TBSPTree = In
+		In = Out
+		Out = temp
 	End Method
 	
 	Method Reduce()
@@ -202,7 +196,28 @@ Type TBSPNode
 		On=boundary
 		In.Reduce
 		Out.Reduce
-		Dirty=True
+	End Method
+	
+	Method Optimize()
+		If Polygons() > 1
+			Local link:TLink = On.FirstLink()
+			While link<>Null
+				Local comp:TLink = link.NextLink(), poly0:TBSPPolygon = TBSPPolygon(link.Value())
+				While comp<>Null
+					Local poly1:TBSPPolygon = TBSPPolygon(comp.Value())
+					If poly0.Center.IsEqual(poly1.Center)
+						Local oldcomp:TLink = comp
+						comp = comp.NextLink()
+						oldcomp.Remove()
+					Else
+						comp = comp.NextLink()
+					EndIf
+				Wend
+				link = link.NextLink()
+			Wend
+		EndIf
+		In.Optimize
+		Out.Optimize
 	End Method
 	
 	Method RayIntersection(r:TRay Var,poly_hit:TBSPPolygon Var,ipt:TVector Var)
@@ -297,8 +312,8 @@ Type TBSPNode
 		Case BSP_IN
 			in=poly
 		Case BSP_SPANNING
-			out=New TBSPRCPolygon.Create(outpts[..out_c])
-			in=New TBSPRCPolygon.Create(inpts[..in_c])
+			out=New TBSPPolygon.Create(outpts[..out_c])
+			in=New TBSPPolygon.Create(inpts[..in_c])
 		End Select
 		Return poly_class
 	End Function
@@ -306,6 +321,18 @@ End Type
 
 Type TBSPTree
 	Field Node:TBSPNode
+	
+	Method Union:TBSPTree(tree:TBSPTree)
+	
+	End Method
+	
+	Method Subtract:TBSPTree(tree:TBSPTree)
+	
+	End Method
+	
+	Method Intersect:TBSPTree(tree:TBSPTree)
+	
+	End Method
 	
 	Method Insert(list:TList,keep,cur)
 		If list.IsEmpty() Return
@@ -336,13 +363,26 @@ Type TBSPTree
 		EndIf
 	End Method
 	
+	Method Invert()
+		If Node Node.Invert()
+	End Method
+	
 	Method Reduce()
 		If Node Node.Reduce()
+	End Method
+	
+	Method Optimize()
+		If Node Node.Optimize()
 	End Method
 	
 	Method RayIntersection(r:TRay Var,poly_hit:TBSPPolygon Var,ipt:TVector Var)
 		If Node Return Node.RayIntersection(r,poly_hit,ipt)
 		Return False
+	End Method
+	
+	Method CountNodes()
+		If Node = Null Return 0
+		Return Node.In.CountNodes() + Node.Out.CountNodes() + 1
 	End Method
 End Type
 

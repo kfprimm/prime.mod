@@ -63,7 +63,7 @@ Type TVector
 	End Method
 	
 	Method IsEqual(v:TVector)
-		Return x=v.x And y=v.y And z=v.z And w=v.w
+		Return Abs(x-v.x) <= EPSILON And Abs(y-v.y) <= EPSILON And Abs(z-v.z) <= EPSILON And Abs(w-v.w) <= EPSILON
 	End Method
 	
 	Method Copy:TVector()
@@ -603,3 +603,38 @@ Type TFrustum
 		Return Varptr _m[0,0]
 	End Method
 End Type
+
+Type TBoundingBox
+	Field mx:TVector=New TVector.Create3(-INFINITY,-INFINITY,-INFINITY)
+	Field mn:TVector=New TVector.Create3(INFINITY,INFINITY,INFINITY)
+	
+	Method Add(obj:Object)
+		Local box:TBoundingBox=TBoundingBox(obj),pt:TVector=TVector(obj)
+		If box
+			If box.mx.x>mx.x mx.x=box.mx.x+EPSILON
+			If box.mx.y>mx.y mx.y=box.mx.y+EPSILON
+			If box.mx.z>mx.z mx.z=box.mx.z+EPSILON
+			If box.mn.x<mn.x mn.x=box.mn.x-EPSILON
+			If box.mn.y<mn.y mn.y=box.mn.y-EPSILON
+			If box.mn.z<mn.z mn.z=box.mn.z-EPSILON
+		Else
+			If pt.x>mx.x mx.x=pt.x+EPSILON
+			If pt.y>mx.y mx.y=pt.y+EPSILON
+			If pt.z>mx.z mx.z=pt.z+EPSILON
+			If pt.x<mn.x mn.x=pt.x-EPSILON
+			If pt.y<mn.y mn.y=pt.y-EPSILON
+			If pt.z<mn.z mn.z=pt.z-EPSILON
+		EndIf
+	End Method
+	
+	Method GetSize(width# Var, height# Var, depth# Var)
+		width  = mx.x - mn.x
+		height = mx.y - mn.y
+		depth  = mx.z - mn.z
+	End Method
+	
+	Method Contains(pt:TVector)
+		Return pt.x<=mx.x And pt.x>=mn.x And pt.y<=mx.y And pt.y>=mn.y And pt.z<=mx.z And pt.z>=mn.z
+	End Method	
+End Type
+
