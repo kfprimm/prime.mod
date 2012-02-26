@@ -43,7 +43,25 @@ char *_npapi_get_string(NPVariant *v)
 
 void _npapi_get_url_notify(NPP instance, const  char* url, const  char* target, void* notifyData)
 {
-	npnfuncs->geturlnotify(instance, url, NULL, (void*)42342342);
+	
+	npnfuncs->geturlnotify(instance, url, target, npnfuncs);
+}
+
+void _npapi_post_url_notify(NPP instance, const char* url, const char* target, long len, const char* buf, NPBool file, void* notifyData)
+{
+	npnfuncs->posturl(instance, url, target, (uint32_t)len, buf, file);
+}
+
+char *_npapi_get_page_url(NPP instance) {
+	NPObject *window = 0;
+	npnfuncs->getvalue( instance, NPNVWindowNPObject, &window );
+	NPIdentifier identifier = npnfuncs->getstringidentifier( "location" );
+	NPVariant variant;
+	int b1 = npnfuncs->getproperty( instance, window , identifier, &variant);
+	NPObject *location = variant.value.objectValue;
+	identifier = npnfuncs->getstringidentifier( "href" );
+	int b2 = npnfuncs->getproperty( instance, location, identifier, &variant);
+	return (char*)NPVARIANT_TO_STRING(variant).UTF8Characters;
 }
 
 typedef struct BMX
@@ -102,8 +120,11 @@ NPClass bmxObject = {
 	NULL,
 };
 
-static NPError BMX_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char *argn[], char *argv[], NPSavedData *saved) {
-	instance->pdata = (void*)_prime_npapi_TNPAPIPlugin_OnNew(pluginType, argc, argn, argv);
+static NPError BMX_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char *argn[], char *argv[], NPSavedData *saved)
+{
+	//_prime_npapi_TNPAPIPlugin_Message("BMX_New");
+
+	instance->pdata = (void*)_prime_npapi_TNPAPIPlugin_OnNew(instance, pluginType, argc, argn, argv);
 	if (instance->pdata == NULL)
 		return NPERR_GENERIC_ERROR;
 	
@@ -112,13 +133,18 @@ static NPError BMX_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16
 	return NPERR_NO_ERROR;
 }
 
-static NPError BMX_Destroy(NPP instance, NPSavedData **save) {
+static NPError BMX_Destroy(NPP instance, NPSavedData **save)
+{
+	//_prime_npapi_TNPAPIPlugin_Message("BMX_Destroy");
 	if (instance->pdata != NULL)
 		_prime_npapi_TNPAPIPlugin_OnDestroy(instance->pdata);
 	return NPERR_NO_ERROR;
 }
 
-static NPError BMX_GetValue(NPP instance, NPPVariable variable, void *value) {
+static NPError BMX_GetValue(NPP instance, NPPVariable variable, void *value)
+{
+	//_prime_npapi_TNPAPIPlugin_Message("BMX_GetValue");
+
 	BMX *bmx = NULL;
 	int so = 0;
 
@@ -149,7 +175,10 @@ static NPError BMX_GetValue(NPP instance, NPPVariable variable, void *value) {
 	return NPERR_NO_ERROR;
 }
 
-static NPError OSCALL BMX_HandleEvent(NPP instance, void *ev) {
+static NPError OSCALL BMX_HandleEvent(NPP instance, void *ev)
+{
+	//_prime_npapi_TNPAPIPlugin_Message("BMX_HandleEvent");
+
 	NPEvent *event = (NPEvent*)ev;
 #ifdef WIN32
 	_prime_npapi_TNPAPIObject_OnHandleEvent(instance->pdata, event->event, event->wParam, event->lParam);
@@ -157,7 +186,10 @@ static NPError OSCALL BMX_HandleEvent(NPP instance, void *ev) {
 	return NPERR_NO_ERROR;
 }
 
-static NPError OSCALL BMX_SetWindow(NPP instance, NPWindow* window) {
+static NPError OSCALL BMX_SetWindow(NPP instance, NPWindow* window)
+{
+	//_prime_npapi_TNPAPIPlugin_Message("BMX_SetWindow");
+
 #ifdef WIN32
 	HWND hwnd;
 	npnfuncs->getvalue(instance, NPNVnetscapeWindow, (void*) &hwnd);
@@ -169,6 +201,12 @@ static NPError OSCALL BMX_SetWindow(NPP instance, NPWindow* window) {
 
 static NPError OSCALL BMX_NewStream(NPP instance, NPMIMEType type, NPStream* stream, NPBool  seekable, uint16_t* stype)
 {	
+	_prime_npapi_TNPAPIPlugin_Message("BMX_NewStream");
+	if (seekable)
+		_prime_npapi_TNPAPIPlugin_Message("Seekable!");
+	else
+		_prime_npapi_TNPAPIPlugin_Message("Not seekable!");
+
 	*stype = NP_ASFILEONLY;
 	//stream->pdata = _prime_npapi_TNPAPIObject_OnNewStream(instance->pdata, stream);
 	return NPERR_NO_ERROR;
@@ -176,36 +214,37 @@ static NPError OSCALL BMX_NewStream(NPP instance, NPMIMEType type, NPStream* str
 
 static NPError OSCALL BMX_DestroyStream(NPP instance, NPStream* stream, NPReason reason)
 {		
-	_prime_npapi_TNPAPIPlugin_Message("!!!");
+	_prime_npapi_TNPAPIPlugin_Message("BMX_DestroyStream");
 	//_prime_npapi_TNPAPIObject_OnDestroyStream(instance->pdata, stream->pdata);
 	return NPERR_NO_ERROR;
 }
 
 static void OSCALL BMX_URLNotify(NPP instance, const char* url, NPReason reason, void* notifyData)
 {
-	_prime_npapi_TNPAPIPlugin_Message("!!!");
 	_prime_npapi_TNPAPIObject_OnURLNotify(instance->pdata, url, reason, notifyData);
 }
 
 static void OSCALL BMX_StreamAsFile(NPP instance, NPStream* stream, const char* fname)
 {
-	_prime_npapi_TNPAPIPlugin_Message("!!!");
+	_prime_npapi_TNPAPIPlugin_Message("BMX_StreamAsFile");
 	_prime_npapi_TNPAPIObject_OnStreamAsFile(instance->pdata, stream->pdata, fname);	
 }
 
 static int32_t OSCALL BMX_Write(NPP instance, NPStream* stream, int32_t offset, int32_t len, void* buf)
 {
-	_prime_npapi_TNPAPIPlugin_Message("!!!");
+	_prime_npapi_TNPAPIPlugin_Message("BMX_Write");
 	return _prime_npapi_TNPAPIObject_OnWrite(instance->pdata, stream->pdata, offset, len, buf);		
 }
 
 static int32_t OSCALL BMX_WriteReady(NPP instance, NPStream* stream)
 {
-	_prime_npapi_TNPAPIPlugin_Message("!!!");
+	_prime_npapi_TNPAPIPlugin_Message("BMX_WriteReady");
 	return _prime_npapi_TNPAPIObject_OnWriteReady(instance->pdata, stream->pdata);
 }
 
 NPError OSCALL NP_GetEntryPoints(NPPluginFuncs *nppfuncs) {
+	//_prime_npapi_TNPAPIPlugin_Message("NP_GetEntryPoints");
+
 	if(nppfuncs == NULL)
     return NPERR_INVALID_FUNCTABLE_ERROR;
 
@@ -224,7 +263,7 @@ NPError OSCALL NP_GetEntryPoints(NPPluginFuncs *nppfuncs) {
 	nppfuncs->asfile        = BMX_StreamAsFile;
 	nppfuncs->write         = BMX_Write;
 	nppfuncs->writeready    = BMX_WriteReady;
-	
+
 	return NPERR_NO_ERROR;
 }
 
@@ -235,6 +274,8 @@ OSDECL NPError OSCALL NP_Initialize(NPNetscapeFuncs *npnf
                              ,NPPluginFuncs *nppfuncs)
 #endif
 {
+	//_prime_npapi_TNPAPIPlugin_Message("NP_Initialize");
+
 	if(npnf == NULL)
 		return NPERR_INVALID_FUNCTABLE_ERROR;
 
@@ -244,6 +285,7 @@ OSDECL NPError OSCALL NP_Initialize(NPNetscapeFuncs *npnf
 #ifndef WIN32
 	NP_GetEntryPoints(nppfuncs);
 #endif
+
 	return NPERR_NO_ERROR;
 }
 
