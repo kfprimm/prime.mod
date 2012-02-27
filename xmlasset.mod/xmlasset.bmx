@@ -4,7 +4,7 @@ Strict
 Module Prime.XMLAsset
 ModuleInfo "Author: Kevin Primm"
 
-Import PUB.MaXML
+Import Prime.MaXML
 Import Prime.AssetManager
 
 Type TXMLAssetLoader Extends TAssetLoader

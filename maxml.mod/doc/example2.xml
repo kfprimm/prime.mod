@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<addressbook title="XML Address Book Example">
+  <person firstname="Bob" lastname="Johnson">
+    <phone>456-6784</phone>
+  </person>
+  <person firstname="Joe" lastname="Roberts">
+    <phone>155-8776</phone>
+  </person>
+  <person firstname="Bill" lastname="Baker">
+    <phone>955-3744</phone>
+  </person>
+  <person firstname="Robert" lastname="Jones">
+    <phone>153-4487</phone>
+  </person>
+  <person firstname="Phillip" lastname="Taginski">
+    <phone>205-0986</phone>
+  </person>
+  <person firstname="George" lastname="Smith">
+    <phone>577-2264</phone>
+  </person>
+    <phone>754-2908</phone>
+  <person firstname="Luke" lastname="Jackson">
+    <phone>123-4567</phone>
+  </person>
+  <person firstname="Guy" lastname="Wilson">
+    <phone>131-1313</phone>
+  </person>
+  <person firstname="Alan" lastname="Drake">
+    <phone>332-9179</phone>
+  </person>
+</addressbook>

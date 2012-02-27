@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<test>
+  <info>
+    <title>Test World</title>
+    <author>JohnJ</author>
+    <description>This is a test file in XML format used to test the MaXML 2.0 loader/saver library.</description>
+  </info>
+</test>

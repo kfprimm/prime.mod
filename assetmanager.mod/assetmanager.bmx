@@ -8,7 +8,7 @@ ModuleInfo "License: MIT"
 Import BRL.FileSystem
 Import BRL.Map
 Import BRL.TextStream
-Import PUB.MaXML
+Import Prime.MaXML
 
 Type TAssetManager
 	Field _assets:TMap=CreateMap()
