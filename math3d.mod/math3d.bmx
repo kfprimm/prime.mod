@@ -20,6 +20,9 @@ Const INFINITY# = 100000.0
 Const EPSILON# = 1.0/100000.0
 Const TWO_PI# = Pi*2.0
 
+Function Vec2:TVector(x#,y#)
+	Return New TVector.Create2(x,y)
+End Function
 Function Vec3:TVector(x#,y#,z#)
 	Return New TVector.Create3(x,y,z)
 End Function
@@ -46,6 +49,10 @@ Type TVector
 
 	Method Create3:TVector(a#,b#,c#)	
 		Return Create4(a,b,c,1.0)
+	End Method	
+	
+	Method Create2:TVector(a#,b#)	
+		Return Create4(a,b,1.0,1.0)
 	End Method	
 	
 	Method Get3(x# Var,y# Var,z# Var)
