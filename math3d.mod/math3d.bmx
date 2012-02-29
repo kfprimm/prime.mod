@@ -94,8 +94,8 @@ Type TVector
 	End Method
 	
 	Method Cross:TVector(v:TVector)
-'		Return Vec3(y*v.z-z*v.y,z*v.x-x*v.z,x*v.y-y*v.x)
-		Return Vec4((y-v.y)*(z+v.z),(z-v.z)*(x+v.x),(x-v.x)*(y+v.y),0.0)
+		Return Vec4(y*v.z-z*v.y,z*v.x-x*v.z,x*v.y-y*v.x,0.0)
+'		Return Vec4((y-v.y)*(z+v.z),(z-v.z)*(x+v.x),(x-v.x)*(y+v.y),0.0)
 	End Method
 	
 	Method Dot#(v:TVector)
@@ -132,7 +132,7 @@ Type TVector
 	
 	Method FromTriangle:TVector(a:TVector,b:TVector,c:TVector)
 		Local v:TVector=(b.Sub(a).Cross(c.Sub(b))).Normalize()
-		Return Create3(v.x,v.y,v.z)
+		Return Create4(v.x,v.y,v.z,0.0)
 	End Method 
 
 	Method Invert()
