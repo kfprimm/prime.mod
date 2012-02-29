@@ -43,7 +43,7 @@ Type TPixmapPacker
 						Next
 					Next
   			EndIf
- 				pixmap.Paste sub,x,y
+			pixmap.Paste sub,x,y
   		Next
   		Return pixmap
   	EndIf
