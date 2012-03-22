@@ -193,32 +193,28 @@ Type TBSPNode
 				In.Push(results,boundary,BSP_IN,BSP_IN)
 			EndIf
 		Next
+		
+		Local link:TLink = boundary.FirstLink()
+		While link<>Null
+			Local comp:TLink = link.NextLink(), poly0:TBSPPolygon = TBSPPolygon(link.Value())
+			While comp<>Null
+				Local poly1:TBSPPolygon = TBSPPolygon(comp.Value())
+				If poly0.Center.IsEqual(poly1.Center)
+					Local oldcomp:TLink = comp
+					comp = comp.NextLink()
+					oldcomp.Remove()
+				Else
+					comp = comp.NextLink()
+				EndIf
+			Wend
+			link = link.NextLink()
+		Wend
+		
 		On=boundary
 		In.Reduce
 		Out.Reduce
 	End Method
 	
-	Method Optimize()
-		If Polygons() > 1
-			Local link:TLink = On.FirstLink()
-			While link<>Null
-				Local comp:TLink = link.NextLink(), poly0:TBSPPolygon = TBSPPolygon(link.Value())
-				While comp<>Null
-					Local poly1:TBSPPolygon = TBSPPolygon(comp.Value())
-					If poly0.Center.IsEqual(poly1.Center)
-						Local oldcomp:TLink = comp
-						comp = comp.NextLink()
-						oldcomp.Remove()
-					Else
-						comp = comp.NextLink()
-					EndIf
-				Wend
-				link = link.NextLink()
-			Wend
-		EndIf
-		In.Optimize
-		Out.Optimize
-	End Method
 	
 	Method RayIntersection(r:TRay Var,poly_hit:TBSPPolygon Var,ipt:TVector Var)
 		Local dist#=r.Origin.Dot(plane),costheta#=r.Direction.Dot(plane)
@@ -369,10 +365,6 @@ Type TBSPTree
 	
 	Method Reduce()
 		If Node Node.Reduce()
-	End Method
-	
-	Method Optimize()
-		If Node Node.Optimize()
 	End Method
 	
 	Method RayIntersection(r:TRay Var,poly_hit:TBSPPolygon Var,ipt:TVector Var)
