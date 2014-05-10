@@ -19,13 +19,14 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DG_H__FGRTY_5GR39H_98TQ__INCLUDED_)
-#define AFX_DG_H__FGRTY_5GR39H_98TQ__INCLUDED_
+#if !defined(AFX_DG_H__FGRTY_5GR39H_98TQ_H)
+#define AFX_DG_H__FGRTY_5GR39H_98TQ_H
 
 #include "dgTypes.h"
 
 #include "dgRef.h"
 #include "dgCRC.h"
+#include "dgObb.h"
 #include "dgRtti.h"
 #include "dgList.h"
 #include "dgTree.h"
@@ -39,23 +40,26 @@
 #include "dgGoogol.h"
 #include "dgVector.h"
 #include "dgMatrix.h"
-#include "dgSphere.h"
 #include "dgMemory.h"
 #include "dgRandom.h"
-#include "dgThreads.h"
+#include "dgThread.h"
+#include "dgFastQueue.h"
 #include "dgSPDMatrix.h"
 #include "dgPolyhedra.h"
+#include "dgThreadHive.h"
 #include "dgPathFinder.h"
 #include "dgRefCounter.h"
 #include "dgQuaternion.h"
+#include "dgAsyncThread.h"
+#include "dgMutexThread.h"
 #include "dgConvexHull3d.h"
 #include "dgConvexHull4d.h"
 #include "dgIntersections.h"
 #include "dgGeneralVector.h"
 #include "dgGeneralMatrix.h"
+#include "dgThreadProfiler.h"
 #include "dgAABBPolygonSoup.h"
 #include "dgSmallDeterminant.h"
-#include "dgSimd_Instrutions.h"
 #include "dgPolygonSoupBuilder.h"
 #include "dgPolygonSoupDatabase.h"
 #include "dgPolyhedraMassProperties.h"

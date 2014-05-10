@@ -22,12 +22,11 @@
 #include "dgPhysicsStdafx.h"
 #include "dgBody.h"
 #include "dgWorld.h"
-//#include "dgContact.h"
 #include "dgCollisionBVH.h"
 
 
-dgCollisionBVH::dgCollisionBVH(dgMemoryAllocator* const allocator)
-	:dgCollisionMesh (allocator, m_boundingBoxHierachy), dgAABBPolygonSoup()
+dgCollisionBVH::dgCollisionBVH(dgWorld* const world)
+	:dgCollisionMesh (world, m_boundingBoxHierachy), dgAABBPolygonSoup()
 {
 	m_rtti |= dgCollisionBVH_RTTI;
 	m_builder = NULL;
@@ -37,7 +36,7 @@ dgCollisionBVH::dgCollisionBVH(dgMemoryAllocator* const allocator)
 dgCollisionBVH::dgCollisionBVH (dgWorld* const world, dgDeserialize deserialization, void* const userData)
 	:dgCollisionMesh (world, deserialization, userData), dgAABBPolygonSoup()
 {
-	m_rtti |= dgCollisionBVH_RTTI;
+	dgAssert (m_rtti | dgCollisionBVH_RTTI);
 	m_builder = NULL;;
 	m_userRayCastCallback = NULL;
 
@@ -71,7 +70,7 @@ void dgCollisionBVH::AddFace(dgInt32 vertexCount, const dgFloat32* const vertexP
 	dgInt32 indexList[256];
 
 	faceArray = vertexCount;
-	_ASSERTE (vertexCount < sizeof (indexList) / sizeof (indexList[0]));
+	dgAssert (vertexCount < dgInt32 (sizeof (indexList) / sizeof (indexList[0])));
 	for (dgInt32 i = 0; i < vertexCount; i ++) {
 		indexList[i] = i;
 	}
@@ -93,7 +92,8 @@ void dgCollisionBVH::EndBuild(dgInt32 optimize)
 
 	m_builder->End(state);
 	Create (*m_builder, state);
-
+	CalculateAdjacendy();
+	
 	GetAABB (p0, p1);
 	SetCollisionBBox (p0, p1);
 
@@ -103,30 +103,39 @@ void dgCollisionBVH::EndBuild(dgInt32 optimize)
 
 
 
-void dgCollisionBVH::GetCollisionInfo(dgCollisionInfo* info) const
+void dgCollisionBVH::GetCollisionInfo(dgCollisionInfo* const info) const
 {
 	dgCollision::GetCollisionInfo(info);
-
-	info->m_offsetMatrix = GetOffsetMatrix();
-	info->m_collisionType = m_collsionId;
 		
-	dgGetVertexListIndexList data;
+	dgMeshVertexListIndexList data;
 	data.m_indexList = NULL;
 	data.m_userDataList = NULL;
 	data.m_maxIndexCount = 1000000000;
 	data.m_triangleCount = 0; 
-	dgVector p0 (-1.0e10f, -1.0e10f, -1.0e10f, 1.0f);
-	dgVector p1 ( 1.0e10f,  1.0e10f,  1.0e10f, 1.0f);
-	ForAllSectors (p0, p1, GetTriangleCount, &data);
+//	dgVector p0 (-1.0e10f, -1.0e10f, -1.0e10f, 1.0f);
+//	dgVector p1 ( 1.0e10f,  1.0e10f,  1.0e10f, 1.0f);
+	dgVector zero (dgFloat32 (0.0f));
+	dgFastAABBInfo box (dgGetIdentityMatrix(), dgVector (dgFloat32 (1.0e15f)));
+	ForAllSectors (box, zero, dgFloat32 (1.0f), GetTriangleCount, &data);
 
 	info->m_bvhCollision.m_vertexCount = GetVertexCount();
 	info->m_bvhCollision.m_indexCount = data.m_triangleCount * 3;
 }
 
-
-dgIntersectStatus dgCollisionBVH::CollectVertexListIndexList (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount)
+void dgCollisionBVH::ForEachFace (dgAABBIntersectCallback callback, void* const context) const
 {
-	dgGetVertexListIndexList& data = (*(dgGetVertexListIndexList*) context);
+	dgVector p0 (-1.0e10f, -1.0e10f, -1.0e10f, 1.0f);
+	dgVector p1 ( 1.0e10f,  1.0e10f,  1.0e10f, 1.0f);
+	dgVector zero (dgFloat32 (0.0f));
+	dgFastAABBInfo box (dgGetIdentityMatrix(), dgVector (dgFloat32 (1.0e15f)));
+	//ForAllSectors (p0, p1, zero, dgFloat32 (1.0f), callback, context);
+	ForAllSectors (box, zero, dgFloat32 (1.0f), callback, context);
+}
+
+
+dgIntersectStatus dgCollisionBVH::CollectVertexListIndexList (void* const context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount, dgFloat32 hitDistance)
+{
+	dgMeshVertexListIndexList& data = (*(dgMeshVertexListIndexList*) context);
 
 	if ((data.m_triangleCount + indexCount - 2) * 3 > data.m_maxIndexCount) {
 		return t_StopSearh;
@@ -136,45 +145,45 @@ dgIntersectStatus dgCollisionBVH::CollectVertexListIndexList (void *context, con
 	dgInt32 j = data.m_triangleCount * 3;
 	dgInt32 index0 = indexArray[0];
 	dgInt32 index1 = indexArray[1];
-	dgInt32 atribute = indexArray[-1];
+	dgInt32 attribute = indexArray[indexCount];
 	for (dgInt32 i = 2; i < indexCount; i ++) {
 		dgInt32 index2 = indexArray[i];
 		data.m_indexList[j + 0] = index0;
 		data.m_indexList[j + 1] = index1;
 		data.m_indexList[j + 2] = index2;
-		data.m_userDataList[k] = atribute;
+		data.m_userDataList[k] = attribute;
 		index1 = index2; 
 		k ++;
 		j += 3;
 	}
 
-	_ASSERTE (j <= data.m_maxIndexCount);
+	dgAssert (j <= data.m_maxIndexCount);
 	data.m_triangleCount = k;
-	_ASSERTE ((data.m_triangleCount * 3) <= data.m_maxIndexCount);
+	dgAssert ((data.m_triangleCount * 3) <= data.m_maxIndexCount);
 
 	return t_ContinueSearh;
 }
 
 
 
-dgIntersectStatus dgCollisionBVH::GetTriangleCount (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount)
+dgIntersectStatus dgCollisionBVH::GetTriangleCount (void* const context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount, dgFloat32 hitDistance)
 {
-	dgGetVertexListIndexList& data = (*(dgGetVertexListIndexList*) context);
+	dgMeshVertexListIndexList& data = (*(dgMeshVertexListIndexList*) context);
 
-//	if ((data.m_triangleCount + indexCount - 2) * 3 >= data.m_maxIndexCount) {
 	if ((data.m_triangleCount + indexCount - 2) * 3 > data.m_maxIndexCount) {
 		return t_StopSearh;
 	}
 
 	data.m_triangleCount += (indexCount - 2);
-	_ASSERTE ((data.m_triangleCount * 3) <= data.m_maxIndexCount);
+	dgAssert ((data.m_triangleCount * 3) <= data.m_maxIndexCount);
 	return t_ContinueSearh;
 }
 
 
-void dgCollisionBVH::GetVertexListIndexList (const dgVector& p0, const dgVector& p1, dgGetVertexListIndexList &data) const
+void dgCollisionBVH::GetVertexListIndexList (const dgVector& p0, const dgVector& p1, dgMeshVertexListIndexList &data) const
 {
-	ForAllSectors (p0, p1, CollectVertexListIndexList, &data);
+	dgFastAABBInfo box (p0, p1);
+	ForAllSectors (box, dgVector (dgFloat32 (0.0f)), dgFloat32 (1.0f), CollectVertexListIndexList, &data);
 
 	data.m_veterxArray = GetLocalVertexPool(); 
 	data.m_vertexCount = GetVertexCount(); 
@@ -182,263 +191,169 @@ void dgCollisionBVH::GetVertexListIndexList (const dgVector& p0, const dgVector&
 
 }
 
-dgFloat32 dgCollisionBVH::RayHitSimd (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount)
+
+
+dgFloat32 dgCollisionBVH::RayHit (void* const context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount)
 {
 	dgBVHRay& me = *((dgBVHRay*) context);
-	dgVector normal (&polygon[indexArray[indexCount] * (strideInBytes / sizeof (dgFloat32))]);
-	dgFloat32 t = me.PolygonIntersectSimd (normal, polygon, strideInBytes, indexArray, indexCount);
-	if (t < dgFloat32 (1.0f)) {
-		if (t <= (me.m_t * dgFloat32 (1.0001f))) {
-			if ((t * dgFloat32 (1.0001f)) >= me.m_t) {
-				dgFloat32 dist0;
-				dgFloat32 dist1;
-				dist0 = me.m_diff % normal;
-				dist1 = me.m_diff % me.m_normal;
-				if (dist0 < dist1) {
-					me.m_t = t;
-					me.m_normal = normal;
-					me.m_id = me.m_me->GetTagId(indexArray);
-				} else {
-					t = me.m_t;
-				}
-			} else {
-				me.m_t = t;
-				me.m_normal = normal;
-				me.m_id = me.m_me->GetTagId(indexArray);
-			}
-		}
+	dgVector normal (&polygon[indexArray[indexCount + 1] * (strideInBytes / sizeof (dgFloat32))]);
+	dgFloat32 t = me.PolygonIntersect (normal, me.m_t, polygon, strideInBytes, indexArray, indexCount);
+	if (t <= (me.m_t * dgFloat32 (1.0001f))) {
+//		if ((t * dgFloat32 (1.0001f)) >= me.m_t) {
+//			dgFloat32 dist0;
+//			dgFloat32 dist1;
+//			dist0 = me.m_diff % normal;
+//			dist1 = me.m_diff % me.m_normal;
+//			if (dist0 < dist1) {
+//				me.m_t = t;
+//				me.m_normal = normal;
+//				me.m_id = me.m_me->GetTagId(indexArray, indexCount);
+//			} else {
+//				t = me.m_t;
+//			}
+//		} else {
+			me.m_t = t;
+			me.m_normal = normal;
+			me.m_id = me.m_me->GetTagId(indexArray, indexCount);
+//		}
 	}
 	return t;
 }
 
 
-dgFloat32 dgCollisionBVH::RayHit (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount)
-{
-	dgBVHRay& me = *((dgBVHRay*) context);
-	dgVector normal (&polygon[indexArray[indexCount] * (strideInBytes / sizeof (dgFloat32))]);
-	dgFloat32 t = me.PolygonIntersect (normal, polygon, strideInBytes, indexArray, indexCount);
-	if (t < dgFloat32 (1.0f)) {
-//		if (t <= me.m_t) {
-		if (t <= (me.m_t * dgFloat32 (1.0001f))) {
-			if ((t * dgFloat32 (1.0001f)) >= me.m_t) {
-				dgFloat32 dist0;
-				dgFloat32 dist1;
-				dist0 = me.m_diff % normal;
-				dist1 = me.m_diff % me.m_normal;
-				if (dist0 < dist1) {
-					me.m_t = t;
-					me.m_normal = normal;
-					me.m_id = me.m_me->GetTagId(indexArray);
-				} else {
-					t = me.m_t;
-				}
-			} else {
-				me.m_t = t;
-				me.m_normal = normal;
-				me.m_id = me.m_me->GetTagId(indexArray);
-			}
-		}
-	}
-	return t;
-}
 
-
-dgFloat32 dgCollisionBVH::RayHitUserSimd (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount)
+dgFloat32 dgCollisionBVH::RayHitUser (void* const context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount)
 {
+	dgAssert (0);
 	dgFloat32 t = dgFloat32 (1.2f);
 	dgBVHRay& me = *((dgBVHRay*) context);
-	dgVector normal (&polygon[indexArray[indexCount] * (strideInBytes / sizeof (dgFloat32))]);
-	t = me.PolygonIntersectSimd (normal, polygon, strideInBytes, indexArray, indexCount);
+	dgVector normal (&polygon[indexArray[indexCount + 1] * (strideInBytes / sizeof (dgFloat32))]);
+dgAssert (0);
+	t = me.PolygonIntersect (normal, me.m_t, polygon, strideInBytes, indexArray, indexCount);
 	if (t < dgFloat32 (1.0f)) {
 		if (t < me.m_t) {
 			me.m_t = t;
 			me.m_normal = normal;
-			me.m_id = me.m_me->GetTagId(indexArray);
-		}
-		normal = me.m_matrix.RotateVectorSimd(normal);
-		t = me.m_me->GetDebugRayCastCallback() (me.m_myBody, me.m_me, t, &normal[0], dgInt32 (me.m_me->GetTagId(indexArray)), me.m_userData);
-	}
-	return t;
-}
-
-
-dgFloat32 dgCollisionBVH::RayHitUser (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount)
-{
-	dgFloat32 t = dgFloat32 (1.2f);
-	dgBVHRay& me = *((dgBVHRay*) context);
-	dgVector normal (&polygon[indexArray[indexCount] * (strideInBytes / sizeof (dgFloat32))]);
-	t = me.PolygonIntersect (normal, polygon, strideInBytes, indexArray, indexCount);
-	if (t < dgFloat32 (1.0f)) {
-		if (t < me.m_t) {
-			me.m_t = t;
-			me.m_normal = normal;
-			me.m_id = me.m_me->GetTagId(indexArray);
+			me.m_id = me.m_me->GetTagId(indexArray, indexCount);
 		}
 		normal = me.m_matrix.RotateVector(normal);
-		t = me.m_me->GetDebugRayCastCallback() (me.m_myBody, me.m_me, t, &normal[0], dgInt32 (me.m_me->GetTagId(indexArray)), me.m_userData);
+		t = me.m_me->GetDebugRayCastCallback() (me.m_myBody, me.m_me, t, &normal[0], dgInt32 (me.m_me->GetTagId(indexArray, indexCount)), me.m_userData);
 	}
 	return t;
 }
 
 
-dgFloat32 dgCollisionBVH::RayCastSimd (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const
-{
-	if (PREFILTER_RAYCAST (preFilter, body, this, userData)) {
-		return dgFloat32 (1.2f);
-	}
 
-	dgFloat32 param = dgFloat32 (1.2f);
+dgFloat32 dgCollisionBVH::RayCast (const dgVector& localP0, const dgVector& localP1, dgFloat32 maxT, dgContactPoint& contactOut, const dgBody* const body, void* const userData) const
+{
 	dgBVHRay ray (localP0, localP1);
-	ray.m_t = 2.0f;
+	ray.m_t = dgMin(maxT, dgFloat32 (1.0f));
 	ray.m_me = this;
 	ray.m_userData = userData;
 	if (!m_userRayCastCallback) {
-		ForAllSectorsRayHitSimd (ray, RayHitSimd, &ray);
-		if (ray.m_t <= 1.0f) {
-			param = ray.m_t; 
-			contactOut.m_normal = ray.m_normal.Scale (dgRsqrt ((ray.m_normal % ray.m_normal) + 1.0e-8f));
-			contactOut.m_userId = ray.m_id;
+		ForAllSectorsRayHit (ray, maxT, RayHit, &ray);
+		if (ray.m_t <= maxT) {
+			maxT = ray.m_t; 
+			contactOut.m_normal = ray.m_normal.Scale3 (dgRsqrt ((ray.m_normal % ray.m_normal) + dgFloat32 (1.0e-8f)));
+//			contactOut.m_userId = ray.m_id;
+			contactOut.m_shapeId0 = ray.m_id;
+			contactOut.m_shapeId1 = ray.m_id;
 		}
 	} else {
 		if (body) {
-			ray.m_matrix = body->m_collisionWorldMatrix;
+			//ray.m_matrix = body->m_collisionWorldMatrix;
+			ray.m_matrix = body->m_collision->GetGlobalMatrix();
 		}
 		
-		ForAllSectorsRayHitSimd (ray, RayHitUserSimd, &ray);
-		if (ray.m_t <= 1.0f) {
-			param = ray.m_t; 
-			contactOut.m_normal = ray.m_normal.Scale (dgRsqrt ((ray.m_normal % ray.m_normal) + 1.0e-8f));
-			contactOut.m_userId = ray.m_id;
+		ForAllSectorsRayHit (ray, maxT, RayHitUser, &ray);
+		if (ray.m_t <= dgFloat32 (1.0f)) {
+			maxT = ray.m_t; 
+			contactOut.m_normal = ray.m_normal.Scale3 (dgRsqrt ((ray.m_normal % ray.m_normal) + dgFloat32 (1.0e-8f)));
+//			contactOut.m_userId = ray.m_id;
+			contactOut.m_shapeId0 = ray.m_id;
+			contactOut.m_shapeId1 = ray.m_id;
 		}
 	}
-
-	return param;
-
+	return maxT;
 }
 
-dgFloat32 dgCollisionBVH::RayCast (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const
-{
-	if (PREFILTER_RAYCAST (preFilter, body, this, userData)) {
-		return dgFloat32 (1.2f);
-	}
-
-	dgFloat32 param = dgFloat32 (1.2f);
-
-	dgBVHRay ray (localP0, localP1);
-	ray.m_t = 2.0f;
-	ray.m_me = this;
-	ray.m_userData = userData;
-	if (!m_userRayCastCallback) {
-		ForAllSectorsRayHit (ray, RayHit, &ray);
-		if (ray.m_t <= 1.0f) {
-			param = ray.m_t; 
-			contactOut.m_normal = ray.m_normal.Scale (dgRsqrt ((ray.m_normal % ray.m_normal) + 1.0e-8f));
-			contactOut.m_userId = ray.m_id;
-		}
-	} else {
-		if (body) {
-			ray.m_matrix = body->m_collisionWorldMatrix;
-		}
-		
-		ForAllSectorsRayHit (ray, RayHitUser, &ray);
-		if (ray.m_t <= 1.0f) {
-			param = ray.m_t; 
-			contactOut.m_normal = ray.m_normal.Scale (dgRsqrt ((ray.m_normal % ray.m_normal) + 1.0e-8f));
-			contactOut.m_userId = ray.m_id;
-		}
-	}
-	return param;
-}
-
-dgIntersectStatus dgCollisionBVH::GetPolygon (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount)
+dgIntersectStatus dgCollisionBVH::GetPolygon (void* const context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount, dgFloat32 hitDistance)
 {
 	dgPolygonMeshDesc& data = (*(dgPolygonMeshDesc*) context);
 	if (data.m_faceCount >= DG_MAX_COLLIDING_FACES) {
-		_ASSERTE (0);
+		dgTrace (("buffer Over float, try using a lower resolution mesh for collision\n"));
 		return t_StopSearh;
 	}
-
-	if ((data.m_globalIndexCount + indexCount) >= DG_MAX_COLLIDING_VERTEX) {
-		_ASSERTE (0);
+	if ((data.m_globalIndexCount + indexCount * 2 + 3) >= DG_MAX_COLLIDING_INDICES) {
+		dgTrace (("buffer Over float, try using a lower resolution mesh for collision\n"));
 		return t_StopSearh;
 	}
 
 	if (data.m_me->GetDebugCollisionCallback()) { 
 		dgTriplex triplex[128];
 		dgInt32 stride = dgInt32 (strideInBytes / sizeof (dgFloat32));
-		const dgMatrix& matrix = data.m_polySoupBody->GetCollisionMatrix();
+		const dgVector scale = data.m_polySoupCollision->GetScale();
+		const dgMatrix& matrix = data.m_polySoupCollision->GetGlobalMatrix();
 		for (dgInt32 i = 0; i < indexCount; i ++ ) {
 			dgVector p (&polygon[indexArray[i] * stride]);
-			p = matrix.TransformVector(p);
+			p = matrix.TransformVector(scale.CompProduct4(p));
 			triplex[i].m_x = p.m_x;
 			triplex[i].m_y = p.m_y;
 			triplex[i].m_z = p.m_z;
 		}
-		data.m_me->GetDebugCollisionCallback() (data.m_polySoupBody, data.m_objBody, indexArray[-1], indexCount, &triplex[0].m_x, sizeof (dgTriplex));
-
+		if (data.m_polySoupBody) {
+			data.m_me->GetDebugCollisionCallback() (data.m_polySoupBody, data.m_objBody, indexArray[indexCount], indexCount, &triplex[0].m_x, sizeof (dgTriplex));
+		}
 	}
 
-	_ASSERTE (data.m_vertex == polygon);
+	dgAssert (data.m_vertex == polygon);
+	dgInt32 count = indexCount * 2 + 3;
 
-	data.m_userAttribute[data.m_faceCount] = indexArray[-1];
 	data.m_faceIndexCount[data.m_faceCount] = indexCount;
-	data.m_faceNormalIndex[data.m_faceCount] = indexArray[indexCount];
-	data.m_faceMaxSize[data.m_faceCount] = dgFloat32 (indexArray[(indexCount << 1) + 1]);
+//	data.m_faceIndexStart[data.m_faceCount] = data.m_faceCount ? (data.m_faceIndexStart[data.m_faceCount - 1] + data.m_faceIndexCount[data.m_faceCount - 1]) : 0;
+	data.m_faceIndexStart[data.m_faceCount] = data.m_globalIndexCount;
+	data.m_hitDistance[data.m_faceCount] = hitDistance;
 	data.m_faceCount ++;
+	dgInt32* const dst = &data.m_faceVertexIndex[data.m_globalIndexCount];
 
-	dgInt32 j = data.m_globalIndexCount;
-	for (dgInt32 i = 0; i < indexCount; i ++) {
-		data.m_faceVertexIndex[j] = indexArray[i];
-		data.m_faceAdjencentEdgeNormal[j] = indexArray[i + indexCount + 1];
-		j ++;
+	//the docks say memcpy is an intrinsic function but as usual this is another Microsoft lied
+	//memcpy (dst, indexArray, sizeof (dgInt32) * count);
+	for (dgInt32 i = 0; i < count; i ++) {
+		dst[i] = indexArray[i];
 	}
-	data.m_globalIndexCount = j;
-
+	
+	data.m_globalIndexCount += count;
+	
 	return t_ContinueSearh;
 }
 
 
-void dgCollisionBVH::GetCollidingFacesSimd (dgPolygonMeshDesc* const data) const
-{
-	data->m_faceCount = 0;
-
-	data->m_me = this;
-	data->m_vertex = GetLocalVertexPool();
-	data->m_vertexStrideInBytes = GetStrideInBytes();
-
-	data->m_globalIndexCount = 0;
-	data->m_faceMaxSize = data->m_globalFaceMaxSize;
-	data->m_userAttribute = data->m_globalUserAttribute;
-	data->m_faceIndexCount = data->m_globalFaceIndexCount;
-	data->m_faceVertexIndex = data->m_globalFaceVertexIndex;
-	data->m_faceNormalIndex = data->m_globalFaceNormalIndex;
-	data->m_faceAdjencentEdgeNormal = data->m_globalAdjencentEdgeNormal;
-	ForAllSectorsSimd (data->m_boxP0, data->m_boxP1, GetPolygon, data);
-}
-
 
 void dgCollisionBVH::GetCollidingFaces (dgPolygonMeshDesc* const data) const
 {
-	data->m_faceCount = 0;
-
 	data->m_me = this;
 	data->m_vertex = GetLocalVertexPool();
 	data->m_vertexStrideInBytes = GetStrideInBytes();
 
+	data->m_faceCount = 0;
 	data->m_globalIndexCount = 0;
-	data->m_faceMaxSize = data->m_globalFaceMaxSize;
-	data->m_userAttribute = data->m_globalUserAttribute;
-	data->m_faceIndexCount = data->m_globalFaceIndexCount;
+	data->m_faceIndexCount = data->m_meshData.m_globalFaceIndexCount;
+	data->m_faceIndexStart = data->m_meshData.m_globalFaceIndexStart;
 	data->m_faceVertexIndex = data->m_globalFaceVertexIndex;
-	data->m_faceNormalIndex = data->m_globalFaceNormalIndex;
-	data->m_faceAdjencentEdgeNormal = data->m_globalAdjencentEdgeNormal;
-	ForAllSectors (data->m_boxP0, data->m_boxP1, GetPolygon, data);
+	data->m_hitDistance = data->m_meshData.m_globalHitDistance;
+	ForAllSectors (*data, data->m_boxDistanceTravelInMeshSpace, data->m_maxT, GetPolygon, data);
 }
 
 
 dgVector dgCollisionBVH::SupportVertex (const dgVector& dir) const
 {
 	return ForAllSectorsSupportVectex (dir);
+}
+
+
+void dgCollisionBVH::GetLocalAABB (const dgVector& p0, const dgVector& p1, dgVector& boxP0, dgVector& boxP1) const
+{
+	dgAssert (0);
 }
 
 
@@ -449,7 +364,7 @@ struct dgCollisionBVHShowPolyContext
 	OnDebugCollisionMeshCallback m_callback;
 };
 
-dgIntersectStatus dgCollisionBVH::ShowDebugPolygon (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount)
+dgIntersectStatus dgCollisionBVH::ShowDebugPolygon (void* const context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount, dgFloat32 hitDistance)
 {
 	dgTriplex triplex[128];
 	dgInt32 stride = dgInt32 (strideInBytes / sizeof (dgFloat32));
@@ -467,6 +382,11 @@ dgIntersectStatus dgCollisionBVH::ShowDebugPolygon (void *context, const dgFloat
 	return t_ContinueSearh;
 }
 
+dgVector dgCollisionBVH::SupportVertex (const dgVector& dir, dgInt32* const vertexIndex) const
+{
+	return ForAllSectorsSupportVectex (dir);
+}
+
 
 void dgCollisionBVH::DebugCollision (const dgMatrix& matrixPtr, OnDebugCollisionMeshCallback callback, void* const userData) const
 {
@@ -476,7 +396,6 @@ void dgCollisionBVH::DebugCollision (const dgMatrix& matrixPtr, OnDebugCollision
 	context.m_userData = userData;;
 	context.m_callback = callback;
 
-	dgVector p0 (dgFloat32 (-1.0e20f), dgFloat32 (-1.0e20f), dgFloat32 (-1.0e20f), dgFloat32 (0.0f));
-	dgVector p1 (dgFloat32 ( 1.0e20f), dgFloat32 ( 1.0e20f), dgFloat32 ( 1.0e20f), dgFloat32 (0.0f));
-	ForAllSectors (p0, p1, ShowDebugPolygon, &context);
+	dgFastAABBInfo box (dgGetIdentityMatrix(), dgVector (1.0e15f));
+	ForAllSectors (box, dgVector(dgFloat32 (0.0f)), dgFloat32 (1.0f), ShowDebugPolygon, &context);
 }

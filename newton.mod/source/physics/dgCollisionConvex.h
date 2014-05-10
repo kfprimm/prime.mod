@@ -19,132 +19,162 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DGCONVEXCOLLISION_H__57E159CE_6B6F_42DE_891C_1F6C38EB9D29__INCLUDED_)
-#define AFX_DGCONVEXCOLLISION_H__57E159CE_6B6F_42DE_891C_1F6C38EB9D29__INCLUDED_
-
+#ifndef _DG_CONVEX_COLLISION_H__
+#define _DG_CONVEX_COLLISION_H__
 
 #include "dgCollision.h"
+
 
 
 class dgConvexSimplexEdge
 {
 	public:
+	dgConvexSimplexEdge* m_twin;
+	dgConvexSimplexEdge* m_next;
+	dgConvexSimplexEdge* m_prev;
 	dgInt32 m_vertex;
-	dgConvexSimplexEdge *m_twin;
-	dgConvexSimplexEdge *m_next;
-	dgConvexSimplexEdge *m_prev;
 };
 
 
 DG_MSC_VECTOR_ALIGMENT
 class dgCollisionConvex: public dgCollision
 {
-	bool RayHitBox (const dgVector& localP0, const dgVector& localP1) const; 		
-	dgInt32 RayCastClosestFace (dgVector* tetrahedrum, const dgVector& origin, dgFloat32& pointDist) const;
-
+	class dgMinkFace;
+	class dgMinkHull;
+	class dgPerimenterEdge;
+	class dgCollisionPriority
+	{
+		public:
+		dgCollisionPriority()
+		{
+			// set all entry to be no swap order
+			memset (m_swapPriority, false, sizeof (m_swapPriority));
+			for (dgInt32 i = 0; i < m_nullCollision; i ++) {
+				m_swapPriority[i][m_sphereCollision] = true;
+				m_swapPriority[i][m_capsuleCollision] = true;
+				m_swapPriority[i][m_chamferCylinderCollision] = true;
+			}
+			for (dgInt32 i = m_sphereCollision; i <= m_chamferCylinderCollision; i ++) {
+				for (dgInt32 j = m_sphereCollision; j <= m_chamferCylinderCollision; j ++) {
+					m_swapPriority[i][j] = false;
+				}
+			}
+		}
+		bool m_swapPriority[m_nullCollision][m_nullCollision];
+	};
 
 	public:
-	virtual void CalcAABB (const dgMatrix &matrix, dgVector& p0, dgVector& p1) const;
-	virtual void CalcAABBSimd (const dgMatrix &matrix, dgVector& p0, dgVector& p1) const;
-	virtual bool OOBBTest (const dgMatrix& matrix, const dgCollisionConvex* const shape, void* const cacheOrder) const; 
+	virtual void CalcAABB (const dgMatrix& matrix, dgVector& p0, dgVector& p1) const;
 	
-	virtual dgFloat32 RayCast (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const;
-	virtual dgFloat32 RayCastSimd (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const;
-	virtual dgVector SupportVertex (const dgVector& dir) const;
-	virtual dgVector SupportVertexSimd (const dgVector& dir) const;
+	virtual dgFloat32 RayCast (const dgVector& localP0, const dgVector& localP1, dgFloat32 maxT, dgContactPoint& contactOut, const dgBody* const body, void* const userData) const;
+	virtual dgFloat32 ConvexRayCast (const dgCollisionInstance* const convexShape, const dgMatrix& origin, const dgVector& veloc, dgFloat32 maxT, dgContactPoint& contactOut, const dgBody* const referenceBody, const dgCollisionInstance* const referenceShape, void* const userData, dgInt32 threadId) const; 
+
+	virtual dgVector SupportVertex (const dgVector& dir, dgInt32* const vertexIndex) const;
 
 	virtual dgInt32 CalculatePlaneIntersection (const dgVector& normal, const dgVector& point, dgVector* const contactsOut) const;
-	virtual dgInt32 CalculatePlaneIntersectionSimd (const dgVector& normal, const dgVector& point, dgVector* const contactsOut) const;
-	dgInt32 GetVertexCount() const { return m_vertexCount;}
-	virtual bool IsTriggerVolume() const;
+	virtual dgInt32 GetConvexVertexCount() const { return m_vertexCount;}
 
-	private:
-	dgInt32 SimplifyClipPolygon (dgInt32 count, const dgVector& normal, dgVector* const polygon) const;
+	bool IntesectionTest (dgCollisionParamProxy& proxy) const;
+	bool CalculateClosestPoints (dgCollisionParamProxy& proxy) const;
 
-	virtual dgVector CalculateVolumeIntegral (const dgMatrix& globalMatrix, GetBuoyancyPlane bouyancyPlane, void* const context) const;
-	static void CalculateInertia (void *userData, int vertexCount, const dgFloat32* FaceArray, int faceId);
-	virtual void CalculateInertia (dgVector& inertia, dgVector& origin) const;
+	dgInt32 CalculateConvexCastContacts (dgCollisionParamProxy& proxy) const;
+	dgInt32 CalculateConvexToConvexContact (dgCollisionParamProxy& proxy) const;
+	//dgInt32 ConvexCastContacts (const dgMatrix& matrix, const dgMatrix& invMatrix, const dgVector& veloc, dgFloat32& timeStep, const dgCollisionConvex* const convexShape, dgContactPoint* const contact) const;
+
+	protected:
+	dgCollisionConvex (dgMemoryAllocator* const allocator, dgUnsigned32 signature, dgCollisionID id);
+	dgCollisionConvex (dgWorld* const world, dgDeserialize deserialization, void* const userData);
+	~dgCollisionConvex ();
+
+	virtual void SerializeLow(dgSerialize callback, void* const userData) const;
+
+	virtual dgVector CalculateVolumeIntegral (const dgMatrix& globalMatrix, const dgVector& plane) const;
+	static void CalculateInertia (void *userData, int vertexCount, const dgFloat32* const FaceArray, int faceId);
 
 	virtual dgFloat32 GetVolume () const;
 
 	virtual dgFloat32 GetBoxMinRadius () const; 
 	virtual dgFloat32 GetBoxMaxRadius () const;
 
-
-	protected:
 	virtual void* GetUserData () const;
 	virtual void SetUserData (void* const userData);
 
-	dgCollisionConvex (dgMemoryAllocator* const allocator, dgUnsigned32 signature, const dgMatrix& matrix, dgCollisionID id);
-	dgCollisionConvex (dgWorld* const world, dgDeserialize deserialization, void* const userData);
-	~dgCollisionConvex ();
-
-	
-	virtual void SetAsTriggerVolume(bool mode);
-	virtual void SerializeLow(dgSerialize callback, void* const userData) const;
+	dgInt32 RayCastClosestFace (dgVector* tetrahedrum, const dgVector& origin, dgFloat32& pointDist) const;
+	dgInt32 SimplifyClipPolygon (dgInt32 count, const dgVector& normal, dgVector* const polygon) const;
 
 	dgVector CalculateVolumeIntegral (const dgPlane& plane) const; 
-	dgFloat32 GetDiscretedAngleStep (dgFloat32 radius) const;
-	dgConvexSimplexEdge *GetSupportEdge (const dgVector& dir) const;
 	
 	void SetVolumeAndCG ();
 	bool SanityCheck (dgPolyhedra& hull) const;
-	virtual void DebugCollision (const dgMatrix& matrix, OnDebugCollisionMeshCallback callback, void* const userData) const;
-	virtual dgFloat32 CalculateMassProperties (dgVector& inertia, dgVector& crossInertia, dgVector& centerOfMass) const;
+	virtual void DebugCollision  (const dgMatrix& matrix, OnDebugCollisionMeshCallback callback, void* const userData) const;
+
+	virtual void MassProperties ();
+	virtual dgMatrix CalculateInertiaAndCenterOfMass (const dgMatrix& m_alignMatrix, const dgVector& localScale, const dgMatrix& matrix) const;
+	virtual dgFloat32 CalculateMassProperties (const dgMatrix& offset, dgVector& inertia, dgVector& crossInertia, dgVector& centerOfMass) const;
 
 	bool SanityCheck(dgInt32 count, const dgVector& normal, dgVector* const contactsOut) const;
+
+	dgPerimenterEdge* ReduceContacts (dgPerimenterEdge* poly, dgInt32 maxCount) const;
 	dgInt32 RectifyConvexSlice (dgInt32 count, const dgVector& normal, dgVector* const contactsOut) const;
 
+	// special feature based contact calculation for conics convex (ex spheres, capsules, tapered capsules, and chamfered cylinders)
+	// in newton we only deal with sub set of conic function, that can be expressed by the equation
+	// ((x - x0) / a)^2 + ((y - y0) / b)^2 + ((z - z0) / c)^2  = 1   and possible a linear or circular sweep of the same equation
+    // this preclude parabolic and hyperbolic conics 
+	virtual dgVector ConvexConicSupporVertex (const dgVector& dir) const;
+	virtual dgVector ConvexConicSupporVertex (const dgVector& point, const dgVector& dir) const;
+	virtual dgInt32 CalculateContacts (const dgVector& point, const dgVector& normal, dgCollisionParamProxy& proxy, dgVector* const contactsOut) const;
 
-	dgVector m_volume;
-	dgVector m_boxSize;
-	dgVector m_boxOrigin;
-	dgVector m_size_x;
-	dgVector m_size_y;
-	dgVector m_size_z;
-	dgConvexSimplexEdge *m_supportVertexStarCuadrant[8];
+	dgInt32 CalculateContactsGeneric (const dgVector& point, const dgVector& normal, dgCollisionParamProxy& proxy, dgVector* const contactsOut) const;
+	dgInt32 ConvexPolygonsIntersection (const dgVector& nornal, dgInt32 count1, dgVector* const shape1, dgInt32 count2, dgVector* const shape2, dgVector* const contactOut, dgInt32 maxContacts) const;
+	dgInt32 ConvexPolygonToLineIntersection (const dgVector& normal, dgInt32 count1, dgVector* const shape1, dgInt32 count2, dgVector* const shape2, dgVector* const contactOut, dgVector* const mem) const;
+	dgFloat32 ConvexConicConvexRayCast (const dgCollisionInstance* const convexConicShape, const dgMatrix& conicShapeMatrix, const dgCollisionInstance* const convexCastingShape, const dgMatrix& castingMatrix, const dgVector& castingVeloc, dgFloat32 maxT, dgContactPoint& contactOut) const;
+									
+
+	
+
+//	dgVector ReduceLine (dgInt32& indexOut, dgVector* const lineDiff, dgVector* const lineSum) const;
+//	dgVector ReduceTriangle (dgInt32& indexOut, dgVector* const triangleDiff, dgVector* const triangleSum) const;
+//	dgVector ReduceTetrahedrum (dgInt32& indexOut, dgVector* const tetraDiff, dgVector* const tetraSum) const;
+//	void ReduceDegeneratedTriangle (dgVector& diff0, dgVector& sum0, dgVector& diff1, dgVector& sum1, const dgVector& diff2, const dgVector& sum2) const;
+//	dgBigVector ReduceLineLarge (dgInt32& indexOut, dgBigVector* const lineDiff, dgBigVector* const lineSum) const;
+//	dgBigVector ReduceTriangleLarge (dgInt32& indexOut, dgBigVector* const triangleDiff, dgBigVector* const triangleSum) const;
+//	dgBigVector ReduceTetrahedrumLarge (dgInt32& indexOut, dgBigVector* const tetraDiff, dgBigVector* const tetraSum) const;
+//	void ReduceDegeneratedTriangleLarge (dgBigVector& diff0, dgBigVector& sum0, dgBigVector& diff1, dgBigVector& sum1, const dgBigVector& diff2, const dgBigVector& sum2) const;
+//	void ConvexSupportVertex (const dgVector& dir, const dgVector& scale1, const dgMatrix& matrix, const dgVector& invScale0, const dgCollisionConvex* const convexShape, dgVector& diff, dgVector& sum) const;
+//	void ConvexConicSupportVertex (const dgVector& dir, const dgVector& scale1, const dgMatrix& matrix, const dgVector& invScale0, const dgCollisionConvex* const convexShape, dgVector& diff, dgVector& sum) const;
+//	void ConvexConicSupportVertexLarge (const dgVector& dir, const dgVector& scale1, const dgMatrix& matrix, const dgVector& invScale0, const dgCollisionConvex* const convexShape, dgBigVector& diff, dgBigVector& sum) const;
+//	dgInt32 CalculateConicClosestSimplex (const dgCollisionConvex* const convexShape, const dgVector& scale1, const dgMatrix& matrix, const dgVector& invScale0, const dgVector& separatingVectorHint, dgVector* const diff, dgVector* const sum, dgVector& normal) const;
+//	dgInt32 CalculateConicClosestSimplexLarge (const dgCollisionConvex* const convexShape, const dgVector& scale1, const dgMatrix& matrix, const dgVector& invScale0, const dgVector& separatingVectorHint, dgVector* const diff, dgVector* const sum, dgVector& normal) const;
+//	dgInt32 CalculateIntersectingPlane (const dgCollisionConvex* const convexShape, const dgVector& scale1, const dgMatrix& matrix, const dgVector& invScale0, const dgVector& separatingVectorHint, dgInt32 count, dgVector* const diff, dgVector* const sum, dgVector& normal) const;
 	
 	void* m_userData;
 	dgVector* m_vertex;
-	dgConvexSimplexEdge *m_simplex;
+	dgConvexSimplexEdge* m_simplex;
 	
 	dgFloat32 m_boxMinRadius;
 	dgFloat32 m_boxMaxRadius;
 	dgFloat32 m_simplexVolume;
+	
 	dgUnsigned16 m_edgeCount;
 	dgUnsigned16 m_vertexCount;
-	dgUnsigned32 m_isTriggerVolume : 1;
-	
-	static dgVector m_zero;
-	static dgVector m_negOne;
-	static dgVector m_indexStep;
-	static dgVector m_aabb_padd;
-	static dgVector m_index_0123;
-	static dgVector m_index_4567;
-	static dgVector m_multiResDir[8];
-	static dgVector m_multiResDir_sse[6];
-	
-	static dgVector m_nrh0p5;
-	static dgVector m_nrh3p0;
-	static dgVector m_huge;
-	static dgVector m_negativeTiny;
 
-	static dgVector m_signMask;
-	static dgVector m_triplexMask;
-	static dgTriplex m_hullDirs[14]; 
-
-	static dgInt32 m_iniliazised;
+	
+	public:	
+	static dgVector m_hullDirs[14]; 
+	static dgVector m_dummySum[4];
 	static dgInt32 m_rayCastSimplex[4][4];
+	static dgCollisionPriority m_priorityOrder;
 	
 	friend class dgWorld;
 	friend class dgMinkowskiConv;
 	friend class dgCollisionCompound;
-	friend class dgBroadPhaseCollision;
+	friend class dgBroadPhase;
 	friend class dgCollisionConvexModifier;
-}DG_GCC_VECTOR_ALIGMENT;
+} DG_GCC_VECTOR_ALIGMENT;
 
 
 
-#endif //AFX_DGCONVEXCOLLISION_H__57E159CE_6B6F_42DE_891C_1F6C38EB9D29__INCLUDED_
+#endif //AFX_DGCONVEXCOLLISION_H__57E159CE_6B6F_42DE_891C_1F6C38EB9D29_H
 
 

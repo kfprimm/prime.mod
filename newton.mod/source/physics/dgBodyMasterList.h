@@ -19,8 +19,8 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DGBODYMASTER_LIST_35290_35290_A510_A865B2CC0789__INCLUDED_)
-#define AFX_DGBODYMASTER_LIST_35290_35290_A510_A865B2CC0789__INCLUDED_
+#if !defined(AFX_DGBODYMASTER_LIST_35290_35290_A510_A865B2CC0789_H)
+#define AFX_DGBODYMASTER_LIST_35290_35290_A510_A865B2CC0789_H
 
 
 class dgBody;
@@ -42,7 +42,9 @@ class dgBodyMasterListRow: public dgList<dgBodyMasterListCell>
 	dgBody* GetBody() const	{ return m_body;}
 
 	void RemoveAllJoints ();
-	dgListNode* AddJoint (dgConstraint* const joint, dgBody* const body);
+	dgListNode* AddContactJoint (dgConstraint* const joint, dgBody* const body);
+	dgListNode* AddBilateralJoint (dgConstraint* const joint, dgBody* const body);
+	
 
 	void SortList();
 
@@ -69,6 +71,7 @@ class dgBodyMasterList: public dgList<dgBodyMasterListRow>
 	void SortMasterList();
 
 	public:
+	dgInt32 m_deformableCount;
 	dgUnsigned32 m_constraintCount;
 
 };

@@ -19,8 +19,8 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#ifndef __DGCOLLIIONBVH__
-#define __DGCOLLIIONBVH__
+#ifndef __DGCOLLISION_BVH__
+#define __DGCOLLISION_BVH__
 
 #include "dgCollision.h"
 #include "dgCollisionMesh.h"
@@ -33,10 +33,10 @@ class dgCollisionBVH: public dgCollisionMesh, public dgAABBPolygonSoup
 {
 	public:
 	DG_MSC_VECTOR_ALIGMENT 
-	struct dgBVHRay: public FastRayTest 
+	struct dgBVHRay: public dgFastRayTest 
 	{
 		dgBVHRay(const dgVector& l0, const dgVector& l1)
-			: FastRayTest (l0, l1)
+			: dgFastRayTest (l0, l1)
 		{
 		}
 
@@ -49,7 +49,7 @@ class dgCollisionBVH: public dgCollisionMesh, public dgAABBPolygonSoup
 		const dgCollisionBVH* m_me;
 	} DG_GCC_VECTOR_ALIGMENT;
 
-	dgCollisionBVH(dgMemoryAllocator* const allocator);
+	dgCollisionBVH(dgWorld* const world);
 	dgCollisionBVH (dgWorld* const world, dgDeserialize deserialization, void* const userData);
 	virtual ~dgCollisionBVH(void);
 
@@ -59,36 +59,34 @@ class dgCollisionBVH: public dgCollisionMesh, public dgAABBPolygonSoup
 
 	void SetCollisionRayCastCallback (dgCollisionBVHUserRayCastCallback rayCastCallback);
 	dgCollisionBVHUserRayCastCallback GetDebugRayCastCallback() const { return m_userRayCastCallback;} 
+	void GetVertexListIndexList (const dgVector& p0, const dgVector& p1, dgMeshVertexListIndexList &data) const;
 
-	void GetVertexListIndexList (const dgVector& p0, const dgVector& p1, dgGetVertexListIndexList &data) const;
-
+	void ForEachFace (dgAABBIntersectCallback callback, void* const context) const;
 
 	private:
-	
-
-	static dgFloat32 RayHit (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount);
-	static dgFloat32 RayHitSimd (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount);
-	static dgFloat32 RayHitUser (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount);
-	static dgFloat32 RayHitUserSimd (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount);
-	static dgIntersectStatus GetPolygon (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount);
-	static dgIntersectStatus ShowDebugPolygon (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount);
-	static dgIntersectStatus GetTriangleCount (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount);
-	static dgIntersectStatus CollectVertexListIndexList (void *context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount);
+	static dgFloat32 RayHit (void* const context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount);
+	static dgFloat32 RayHitUser (void* const context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount);
+	static dgIntersectStatus GetPolygon (void* const context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount, dgFloat32 hitDistance);
+	static dgIntersectStatus ShowDebugPolygon (void* const context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount, dgFloat32 hitDistance);
+	static dgIntersectStatus GetTriangleCount (void* const context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount, dgFloat32 hitDistance);
+	static dgIntersectStatus CollectVertexListIndexList (void* const context, const dgFloat32* const polygon, dgInt32 strideInBytes, const dgInt32* const indexArray, dgInt32 indexCount, dgFloat32 hitDistance);
 
 	void Serialize(dgSerialize callback, void* const userData) const;
 	virtual dgVector SupportVertex (const dgVector& dir) const;
-	virtual dgFloat32 RayCast (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const;
-	virtual dgFloat32 RayCastSimd (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const;
-	virtual void GetCollidingFaces (dgPolygonMeshDesc* const data) const;
-	virtual void GetCollidingFacesSimd (dgPolygonMeshDesc* const data) const;
-	virtual void GetCollisionInfo(dgCollisionInfo* info) const;
 
-	void DebugCollision (const dgMatrix& matrixPtr, OnDebugCollisionMeshCallback callback, void* const userData) const;
+	virtual dgFloat32 RayCast (const dgVector& localP0, const dgVector& localP1, dgFloat32 maxT, dgContactPoint& contactOut, const dgBody* const body, void* const userData) const;
+	virtual void GetCollidingFaces (dgPolygonMeshDesc* const data) const;
+	virtual void GetCollisionInfo(dgCollisionInfo* const info) const;
+
+	virtual void GetLocalAABB (const dgVector& p0, const dgVector& p1, dgVector& boxP0, dgVector& boxP1) const;
+	virtual void DebugCollision (const dgMatrix& matrixPtr, OnDebugCollisionMeshCallback callback, void* const userData) const;
+	virtual dgVector SupportVertex (const dgVector& dir, dgInt32* const vertexIndex) const;
 
 	dgPolygonSoupDatabaseBuilder* m_builder;
 	dgCollisionBVHUserRayCastCallback m_userRayCastCallback;
 
 	friend class dgCollisionCompound;
+	friend class dgCollisionDeformableMesh;
 };
 
 

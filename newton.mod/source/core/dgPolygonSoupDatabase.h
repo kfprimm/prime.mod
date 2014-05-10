@@ -24,8 +24,8 @@
 *  Visual C++ 6.0 created by: Julio Jerez
 *
 ****************************************************************************/
-#ifndef __dgPolygonSoupDatabase0x23413452233__
-#define __dgPolygonSoupDatabase0x23413452233__
+#ifndef __dgPolygonSoupDatabase_H_
+#define __dgPolygonSoupDatabase_H_
 
 
 #include "dgStdafx.h"
@@ -37,7 +37,7 @@ class dgMatrix;
 
 
 
-class dgPolygonSoupDatabase//: public dgRef
+class dgPolygonSoupDatabase
 {
 	public:
 	dgFloat32 GetRadius() const;
@@ -45,28 +45,16 @@ class dgPolygonSoupDatabase//: public dgRef
 	dgInt32 GetStrideInBytes() const;
 	dgFloat32* GetLocalVertexPool() const;
 
-	dgUnsigned32 GetTagId(const dgInt32* face) const;
-	void SetTagId(const dgInt32* face, dgUnsigned32 newID) const;
+	dgUnsigned32 GetTagId(const dgInt32* const face, dgInt32 indexCount) const;
+	void SetTagId(const dgInt32* const face, dgInt32 indexCount, dgUnsigned32 newID) const;
 
 	virtual void Serialize (dgSerialize callback, void* const userData) const = 0;
 	virtual void Deserialize (dgDeserialize callback, void* const userData) = 0;
 
-
-	virtual void GetAABB (dgVector& p0, dgVector& p1) const;
-//	bool RayTest (const dgVector& p0, const dgVector& p1) const;
-//	dgFloat32 RayHit (const dgVector& p0, const dgVector& p1, dgVector& unNormalizeNormal) const;
-
 	
 	protected:
-	virtual void ForAllSectors (const dgVector& min, const dgVector& max, dgAABBIntersectCallback callback, void* const context) const;
-	virtual void ForAllSectorsSimd (const dgVector& min, const dgVector& max, dgAABBIntersectCallback callback, void* const context) const;
-	virtual void ForAllSectorsRayHit (const FastRayTest& ray, dgRayIntersectCallback callback, void* const context) const;
-	virtual void ForAllSectorsRayHitSimd (const FastRayTest& ray, dgRayIntersectCallback callback, void* const context) const;
-
-	dgPolygonSoupDatabase(const char *name = NULL);
+	dgPolygonSoupDatabase(const char* const name = NULL);
 	virtual ~dgPolygonSoupDatabase ();
-
-//	dgAddRtti(dgRef);	 
 
 	dgInt32 m_vertexCount;
 	dgInt32 m_strideInBytes;
@@ -74,8 +62,7 @@ class dgPolygonSoupDatabase//: public dgRef
 };
 
 
-inline dgPolygonSoupDatabase::dgPolygonSoupDatabase(const char *name)
-//	:dgRef(name)
+inline dgPolygonSoupDatabase::dgPolygonSoupDatabase(const char* const name)
 {
 	m_vertexCount = 0;
 	m_strideInBytes = 0;
@@ -90,16 +77,15 @@ inline dgPolygonSoupDatabase::~dgPolygonSoupDatabase ()
 }
 
 
-inline dgUnsigned32 dgPolygonSoupDatabase::GetTagId(const dgInt32* face) const
+inline dgUnsigned32 dgPolygonSoupDatabase::GetTagId(const dgInt32* const face, dgInt32 indexCount) const
 {
-	return dgUnsigned32 (face[-1]);
+	return dgUnsigned32 (face[indexCount]);
 }
 
-inline void dgPolygonSoupDatabase::SetTagId(const dgInt32* facePtr, dgUnsigned32 newID) const
+inline void dgPolygonSoupDatabase::SetTagId(const dgInt32* const facePtr, dgInt32 indexCount, dgUnsigned32 newID) const
 {
-	dgUnsigned32* face;
-	face = (dgUnsigned32*) facePtr;
-	face[-1] = newID;
+	dgUnsigned32* const face = (dgUnsigned32*) facePtr;
+	face[indexCount] = newID;
 }
 
 inline dgInt32 dgPolygonSoupDatabase::GetVertexCount()	const
@@ -122,33 +108,6 @@ inline dgFloat32 dgPolygonSoupDatabase::GetRadius() const
 	return 0.0f;
 }
 
-inline void dgPolygonSoupDatabase::ForAllSectorsSimd (const dgVector& min, const dgVector& max, dgAABBIntersectCallback callback, void* const context) const
-{
-	_ASSERTE (0);
-}
-
-
-
-inline void dgPolygonSoupDatabase::ForAllSectors (const dgVector& min, const dgVector& max, dgAABBIntersectCallback callback, void* const context) const
-{
-	_ASSERTE (0);
-}
-
-
-inline void dgPolygonSoupDatabase::GetAABB (dgVector& p0, dgVector& p1) const
-{
-}
-
-
-inline void dgPolygonSoupDatabase::ForAllSectorsRayHit (const FastRayTest& ray, dgRayIntersectCallback callback, void* const context) const
-{
-	_ASSERTE (0);
-}
-
-inline void dgPolygonSoupDatabase::ForAllSectorsRayHitSimd (const FastRayTest& ray, dgRayIntersectCallback callback, void* const context) const
-{
-	_ASSERTE (0);
-}
 
 #endif
 

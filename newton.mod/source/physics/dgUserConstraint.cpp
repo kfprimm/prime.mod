@@ -30,12 +30,9 @@
 dgUserConstraint::dgUserConstraint(dgWorld* const world, dgBody* const body0, dgBody* const body1, dgInt32 constraintID)
 	:dgBilateralConstraint()
 {
-//	Init();
-//	m_lru = 0;	
 	m_maxDOF = 6;	
-//	m_jointIsDead___ = false;
 	m_enableCollision = false;
-	m_constId = dgUnsigned32 (dgUnknownConstraintId + constraintID);
+	m_constId = dgUnsigned32 (m_unknownConstraint + constraintID);
 	m_body0 = body0;
 	m_body1 = body1;
 	m_userData = NULL;

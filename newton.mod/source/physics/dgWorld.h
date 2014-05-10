@@ -19,57 +19,59 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DGPHYSICSWORLD_H__EC18C699_D48D_448F_A510_A865B2CC0789__INCLUDED_)
-#define AFX_DGPHYSICSWORLD_H__EC18C699_D48D_448F_A510_A865B2CC0789__INCLUDED_
+#ifndef _DG_WORLD_H_
+#define _DG_WORLD_H_
 
 
 #include "dgBody.h"
 #include "dgContact.h"
 #include "dgCollision.h"
+#include "dgBroadPhase.h"
 #include "dgCollisionScene.h"
 #include "dgBodyMasterList.h"
 #include "dgWorldDynamicUpdate.h"
 
-//#include "dgBallConstraint.h"
-//#include "dgHingeConstraint.h"
-//#include "dgSlidingConstraint.h"
-//#include "dgUniversalConstraint.h"
-//#include "dgCorkscrewConstraint.h"
-#include "dgBroadPhaseCollision.h"
-//#include "dgUpVectorConstraint.h"
-//#include "dgPointToCurveConstraint.h"
-
 
 #define DG_REDUCE_CONTACT_TOLERANCE			dgFloat32 (1.0e-2f)
 #define DG_PRUNE_CONTACT_TOLERANCE			dgFloat32 (1.0e-2f)
-#define DG_RESTING_CONTACT_PENETRATION		dgFloat32 (1.0f / 256.0f)
-#define DG_IMPULSIVE_CONTACT_PENETRATION	dgFloat32 (1.0f / 256.0f + DG_RESTING_CONTACT_PENETRATION)
 
 #define DG_SLEEP_ENTRIES					8
 #define DG_MAX_DESTROYED_BODIES_BY_FORCE	8
 
-//#define DG_SPANNING_MEMORY_POOL_SIZE	((1<<16))
-
+class dgBody;
+class dgDynamicBody;
+class dgKinematicBody;
 class dgCollisionPoint;
 class dgUserConstraint;
 class dgBallConstraint;
+class dgOpenclInstance;
 class dgHingeConstraint;
+class dgUserMeshCreation;
 class dgSlidingConstraint;
+class dgCollisionInstance;
+class dgUpVectorConstraint;
 class dgUniversalConstraint;
 class dgCorkscrewConstraint;
-class dgUpVectorConstraint;
-class dgUserMeshCreation;
-//class dgConnectorConstraint;
-//class dgPointToCurveConstraint;
+class dgCollisionDeformableMesh;
 
+class CollisionKeyPair
+{
+	public:
+	CollisionKeyPair(const dgCollision* collision, dgUnsigned32 pinNumber)
+		:m_collision(collision)
+		,m_pinNumber(pinNumber)
+	{
+	}
+	const dgCollision* m_collision;
+	dgUnsigned32 m_pinNumber;
+};
 
-class dgBodyCollisionList: public dgTree<dgCollision*, dgUnsigned32>
+class dgBodyCollisionList: public dgTree<CollisionKeyPair, dgUnsigned32>
 {
 	public:
 	dgBodyCollisionList (dgMemoryAllocator* const allocator)
-		:dgTree<dgCollision*, dgUnsigned32>(allocator)
+		:dgTree<CollisionKeyPair, dgUnsigned32>(allocator)
 	{
-
 	}
 };
 
@@ -79,8 +81,34 @@ class dgBodyMaterialList: public dgTree<dgContactMaterial, dgUnsigned32>
 	dgBodyMaterialList (dgMemoryAllocator* const allocator)
 		:dgTree<dgContactMaterial, dgUnsigned32>(allocator)
 	{
-
 	}
+};
+
+class dgCollisionDeformableMeshList: public dgList<dgCollisionDeformableMesh*>
+{
+	public:
+	dgCollisionDeformableMeshList (dgMemoryAllocator* const allocator)
+		:dgList<dgCollisionDeformableMesh*>(allocator)
+		,m_dictionary(allocator)
+	{
+	}
+
+	void AddShape(dgCollisionDeformableMesh* const shape)
+	{
+		dgListNode* const node = Append (shape);
+		m_dictionary.Insert (node, shape);
+	}
+
+	void RemoveShape(dgCollisionDeformableMesh*  const shape)
+	{
+		dgTree <dgListNode*, const dgCollisionDeformableMesh*>::dgTreeNode* const node = m_dictionary.Find (shape);
+		dgAssert (node);
+		Remove (node->GetInfo());
+		m_dictionary.Remove (node);
+	}
+
+	private:
+	dgTree <dgListNode*, const dgCollisionDeformableMesh*> m_dictionary;
 };
 
 class dgCollisionParamProxy;
@@ -88,8 +116,8 @@ class dgCollisionParamProxy;
 enum dgPerformanceCounters
 {
 	m_worldTicks = 0,
+
 	m_collisionTicks,
-	m_forceCallback,
 	m_broadPhaceTicks,
 	m_narrowPhaseTicks,
 
@@ -97,14 +125,32 @@ enum dgPerformanceCounters
 	m_dynamicsBuildSpanningTreeTicks,
 	m_dynamicsSolveSpanningTreeTicks,
 
+	m_forceCallbackTicks,
+	m_softBodyTicks,
+
+	m_preUpdataListerTicks,
+	m_postUpdataListerTicks,
+
 	m_counterSize
 };
 
 class dgWorld;
+class dgCollisionInstance;
+
+
 
 typedef dgUnsigned32 (dgApi *OnIslandUpdate) (const dgWorld* const world, void* island, dgInt32 bodyCount);
-typedef void (dgApi *OnDestroyCollision) (const dgWorld* const world, dgCollision* shape);
 typedef void (dgApi *OnBodyDestructionByExeciveForce) (const dgBody* const body, const dgContact* joint);
+typedef void (dgApi *OnListenerUpdateCallback) (const dgWorld* const world, void* const listenerUserData, dgFloat32 timestep);
+typedef void (dgApi *OnListenerDestroyCallback) (const dgWorld* const world, void* const listenerUserData);
+
+typedef void (dgApi *OnBodySerialize) (dgBody& me, dgSerialize funt, void* const serilalizeObject);
+typedef void (dgApi *OnBodyDeserialize) (dgBody& me, dgDeserialize funt, void* const serilalizeObject);
+
+
+typedef void (dgApi *OnCollisionInstanceDestroy) (const dgWorld* const world, const dgCollisionInstance* const collision);
+typedef void (dgApi *OnCollisionInstanceDuplicate) (const dgWorld* const world, dgCollisionInstance* const collision, const dgCollisionInstance* const sourceCollision);
+
 
 class dgSolverSleepTherfesholds
 {
@@ -116,17 +162,33 @@ class dgSolverSleepTherfesholds
 	dgInt32 m_steps;
 };
 
+
+class dgWorldThreadPool: public dgThreadHive
+{
+	public:
+	dgWorldThreadPool(dgMemoryAllocator* const allocator)
+		:dgThreadHive(allocator)
+	{
+	}
+
+	virtual void OnBeginWorkerThread (dgInt32 threadId);
+	virtual void OnEndWorkerThread (dgInt32 threadId);
+};
+
 DG_MSC_VECTOR_ALIGMENT
 class dgWorld:
 	public dgBodyMasterList,
-	public dgBroadPhaseCollision,
 	public dgBodyMaterialList,
 	public dgBodyCollisionList,
+	public dgCollisionDeformableMeshList,
 	public dgActiveContacts, 
-	public dgCollidingPairCollector
+	public dgCollidingPairCollector,
+	public dgWorldDynamicUpdate,
+	public dgMutexThread,
+	public dgAsyncThread,
+	public dgWorldThreadPool
 {
 	public:
-
 	class dgDetroyBodyByForce
 	{	
 		public:
@@ -140,24 +202,53 @@ class dgWorld:
 		const dgContact* m_joint[DG_MAX_DESTROYED_BODIES_BY_FORCE];
 	};
 
+	class dgListener
+	{
+		public: 
+		
+		~dgListener()
+		{
+			if (m_onListenerDestroy) {
+				m_onListenerDestroy(m_world, m_userData);
+			}
+		}
+
+		char m_name[32];
+		dgWorld* m_world;
+		void* m_userData;
+		OnListenerUpdateCallback m_onListenerUpdate;
+		OnListenerDestroyCallback m_onListenerDestroy;
+	};
+
+	class dgListenerList: public dgList <dgListener>
+	{
+		public: 
+		dgListenerList (dgMemoryAllocator* const allocator)
+			:dgList <dgListener>(allocator)
+		{
+		}
+
+		~dgListenerList()
+		{
+		}
+	};
 
 	DG_CLASS_ALLOCATOR(allocator)
 
 	dgWorld(dgMemoryAllocator* const allocator);
 	~dgWorld();
 
-//	void SetGlobalScale (dgFloat32 scale);
-//	dgFloat32 GetGlobalScale () const;
+	dgBroadPhase* GetBroadPhase() const;
 
 	void SetSolverMode (dgInt32 mode);
 	void SetFrictionMode (dgInt32 mode);
-	void SetHardwareMode (dgInt32 mode);
-	dgInt32 GetHardwareMode(char* description);
 
-	void SetThreadsCount (dgInt32 count);
-	dgInt32 GetThreadsCount () const;
-	dgInt32 GetMaxThreadsCount () const;
-//	dgInt32 GetThreadNumber() const;
+	dgInt32 EnumerateHardwareModes() const;
+	dgInt32 GetCurrentHardwareMode() const;
+	void SetCurrentHardwareMode(dgInt32 deviceIndex);
+	void GetHardwareVendorString (dgInt32 deviceIndex, char* const description, dgInt32 maxlength) const;
+
+
 	void EnableThreadOnSingleIsland(dgInt32 mode);
 	dgInt32 GetThreadOnSingleIsland() const;
 
@@ -167,21 +258,28 @@ class dgWorld:
 	void SetUserData (void* const userData);
 
 	void Update (dgFloat32 timestep);
-	void UpdateCollision ();
-	dgInt32 Collide (dgCollision* collisionA, const dgMatrix& matrixA, dgCollision* collisionB, const dgMatrix& matrixB, 
-					 dgTriplex* points, dgTriplex* normals, dgFloat32* penetration, dgInt32 maxSize, dgInt32 threadIndex);
+	void UpdateAsync (dgFloat32 timestep);
+	
+	void StepDynamics (dgFloat32 timestep);
+	
+	dgInt32 Collide (const dgCollisionInstance* const collisionA, const dgMatrix& matrixA, 
+					 const dgCollisionInstance* const collisionB, const dgMatrix& matrixB, 
+					 dgTriplex* const points, dgTriplex* const normals, dgFloat32* const penetration, 
+					 dgInt64* const attibuteA, dgInt64* const attibuteB, dgInt32 maxContacts, dgInt32 threadIndex);
 
-	dgInt32 CollideContinue (dgCollision* collisionA, const dgMatrix& matrixA, const dgVector& velocA, const dgVector& omegaA, 
-							 dgCollision* collisionB, const dgMatrix& matrixB, const dgVector& velocB, const dgVector& omegaB, 
-							 dgFloat32& timeStep, dgTriplex* points, dgTriplex* normals, dgFloat32* penetration, dgInt32 maxSize, dgInt32 threadIndex);
-	dgInt32 CollideContinueSimd (dgCollision* collisionA, const dgMatrix& matrixA, const dgVector& velocA, const dgVector& omegaA, 
-								 dgCollision* collisionB, const dgMatrix& matrixB, const dgVector& velocB, const dgVector& omegaB, 
-								 dgFloat32& timeStep, dgTriplex* points, dgTriplex* normals, dgFloat32* penetration, dgInt32 maxSize, dgInt32 threadIndex);
+	dgInt32 CollideContinue (const dgCollisionInstance* const collisionA, const dgMatrix& matrixA, const dgVector& velocA, const dgVector& omegaA, 
+							 const dgCollisionInstance* const collisionB, const dgMatrix& matrixB, const dgVector& velocB, const dgVector& omegaB, 
+		                     dgFloat32& timeStep, dgTriplex* const points, dgTriplex* const normals, dgFloat32* const penetration, 
+							 dgInt64* const attibuteA, dgInt64* const attibuteB, dgInt32 maxContacts, dgInt32 threadIndex);
 
-
-	dgInt32 ClosestPoint (dgTriplex& point, dgCollision* const collision, const dgMatrix& matrix, dgTriplex& contact, dgTriplex& normal, dgInt32 threadIndex) const;
-	dgInt32 ClosestPoint (dgCollision* const collisionA, const dgMatrix& matrixA, dgCollision* const collisionB, const dgMatrix& matrixB, 
-						  dgTriplex& contactA, dgTriplex& contactB, dgTriplex& normalAB, dgInt32 threadIndex) const;
+	bool IntersectionTest (const dgCollisionInstance* const collisionA, const dgMatrix& matrixA, 
+						   const dgCollisionInstance* const collisionB, const dgMatrix& matrixB, 
+						   dgInt32 threadIndex);
+	
+	dgInt32 ClosestPoint (dgTriplex& point, const dgCollisionInstance* const collision, const dgMatrix& matrix, dgTriplex& contact, dgTriplex& normal, dgInt32 threadIndex);
+	dgInt32 ClosestPoint (const dgCollisionInstance* const collisionA, const dgMatrix& matrixA, 
+						  const dgCollisionInstance* const collisionB, const dgMatrix& matrixB, 
+						  dgTriplex& contactA, dgTriplex& contactB, dgTriplex& normalAB, dgInt32 threadIndex);
 
 
 	void SetFrictionThreshold (dgFloat32 acceletion);
@@ -190,80 +288,77 @@ class dgWorld:
 	dgBody* GetIslandBody (const void* const island, dgInt32 index) const;
 
 
-	void SetIslandUpdateCallback (OnIslandUpdate callback); 
-	void SetDestroyCollisionCallback (OnDestroyCollision shape);
-	void SetLeavingWorldCallback (OnLeavingWorldAction callback); 
-	void SetBodyDestructionByExeciveForce (OnBodyDestructionByExeciveForce callback); 
-//	void ForEachBodyInAABB (const dgVector& q0, const dgVector& q1, OnLeavingWorldAction callback);
+	void* GetListenerUserData (void* const lintener) const;
+	void* FindPreListener (const char* const nameid) const;
+	void* FindPostListener (const char* const nameid) const;
+	void* AddPreListener (const char* const nameid, void* const userData, OnListenerUpdateCallback updateCallback, OnListenerDestroyCallback destroyCallback);
+	void* AddPostListener (const char* const nameid, void* const userData, OnListenerUpdateCallback updateCallback, OnListenerDestroyCallback destroyCallback);
 
-	dgBody* CreateBody (dgCollision* const collision, const dgMatrix& matrix);
+
+	void SetIslandUpdateCallback (OnIslandUpdate callback); 
+	void SetBodyDestructionByExeciveForce (OnBodyDestructionByExeciveForce callback); 
+
+	void InitBody (dgBody* const body, dgCollisionInstance* const collision, const dgMatrix& matrix);
+	dgDynamicBody* CreateDynamicBody (dgCollisionInstance* const collision, const dgMatrix& matrix);
+	dgKinematicBody* CreateKinematicBody (dgCollisionInstance* const collision, const dgMatrix& matrix);
+	dgBody* CreateDeformableBody (dgCollisionInstance* const collision, const dgMatrix& matrix);
 	void DestroyBody(dgBody* const body);
 	void DestroyAllBodies ();
 
-//	void AddToBreakQueue (const dgContact* const contactJoint, dgFloat32 masValue);
-	void AddToBreakQueue (const dgContact* const contactJoint, dgBody* const body, dgFloat32 maxForce);
+//	void AddToBreakQueue (const dgContact* const contactJoint, dgBody* const body, dgFloat32 maxForce);
 
     // modify the velocity and angular velocity of a body in such a way 
 	// that the velocity of pointPosit is increase by pointDeltaVeloc 
 	// pointVeloc and pointPosit are in world space
-	void AddBodyImpulse (dgBody* body, const dgVector& pointDeltaVeloc, const dgVector& pointPosit);
+//	void AddBodyImpulse (dgBody* body, const dgVector& pointDeltaVeloc, const dgVector& pointPosit);
+//	void ApplyImpulseArray (dgBody* body, dgInt32 count, dgInt32 strideInBytes, const dgFloat32* const impulseArray, const dgFloat32* const pointArray);
 
 	// apply the transform matrix to the body and recurse trough all bodies attached to this body with a 
 	// bilateral joint contact joint are ignored.
-	void BodySetMatrix (dgBody* body, const dgMatrix& matrix);
-//	void FreezeBody (dgBody *body);
-//	void UnfreezeBody (dgBody *body);
-//	dgInt32 GetActiveBodiesCount() const;
+	void BodySetMatrix (dgBody* const body, const dgMatrix& matrix);
 	
 	dgInt32 GetBodiesCount() const;
 	dgInt32 GetConstraintsCount() const;
 
+    dgCollisionInstance* CreateInstance (const dgCollision* const child, dgInt32 shapeID, const dgMatrix& offsetMatrix);
 
-	dgUnsigned32 GetBoxID () const; 
-	dgUnsigned32 GetConeID () const; 
-	dgUnsigned32 GetSphereID () const; 
-	dgUnsigned32 GetConvexID () const; 
-	dgUnsigned32 GetEllipseID () const; 
-	dgUnsigned32 GetCapsuleID () const; 
-	dgUnsigned32 GetCylinderID () const; 
-	dgUnsigned32 GetConvexHullID () const; 
-	dgUnsigned32 GetChamferCylinderID () const; 
-	dgUnsigned32 GetConvexHullModifierID () const; 
-	dgUnsigned32 GetPolygonSoupID () const; 
-	dgUnsigned32 GetSceneID () const;
-	dgUnsigned32 GetCompoundCollisionID () const; 
+	dgCollisionInstance* CreateNull ();
+	dgCollisionInstance* CreateSphere (dgFloat32 radiusdg, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
+	dgCollisionInstance* CreateCone (dgFloat32 radius, dgFloat32 height, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
+	dgCollisionInstance* CreateCapsule (dgFloat32 radius, dgFloat32 height, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
+	dgCollisionInstance* CreateCylinder (dgFloat32 radius, dgFloat32 height, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
+	dgCollisionInstance* CreateBox (dgFloat32 dx, dgFloat32 dy, dgFloat32 dz, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
+	dgCollisionInstance* CreateConvexHull (dgInt32 count, const dgFloat32* const points, dgInt32 strideInBytes, dgFloat32 thickness, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
+	dgCollisionInstance* CreateTaperedCapsule (dgFloat32 radio0, dgFloat32 radio1, dgFloat32 height, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
+	dgCollisionInstance* CreateTaperedCylinder (dgFloat32 radio0, dgFloat32 radio1, dgFloat32 height, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
+	dgCollisionInstance* CreateChamferCylinder (dgFloat32 radius, dgFloat32 height, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
+	dgCollisionInstance* CreateCollisionCompound ();
+	
+	dgCollisionInstance* CreateDeformableMesh (dgMeshEffect* const mesh, dgInt32 shapeID);
+	dgCollisionInstance* CreateClothPatchMesh (dgMeshEffect* const mesh, dgInt32 shapeID, const dgClothPatchMaterial& structuralMaterial, const dgClothPatchMaterial& bendMaterial);
 
-	dgCollision* CreateNull ();
-	dgCollision* CreateSphere (dgFloat32 radiusdg, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
-	dgCollision* CreateCone (dgFloat32 radius, dgFloat32 height, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
-	dgCollision* CreateCapsule (dgFloat32 radius, dgFloat32 height, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
-	dgCollision* CreateCylinder (dgFloat32 radius, dgFloat32 height, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
-	dgCollision* CreateBox (dgFloat32 dx, dgFloat32 dy, dgFloat32 dz, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
-	dgCollision* CreateEllipse (dgFloat32 rx, dgFloat32 ry, dgFloat32 rz, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
-	dgCollision* CreateConvexHull (dgInt32 count, const dgFloat32 *vertexArray, dgInt32 strideInBytes, dgFloat32 tolerance, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
-	dgCollision* CreateChamferCylinder (dgFloat32 radius, dgFloat32 height, dgInt32 shapeID, const dgMatrix& offsetMatrix = dgGetIdentityMatrix());
-	dgCollision* CreateConvexModifier (dgCollision* convexCollision);
-	dgCollision* CreateCollisionCompound (dgInt32 count, dgCollision* const array[]);
-//	dgCollision* CreateCollisionCompoundBreakable (dgInt32 count, dgMeshEffect* const solidArray[], dgMeshEffect* const splitePlanes[],
-//													  dgMatrix* const matrixArray, dgInt32* const idArray, dgFloat32* const mass, dgInt32 debriID, 
-//													  dgCollisionCompoundBreakableCallback callback, void* buildUsedData);
-
-	dgCollision* CreateCollisionCompoundBreakable (dgInt32 count, const dgMeshEffect* const solidArray[], const dgInt32* const idArray, 
-												   const dgFloat32* const densities, const dgInt32* const internalFaceMaterial, dgInt32 debriID, dgFloat32 gap);
+	void SetCollisionInstanceConstructorDestructor (OnCollisionInstanceDuplicate constructor, OnCollisionInstanceDestroy destructor);
 
 
-	dgCollision* CreateBVH ();	
-	dgCollision* CreateStaticUserMesh (const dgVector& boxP0, const dgVector& boxP1, const dgUserMeshCreation& data);
-	dgCollision* CreateBVHFieldCollision(dgInt32 width, dgInt32 height, dgInt32 contructionMode, 
-										 const dgUnsigned16* const elevationMap, const dgInt8* const atributeMap, dgFloat32 horizontalScale, dgFloat32 vertcalScale);
+//	dgCollision* CreateCollisionCompoundBreakable (dgInt32 count, const dgMeshEffect* const solidArray[], const dgInt32* const idArray,  const dgFloat32* const densities, const dgInt32* const internalFaceMaterial, dgInt32 debriID, dgFloat32 gap);
 
-	dgCollision* CreateScene ();	
 
-	void Serialize (dgCollision* shape, dgSerialize deserialization, void* const userData) const;
-	dgCollision* CreateFromSerialization (dgDeserialize deserialization, void* const userData);
+	dgCollisionInstance* CreateBVH ();	
+	dgCollisionInstance* CreateStaticUserMesh (const dgVector& boxP0, const dgVector& boxP1, const dgUserMeshCreation& data);
+	dgCollisionInstance* CreateHeightFieldCollision(dgInt32 width, dgInt32 height, dgInt32 contructionMode, dgInt32 elevationDataType, 
+													const void* const elevationMap, const dgInt8* const atributeMap, dgFloat32 verticalScale, dgFloat32 horizontalScale);
+	dgCollisionInstance* CreateScene ();	
 
-	void RemoveFromCache (dgCollision* const collision);
-	void ReleaseCollision(dgCollision* const collision);
+	static void OnSerializeToFile (void* const userData, const void* const buffer, size_t size);
+	static void OnBodySerializeToFile (dgBody& body, dgSerialize serializeCallback, void* const userData);
+
+	void SerializeToFile (const char* const fileName) const;
+	void SerializeBodyArray (dgBody** const array, dgInt32 count, OnBodySerialize bodyCallback, dgSerialize serializeCallback, void* const userData) const;
+	void DeserializeBodyArray (OnBodyDeserialize bodyCallback, dgDeserialize deserializeCallback, void* const userData);
+
+	void SerializeCollision (dgCollisionInstance* const shape, dgSerialize deserialization, void* const userData) const;
+	dgCollisionInstance* CreateCollisionFromSerialization (dgDeserialize deserialization, void* const userData);
+	void ReleaseCollision(const dgCollision* const collision);
 	
 	dgUpVectorConstraint* CreateUpVectorConstraint (const dgVector& pin, dgBody *body);
 	
@@ -287,175 +382,166 @@ class dgWorld:
 	OnGetPerformanceCountCallback GetPerformaceFuntion()const ;
 	void SetPerfomanceCounter(OnGetPerformanceCountCallback callback);
 	
-//	dgUnsigned32 GetPerfomanceTicks (dgInt32 thread, dgUnsigned32 entry) const;
+
+	void SetThreadsCount (dgInt32 count);
 	dgUnsigned32 GetPerfomanceTicks (dgUnsigned32 entry) const;
 	dgUnsigned32 GetThreadPerfomanceTicks (dgUnsigned32 threadIndex) const;
 
-	void dgGetUserLock() const;
-	void dgReleasedUserLock() const;
-	void dgGetIndirectLock(dgInt32* lockVar);
-	void dgReleaseIndirectLock(dgInt32* lockVar);
-
+	//Parallel Job dispatcher for user related stuff
+	void ExecuteUserJob (dgWorkerThreadTaskCallback userJobKernel, void* const userJobKernelContext);
 
 	dgBody* GetSentinelBody() const;
 	dgMemoryAllocator* GetAllocator() const;
+
+	void Sync ();
 	
 	private:
-	void CalculateContacts (dgCollidingPairCollector::dgPair* const pair, dgFloat32 timestep, dgInt32 threadIndex);
-	void CalculateContactsSimd (dgCollidingPairCollector::dgPair* const pair, dgFloat32 timestep, dgInt32 threadIndex);
+	
+	void CalculateContacts (dgCollidingPairCollector::dgPair* const pair, dgFloat32 timestep, dgInt32 threadIndex, bool ccdMode, bool intersectionTestOnly);
 
-	void SortContacts (dgContactPoint* const contact, dgInt32 count) const;
-	dgInt32 ReduceContacts (dgInt32 count, dgContactPoint* const contact, dgInt32 maxCount, dgFloat32 tol, dgInt32 arrayIsSorted = 0) const;
 	dgInt32 PruneContacts (dgInt32 count, dgContactPoint* const contact, dgInt32 maxCount = (DG_CONSTRAINT_MAX_ROWS / 3)) const;
-
-	dgInt32 CalculateHullToHullContacts (dgCollisionParamProxy& proxy) const;
-	dgInt32 CalculateHullToHullContactsSimd (dgCollisionParamProxy& proxy) const;
-	dgInt32 CalculateBoxToSphereContacts (dgCollisionParamProxy& proxy) const;
-	dgInt32 CalculateSphereToSphereContacts (dgCollisionParamProxy& proxy) const;
-	dgInt32 CalculateCapsuleToSphereContacts (dgCollisionParamProxy& proxy) const;
-	dgInt32 CalculateCapsuleToCapsuleContacts (dgCollisionParamProxy& proxy) const;
-	dgInt32 SphereSphereCollision (const dgVector& sph0, dgFloat32 radius0, const dgVector& sph1, dgFloat32 radius1, dgCollisionParamProxy& proxy) const;  
-
+	dgInt32 ReduceContacts (dgInt32 count, dgContactPoint* const contact, dgInt32 maxCount, dgFloat32 tol, dgInt32 arrayIsSorted = 0) const;
 	
-	dgInt32 ValidateContactCache (dgBody* const convexBody, dgBody* const otherBody, dgContact* const contact) const;
-
-
-	dgInt32 CalculatePolySoupToBoxContactsDescrete (dgBody* soup, dgBody* box, dgContactPoint* const contact, dgInt32 maxContacts) const;
-	dgInt32 CalculatePolySoupToHullContactsDescrete (dgCollisionParamProxy& proxy) const;
-	dgInt32 CalculatePolySoupToHullContactsDescreteSimd (dgCollisionParamProxy& proxy) const;
-
-	dgInt32 CalculatePolySoupToSphereContactsDescrete (dgCollisionParamProxy& proxy) const;
-	dgInt32 CalculatePolySoupToElipseContactsDescrete (dgCollisionParamProxy& proxy) const;
-	dgInt32 CalculatePolySoupToSphereContactsContinue (dgCollisionParamProxy& proxy) const;
-	dgInt32 CalculateConvexToNonConvexContactsContinue (dgCollisionParamProxy& proxy) const;
-	dgInt32 CalculateConvexToNonConvexContactsContinueSimd (dgCollisionParamProxy& proxy) const;
-
-	
+//	dgInt32 CalculateHullToHullContacts (dgCollisionParamProxy& proxy) const;
+//	void PopulateContacts (dgContact* const contact, dgCollidingPairCollector::dgPair* const pair, dgFloat32 timestep, dgInt32 threadIndex);	
+//	dgInt32 CalculateConicConvexToHullContacts (dgCollisionParamProxy& proxy) const;
 //	dgInt32 CalculateConvexToConvexContinuesContacts (dgFloat32& timestep, dgBody* body1, dgBody* body2, dgContactPoint contactOut[]) const; 
 //	dgInt32 CalculateConvexToConvexContinuesContacts (dgCollisionParamProxy& proxy) const; 
 //	dgInt32 CalculateConvexToConvexContinuesContacts (dgCollisionParamProxy& proxy) const; 
 //	dgInt32 CalculateConvexToConvexContacts (dgFloat32& timestep, dgBody* conv1, dgBody* conv2, dgFloat32 penetrationPadding, dgContactPoint* const contact) const;
-//	dgInt32 CalculateConvexToConvexContactsSimd (dgFloat32& timestep, dgBody* conv1, dgBody* conv2, dgFloat32 penetrationPadding, dgContactPoint* const contact) const;
-	dgInt32 CalculateConvexToConvexContacts (dgCollisionParamProxy& proxy) const;
-	dgInt32 CalculateConvexToConvexContactsSimd (dgCollisionParamProxy& proxy) const;
-	
 //	dgInt32 CalculateConvexToNonConvexContacts (dgFloat32& timestep, dgBody* conv, dgBody* nConv, dgContactPoint* const contact, dgInt32 maxContacts) const;
+//	dgInt32 CalculatecConvexConvexCastContacts (dgCollisionParamProxy& proxy, bool& algorithmSuccessful) const;
+	
+	dgInt32 ValidateContactCache (dgContact* const contact, dgFloat32 timestep) const;
+	
+	dgInt32 CalculateConvexPolygonToHullContactsDescrete (dgCollisionParamProxy& proxy) const;
+
+	dgInt32 CalculatePolySoupToHullContactsDescrete (dgCollisionParamProxy& proxy) const;
+	dgInt32 CalculateConvexToNonConvexContactsContinue (dgCollisionParamProxy& proxy) const;
+	
+	dgInt32 CalculateConvexToConvexContacts (dgCollisionParamProxy& proxy) const;
+
 	dgInt32 CalculateConvexToNonConvexContacts (dgCollisionParamProxy& proxy) const;
-	dgInt32 CalculateConvexToNonConvexContactsSimd (dgCollisionParamProxy& proxy) const;
 
-	dgInt32 FilterPolygonEdgeContacts (dgInt32 count, dgContactPoint* const contact) const;
-
-	void ProcessTriggers (dgCollidingPairCollector::dgPair* const pair, dgFloat32 timestep, dgInt32 threadIndex);
+	//dgInt32 FilterPolygonDuplicateContacts (dgInt32 count, dgContactPoint* const contact) const;
+	
+	void PopulateContacts (dgCollidingPairCollector::dgPair* const pair, dgFloat32 timestep, dgInt32 threadIndex);	
 	void ProcessContacts (dgCollidingPairCollector::dgPair* const pair, dgFloat32 timestep, dgInt32 threadIndex);
-	void ProcessCachedContacts (dgContact* const contact, const dgContactMaterial* const material, dgFloat32 timestep, dgInt32 threadIndex) const;
+	void ProcessDeformableContacts (dgCollidingPairCollector::dgPair* const pair, dgFloat32 timestep, dgInt32 threadIndex);
+	void ProcessCachedContacts (dgContact* const contact, dgFloat32 timestep, dgInt32 threadIndex) const;
 
 	void ConvexContacts (dgCollidingPairCollector::dgPair* const pair, dgCollisionParamProxy& proxy) const;
-	void ConvexContactsSimd (dgCollidingPairCollector::dgPair* const pair, dgCollisionParamProxy& proxy) const;
 	void CompoundContacts (dgCollidingPairCollector::dgPair* const pair, dgCollisionParamProxy& proxy) const;
-	void CompoundContactsSimd (dgCollidingPairCollector::dgPair* const pair, dgCollisionParamProxy& proxy) const;
+	void DeformableContacts (dgCollidingPairCollector::dgPair* const pair, dgCollisionParamProxy& proxy) const;
 
 	void SceneContacts (dgCollidingPairCollector::dgPair* const pair, dgCollisionParamProxy& proxy) const;
-	void SceneContacts (const dgCollisionScene::dgProxy& sceneProxy, dgCollidingPairCollector::dgPair* const pair, dgCollisionParamProxy& proxy) const;
-	
-	void SceneContactsSimd (dgCollidingPairCollector::dgPair* const pair, dgCollisionParamProxy& proxy) const;
-	void SceneContactsSimd (const dgCollisionScene::dgProxy& sceneProxy, dgCollidingPairCollector::dgPair* const pair, dgCollisionParamProxy& proxy) const;
+	void SceneChildContacts (dgCollidingPairCollector::dgPair* const pair, dgCollisionParamProxy& proxy) const;
 
+	dgFloat32 CalculateTimeToImpact (dgContact* const contactJoint, dgFloat32 timestep, dgInt32 threadIndex, dgVector& p, dgVector& q, dgVector& normal) const;
 	dgInt32 ClosestPoint (dgCollisionParamProxy& proxy) const;
 	dgInt32 ClosestCompoundPoint (dgBody* const compoundConvexA, dgBody* const collisionB, dgTriplex& contactA, dgTriplex& contactB, dgTriplex& normalAB, dgInt32 threadIndex) const;
 
 	bool AreBodyConnectedByJoints (dgBody* const origin, dgBody* const target);
 	
 	void AddSentinelBody();
-
-
-	static void InitConvexCollision ();
+	void InitConvexCollision ();
 	static dgUnsigned32 dgApi GetPerformanceCount ();
 
+	virtual void Execute (dgInt32 threadID);
+	virtual void TickCallback (dgInt32 threadID);
+
+
+	class dgAdressDistPair
+	{
+		public:
+		dgInt32 m_adress;
+		dgFloat32 m_dist;
+	};
+	static dgInt32 SortFaces (const dgAdressDistPair* const A, const dgAdressDistPair* const B, void* const context);
+
+
 	dgUnsigned32 m_dynamicsLru;
-	dgUnsigned32 m_broadPhaseLru;
 	dgUnsigned32 m_inUpdate;
 	dgUnsigned32 m_solverMode;
 	dgUnsigned32 m_frictionMode;
 	dgUnsigned32 m_bodyGroupID;
 	dgUnsigned32 m_defualtBodyGroupID;
 	dgUnsigned32 m_bodiesUniqueID;
-	dgUnsigned32 m_numberOfTheads;
-	dgUnsigned32 m_maxTheads;
-
+	dgUnsigned32 m_useParallelSolver;
+	dgUnsigned32 m_genericLRUMark;
 
 	dgFloat32 m_freezeAccel2;
 	dgFloat32 m_freezeAlpha2;
 	dgFloat32 m_freezeSpeed2;
 	dgFloat32 m_freezeOmega2;
 	dgFloat32 m_frictiomTheshold;
+	dgFloat32 m_savetimestep;
 
 	dgSolverSleepTherfesholds m_sleepTable[DG_SLEEP_ENTRIES];
 	
-	dgInt32 m_genericLRUMark;
-	dgInt32 m_islandMemorySizeInBytes;
-	dgInt32 m_bodiesMemorySizeInBytes;
-	dgInt32 m_jointsMemorySizeInBytes;
-	dgInt32 m_pairMemoryBufferSizeInBytes;
-	void *m_jointsMemory; 
-	void *m_bodiesMemory; 
-	void *m_islandMemory; 
-	void *m_pairMemoryBuffer;
-
 	
-	dgInt32 m_singleIslandMultithreading;
-	dgInt32 m_contactBuffersSizeInBytes[DG_MAXIMUN_THREADS];
-	dgInt32 m_jacobiansMemorySizeInBytes[DG_MAXIMUN_THREADS];
-	dgInt32 m_internalForcesMemorySizeInBytes[DG_MAXIMUN_THREADS];
-	void* m_jacobiansMemory[DG_MAXIMUN_THREADS]; 
-	void* m_internalForcesMemory[DG_MAXIMUN_THREADS];  
-	void* m_contactBuffers[DG_MAXIMUN_THREADS];
-
-	dgBody* m_sentionelBody;
-	dgCollisionPoint* m_pointCollision;
-
+	dgOpenclInstance* m_openCL;
+	dgBroadPhase* m_broadPhase; 
+	dgDynamicBody* m_sentinelBody;
+	dgCollisionInstance* m_pointCollision;
+	
 	void* m_userData;
 	dgMemoryAllocator* m_allocator;
-	dgCpuClass m_cpu;
+	dgInt32 m_hardwaredIndex;
 	OnIslandUpdate m_islandUpdate;
-	OnDestroyCollision m_destroyCollision;
-	OnLeavingWorldAction m_leavingWorldNotify;
 	OnGetPerformanceCountCallback m_getPerformanceCount;
 	OnBodyDestructionByExeciveForce m_destroyBodyByExeciveForce;
 
+	OnCollisionInstanceDestroy	m_onCollisionInstanceDestruction;
+	OnCollisionInstanceDuplicate m_onCollisionInstanceCopyConstrutor;
+
 	dgDetroyBodyByForce m_destroyeddBodiesPool;
+
+	
 	dgUnsigned32 m_perfomanceCounters[m_counterSize];	
+	dgUnsigned32 m_perfomanceCountersBack[m_counterSize];	
 
+	dgListenerList m_preListener;
+	dgListenerList m_postListener;
 	dgTree<void*, unsigned> m_perInstanceData;
-
-	dgThreads m_threadsManager;
-	dgWorldDynamicUpdate m_dynamicSolver;
+	dgArray<dgUnsigned8> m_islandMemory; 
+	dgArray<dgUnsigned8> m_bodiesMemory; 
+	dgArray<dgUnsigned8> m_jointsMemory; 
+	dgArray<dgUnsigned8> m_pairMemoryBuffer;
+	dgArray<dgUnsigned8> m_internalForcesMemory;  
+	dgArray<dgUnsigned8> m_solverMatrixMemory;  
+	
+	static dgVector m_linearContactError2;
+	static dgVector m_angularContactError2;
 	
 	friend class dgBody;
+	friend class dgBroadPhase;
+	friend class dgDeformableBody;
 	friend class dgActiveContacts;
-	friend class dgBroadPhaseCell;
 	friend class dgUserConstraint;
 	friend class dgBodyMasterList;
 	friend class dgJacobianMemory;
 	friend class dgCollisionScene;
 	friend class dgCollisionConvex;
+	friend class dgCollisionInstance;
 	friend class dgCollisionCompound;
-	friend class dgCollisionHeightField;
 	friend class dgWorldDynamicUpdate;
-	friend class dgParallelSolverSolve;
-	friend class dgBroadPhaseCollision;
-	friend class dgSolverWorlkerThreads;
-	friend class dgCollidingPairCollector;
 	friend class dgParallelSolverClear;	
+	friend class dgParallelSolverSolve;
+
+	friend class dgCollisionHeightField;
+	friend class dgSolverWorlkerThreads;
+	friend class dgCollisionConvexPolygon;
+	friend class dgCollidingPairCollector;
+	friend class dgCollisionDeformableMesh;
 	friend class dgParallelSolverUpdateForce;
 	friend class dgParallelSolverUpdateVeloc;
 	friend class dgParallelSolverBodyInertia;
 	friend class dgParallelSolverInitFeedbackUpdate;
-	
 	friend class dgBroadPhaseApplyExternalForce;
 	friend class dgParallelSolverCalculateForces;
 	friend class dgParallelSolverJointAcceleration;
 	friend class dgParallelSolverBuildJacobianRows;
-	friend class dgBroadPhaseCellPairsWorkerThread;
 	friend class dgParallelSolverInitInternalForces;
 	friend class dgParallelSolverBuildJacobianMatrix;
 	
@@ -464,68 +550,42 @@ class dgWorld:
 } DG_GCC_VECTOR_ALIGMENT ;
 
 
-inline void dgWorld::dgGetUserLock() const
-{
-	if (m_numberOfTheads > 1) {
-		m_threadsManager.dgGetLock();
-	}
-}
-
-inline void dgWorld::dgReleasedUserLock() const
-{
-	if (m_numberOfTheads > 1) {
-		m_threadsManager.dgReleaseLock();
-	}
-}
-
-
-inline void dgWorld::dgGetIndirectLock(dgInt32* lockVar)
-{
-	m_threadsManager.dgGetIndirectLock(lockVar);
-}
-
-inline void dgWorld::dgReleaseIndirectLock(dgInt32* lockVar)
-{
-	m_threadsManager.dgReleaseIndirectLock(lockVar);
-}
-
 inline dgMemoryAllocator* dgWorld::GetAllocator() const
 {
 	return m_allocator;
 }
 
+inline dgBroadPhase* dgWorld::GetBroadPhase() const
+{
+	return m_broadPhase;
+}
+
+/*
 inline void dgWorld::AddToBreakQueue (const dgContact* const contactJoint, dgBody* const body, dgFloat32 maxForce)
 {
-//	if (body->GetCollision()->GetBreakImpulse() < maxForce) {
-		if (m_destroyeddBodiesPool.m_count < DG_MAX_DESTROYED_BODIES_BY_FORCE) {
-			if (body->m_isInDerstruionArrayLRU != body->m_dynamicsLru) {
-				body->m_isInDerstruionArrayLRU = body->m_dynamicsLru;
-				m_destroyeddBodiesPool.m_force[m_destroyeddBodiesPool.m_count] = maxForce;
-				m_destroyeddBodiesPool.m_bodies[m_destroyeddBodiesPool.m_count] = body;
-				m_destroyeddBodiesPool.m_joint[m_destroyeddBodiesPool.m_count] = contactJoint;
-				m_destroyeddBodiesPool.m_count ++;
-			} else {
-				for (dgInt32 i = 0; i < m_destroyeddBodiesPool.m_count; i ++) {
-					if (m_destroyeddBodiesPool.m_bodies[i] == body) {
-						if (maxForce > m_destroyeddBodiesPool.m_force[i]) {
-							m_destroyeddBodiesPool.m_force[i] = maxForce;
-							m_destroyeddBodiesPool.m_joint[i] = contactJoint;
-						}
+	if (m_destroyeddBodiesPool.m_count < DG_MAX_DESTROYED_BODIES_BY_FORCE) {
+		if (body->m_isInDestructionArrayLRU != body->m_dynamicsLru) {
+			body->m_isInDestructionArrayLRU = body->m_dynamicsLru;
+			m_destroyeddBodiesPool.m_force[m_destroyeddBodiesPool.m_count] = maxForce;
+			m_destroyeddBodiesPool.m_bodies[m_destroyeddBodiesPool.m_count] = body;
+			m_destroyeddBodiesPool.m_joint[m_destroyeddBodiesPool.m_count] = contactJoint;
+			m_destroyeddBodiesPool.m_count ++;
+		} else {
+			for (dgInt32 i = 0; i < m_destroyeddBodiesPool.m_count; i ++) {
+				if (m_destroyeddBodiesPool.m_bodies[i] == body) {
+					if (maxForce > m_destroyeddBodiesPool.m_force[i]) {
+						m_destroyeddBodiesPool.m_force[i] = maxForce;
+						m_destroyeddBodiesPool.m_joint[i] = contactJoint;
 					}
 				}
 			}
 		}
-//	}
+	}
 }
-
-
-//inline void dgWorld::AddToBreakQueue (const dgContact* const contactJoint, dgFloat32 maxImpulse)
-//{
-//	AddToBreakQueue (contactJoint, contactJoint->m_body0, maxForce);
-//	AddToBreakQueue (contactJoint, contactJoint->m_body1, maxForce);
-//}
+*/
 
 
 
-#endif // !defined(AFX_DGPHYSICSWORLD_H__EC18C699_D48D_448F_A510_A865B2CC0789__INCLUDED_)
+
+#endif 
 

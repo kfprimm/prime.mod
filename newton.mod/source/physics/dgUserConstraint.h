@@ -19,8 +19,8 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DGUSERCONSTRAINT_H__97A0E0E3_C511_4761_9346_BAEC6E6322BA__INCLUDED_)
-#define AFX_DGUSERCONSTRAINT_H__97A0E0E3_C511_4761_9346_BAEC6E6322BA__INCLUDED_
+#if !defined(AFX_DGUSERCONSTRAINT_H__97A0E0E3_C511_4761_9346_BAEC6E6322BA_H)
+#define AFX_DGUSERCONSTRAINT_H__97A0E0E3_C511_4761_9346_BAEC6E6322BA_H
 
 
 #include "dgBilateralConstraint.h"
@@ -40,5 +40,5 @@ class dgUserConstraint: public dgBilateralConstraint
 	virtual ~dgUserConstraint();
 };
 
-#endif // !defined(AFX_DGUSERCONSTRAINT_H__97A0E0E3_C511_4761_9346_BAEC6E6322BA__INCLUDED_)
+#endif // !defined(AFX_DGUSERCONSTRAINT_H__97A0E0E3_C511_4761_9346_BAEC6E6322BA_H)
 

@@ -40,12 +40,19 @@ class AdjacentdFaces
 	dgInt32 m_count;
 	dgInt32 *m_index;
 	dgPlane m_normal;
+	dgInt64 m_edgeMap[256];
 };
 
 class dgPolygonSoupDatabaseBuilder 
 {
+	class dgFaceMap;
+	class dgFaceInfo;
+	class dgFaceBucket;
+	class dgPolySoupFilterAllocator;
 	public:
+
 	dgPolygonSoupDatabaseBuilder (dgMemoryAllocator* const allocator);
+	dgPolygonSoupDatabaseBuilder (const dgPolygonSoupDatabaseBuilder& sopurce);
 	~dgPolygonSoupDatabaseBuilder ();
 
 	DG_CLASS_ALLOCATOR(allocator)
@@ -55,46 +62,47 @@ class dgPolygonSoupDatabaseBuilder
 	void AddMesh (const dgFloat32* const vertex, dgInt32 vertexCount, dgInt32 strideInBytes, dgInt32 faceCount, 
 		          const dgInt32* const faceArray, const dgInt32* const indexArray, const dgInt32* const faceTagsData, const dgMatrix& worldMatrix); 
 
-	void SingleFaceFixup();
-
 	private:
+	void Optimize(dgInt32 faceId, const dgFaceBucket& faceBucket, const dgPolygonSoupDatabaseBuilder& source);
 
-	void Optimize(bool optimize);
-	void EndAndOptimize(bool optimize);
-	void OptimizeByGroupID();
+	void Finalize();
+	void FinalizeAndOptimize();
 	void OptimizeByIndividualFaces();
 	dgInt32 FilterFace (dgInt32 count, dgInt32* const indexArray);
 	dgInt32 AddConvexFace (dgInt32 count, dgInt32* const indexArray, dgInt32* const  facesArray);
-	void OptimizeByGroupID (dgPolygonSoupDatabaseBuilder& source, dgInt32 faceNumber, dgInt32 faceIndexNumber, dgPolygonSoupDatabaseBuilder& leftOver); 
+	void PackArray();
 
-//	void WriteDebugOutput (const char* name);
+
 
 	public:
-	struct VertexArray: public dgArray<dgBigVector>
-	{
-		VertexArray(dgMemoryAllocator* const allocator)
-			:dgArray<dgBigVector>(1024 * 256, allocator)
+	class dgVertexArray: public dgArray<dgBigVector>
+	{	
+		public:
+		dgVertexArray(dgMemoryAllocator* const allocator)
+			:dgArray<dgBigVector>(1024 * 32, allocator)
 		{
 		}
 	};
 
-	struct IndexArray: public dgArray<dgInt32>
+	class dgIndexArray: public dgArray<dgInt32>
 	{
-		IndexArray(dgMemoryAllocator* const allocator)
-			:dgArray<dgInt32>(1024 * 256, allocator)
+		public:
+		dgIndexArray(dgMemoryAllocator* const allocator)
+			:dgArray<dgInt32>(1024 * 32, allocator)
 		{
 		}
 	};
 
+	dgInt32 m_run;
 	dgInt32 m_faceCount;
 	dgInt32 m_indexCount;
 	dgInt32 m_vertexCount;
 	dgInt32 m_normalCount;
-	IndexArray m_faceVertexCount;
-	IndexArray m_vertexIndex;
-	IndexArray m_normalIndex;
-	VertexArray	m_vertexPoints;
-	VertexArray	m_normalPoints;
+	dgIndexArray m_faceVertexCount;
+	dgIndexArray m_vertexIndex;
+	dgIndexArray m_normalIndex;
+	dgVertexArray m_vertexPoints;
+	dgVertexArray m_normalPoints;
 	dgMemoryAllocator* m_allocator;
 
 };

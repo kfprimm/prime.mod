@@ -23,25 +23,35 @@
 #define __dgDebug__
 
 #include "dgStdafx.h"
+#ifdef _MSC_VER 
+	#ifdef _DEBUG 
+		#define DG_TRACE
+	#endif
+#endif
 
+#ifdef DG_TRACE
+	void dgApi dgExpandTraceMessage (const char *fmt, ...);
+	#define dgTrace(x)	dgExpandTraceMessage x;
+#else
+	#define dgTrace(x)
+#endif
 
 
 
 #ifdef _DEBUG
+	inline void TraceFuntionName (const char *name)
+	{
+		//	static int trace;
+		//	dgTrace (("%d %s\n", trace, name));
+		dgTrace (("%s\n", name));
+	}
 
-void dgApi dgExpandTraceMessage (const char *fmt, ...);
-
-#define dgTrace(x)											\
-{															\
-	dgExpandTraceMessage	x;								\
-}																	
-
-
+	//#define TRACE_FUNCTION(name) TraceFuntionName (name)
+	#define TRACE_FUNCTION(name)
 #else
-
-#define dgTrace(x)
-
+	#define TRACE_FUNCTION(name)
 #endif
+
 	
 #endif
 

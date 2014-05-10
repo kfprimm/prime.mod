@@ -24,6 +24,18 @@
 #include "dgDebug.h"
 #include "dgMemory.h"
 
+
+#ifdef _DEBUG
+dgInt32 m_threadSanityCheck = 0;
+#define DG_MEMORY_THREAD_SANITY_CHECK_LOCK()		\
+	dgAssert (!m_threadSanityCheck);				\
+	dgAtomicExchangeAndAdd(&m_threadSanityCheck, 1);
+	#define DG_MEMORY_THREAD_SANITY_CHECK_UNLOCK()	  dgAtomicExchangeAndAdd(&m_threadSanityCheck, -1);	
+#else 
+	#define DG_MEMORY_THREAD_SANITY_CHECK_LOCK()
+	#define DG_MEMORY_THREAD_SANITY_CHECK_UNLOCK()
+#endif
+
 class dgGlobalAllocator: public dgMemoryAllocator, public dgList<dgMemoryAllocator*>
 {
 	public:
@@ -35,7 +47,7 @@ class dgGlobalAllocator: public dgMemoryAllocator, public dgList<dgMemoryAllocat
 
 	~dgGlobalAllocator ()
 	{
-		_ASSERTE (GetCount() == 0);
+		dgAssert (GetCount() == 0);
 	}
 
 	static void* dgApi __malloc__ (dgUnsigned32 size) 
@@ -43,15 +55,16 @@ class dgGlobalAllocator: public dgMemoryAllocator, public dgList<dgMemoryAllocat
 		return malloc (size);
 	}
 
-	static void dgApi __free__ (void *ptr, dgUnsigned32 size)
+	static void dgApi __free__ (void* const ptr, dgUnsigned32 size)
 	{
 		free (ptr);
 	}
 
-	void operator delete (void *ptr)
+	void operator delete (void* const ptr)
 	{
-		_ASSERTE (0);
-		::delete (ptr);
+		dgAssert (0);
+		//::delete (ptr);
+		free (ptr);
 	}
 
 
@@ -94,7 +107,7 @@ dgMemoryAllocator::dgMemoryAllocator (dgMemAlloc memAlloc, dgMemFree memFree)
 dgMemoryAllocator::~dgMemoryAllocator  ()
 {
 	dgGlobalAllocator::m_globalAllocator.Remove(this);
-	_ASSERTE (m_memoryUsed == 0);
+	dgAssert (m_memoryUsed == 0);
 }
 
 
@@ -103,7 +116,7 @@ void *dgMemoryAllocator::operator new (size_t size)
 	return dgMallocStack(size);
 }
 
-void dgMemoryAllocator::operator delete (void *ptr) 
+void dgMemoryAllocator::operator delete (void* const ptr) 
 { 
 	dgFreeStack(ptr); 
 }
@@ -124,10 +137,11 @@ void dgMemoryAllocator::SetAllocatorsCallback (dgMemAlloc memAlloc, dgMemFree me
 
 void *dgMemoryAllocator::MallocLow (dgInt32 workingSize, dgInt32 alignment)
 {
-	_ASSERTE (alignment >= DG_MEMORY_GRANULARITY);
-	_ASSERTE (((-alignment) & (alignment - 1)) == 0);
+	dgAssert (alignment >= DG_MEMORY_GRANULARITY);
+	dgAssert (((-alignment) & (alignment - 1)) == 0);
 	dgInt32 size = workingSize + alignment * 2;
 	void* const ptr = m_malloc(dgUnsigned32 (size));
+	dgAssert (ptr);
 	dgUnsigned64 val = dgUnsigned64 (PointerToInt(ptr));
 	val = (val & dgUnsigned64(-alignment)) + alignment * 2;
 	void* const retPtr = IntToPointer (val);
@@ -135,17 +149,16 @@ void *dgMemoryAllocator::MallocLow (dgInt32 workingSize, dgInt32 alignment)
 	dgMemoryInfo* const info = ((dgMemoryInfo*) (retPtr)) - 1;
 	info->SaveInfo(this, ptr, size, m_emumerator, workingSize);
 
-	dgAtomicAdd (&m_memoryUsed, size);
+	dgAtomicExchangeAndAdd (&m_memoryUsed, size);
 	return retPtr;
 }
 
-void dgMemoryAllocator::FreeLow (void *retPtr)
+void dgMemoryAllocator::FreeLow (void* const retPtr)
 {
-	dgMemoryInfo* info;
-	info = ((dgMemoryInfo*) (retPtr)) - 1;
-	_ASSERTE (info->m_allocator == this);
+	dgMemoryInfo* const info = ((dgMemoryInfo*) (retPtr)) - 1;
+	dgAssert (info->m_allocator == this);
 
-	dgAtomicAdd (&m_memoryUsed, -info->m_size);
+	dgAtomicExchangeAndAdd (&m_memoryUsed, -info->m_size);
 
 #ifdef _DEBUG
 	memset (retPtr, 0, info->m_workingSize);
@@ -158,7 +171,7 @@ void dgMemoryAllocator::FreeLow (void *retPtr)
 // if memory size is larger than DG_MEMORY_BIN_ENTRIES then the memory is not placed into a pool
 void *dgMemoryAllocator::Malloc (dgInt32 memsize)
 {
-	_ASSERTE ((sizeof (dgMemoryCacheEntry) + sizeof (dgInt32) + sizeof(dgInt32)) <= DG_MEMORY_GRANULARITY);
+	dgAssert (dgInt32 (sizeof (dgMemoryCacheEntry) + sizeof (dgInt32) + sizeof(dgInt32)) <= DG_MEMORY_GRANULARITY);
 
 	dgInt32 size = memsize + DG_MEMORY_GRANULARITY - 1;
 	size &= (-DG_MEMORY_GRANULARITY);
@@ -185,10 +198,9 @@ void *dgMemoryAllocator::Malloc (dgInt32 memsize)
 
 			m_memoryDirectory[entry].m_first = bin;
 
-			char* charPtr = bin->m_pool;
+			dgInt8* charPtr = bin->m_pool;
 			m_memoryDirectory[entry].m_cache = (dgMemoryCacheEntry*)charPtr;
 
-//			charPtr = bin->m_pool
 			for (dgInt32 i = 0; i < count; i ++) {
 				dgMemoryCacheEntry* const cashe = (dgMemoryCacheEntry*) charPtr;
 				cashe->m_next = (dgMemoryCacheEntry*) (charPtr + paddedSize);
@@ -203,7 +215,7 @@ void *dgMemoryAllocator::Malloc (dgInt32 memsize)
 		}
 
 
-		_ASSERTE (m_memoryDirectory[entry].m_cache);
+		dgAssert (m_memoryDirectory[entry].m_cache);
 
 		dgMemoryCacheEntry* const cashe = m_memoryDirectory[entry].m_cache;
 		m_memoryDirectory[entry].m_cache = cashe->m_next;
@@ -211,11 +223,11 @@ void *dgMemoryAllocator::Malloc (dgInt32 memsize)
 			cashe->m_next->m_prev = NULL;
 		}
 
-		ptr = ((char*)cashe) + DG_MEMORY_GRANULARITY;
+		ptr = ((dgInt8*)cashe) + DG_MEMORY_GRANULARITY;
 
 		dgMemoryInfo* info;
 		info = ((dgMemoryInfo*) (ptr)) - 1;
-		_ASSERTE (info->m_allocator == this);
+		dgAssert (info->m_allocator == this);
 
 		dgMemoryBin* const bin = (dgMemoryBin*) info->m_ptr;
 		bin->m_info.m_count ++;
@@ -230,10 +242,10 @@ void *dgMemoryAllocator::Malloc (dgInt32 memsize)
 
 // alloca memory on pool that are quantized to DG_MEMORY_GRANULARITY
 // if memory size is larger than DG_MEMORY_BIN_ENTRIES then the memory is not placed into a pool
-void dgMemoryAllocator::Free (void *retPtr)
+void dgMemoryAllocator::Free (void* const retPtr)
 {
 	dgMemoryInfo* const info = ((dgMemoryInfo*) (retPtr)) - 1;
-	_ASSERTE (info->m_allocator == this);
+	dgAssert (info->m_allocator == this);
 
 	dgInt32 entry = info->m_size;
 
@@ -248,7 +260,7 @@ void dgMemoryAllocator::Free (void *retPtr)
 
 		dgMemoryCacheEntry* const tmpCashe = m_memoryDirectory[entry].m_cache;
 		if (tmpCashe) {
-			_ASSERTE (!tmpCashe->m_prev);
+			dgAssert (!tmpCashe->m_prev);
 			tmpCashe->m_prev = cashe;
 		}
 		cashe->m_next = tmpCashe;
@@ -259,7 +271,7 @@ void dgMemoryAllocator::Free (void *retPtr)
 		dgMemoryBin* const bin = (dgMemoryBin *) info->m_ptr;
 
 #ifdef _DEBUG
-		_ASSERTE ((bin->m_info.m_stepInBites - DG_MEMORY_GRANULARITY) > 0);
+		dgAssert ((bin->m_info.m_stepInBites - DG_MEMORY_GRANULARITY) > 0);
 		memset (retPtr, 0, bin->m_info.m_stepInBites - DG_MEMORY_GRANULARITY);
 #endif
 
@@ -318,10 +330,6 @@ dgMemoryAllocator::dgMemoryLeaksTracker::dgMemoryLeaksTracker()
 
 dgMemoryAllocator::dgMemoryLeaksTracker::~dgMemoryLeaksTracker ()
 {
-//		#ifdef _WIN_32_VER
-//		_CrtDumpMemoryLeaks();
-//		#endif
-
 	if (m_totalAllocatedBytes) {
 		for (dgInt32 i = 0; i < DG_TRACK_MEMORY_LEAKS_ENTRIES; i ++) {
 			if (m_pool[i].m_ptr) {
@@ -331,54 +339,43 @@ dgMemoryAllocator::dgMemoryLeaksTracker::~dgMemoryLeaksTracker ()
 	}
 }
 
-void dgMemoryAllocator::dgMemoryLeaksTracker::InsertBlock (dgInt32 size, void *ptr)
+void dgMemoryAllocator::dgMemoryLeaksTracker::InsertBlock (dgInt32 size, void* const ptr)
 {
-	dgInt32 i;
-	dgUnsigned32 key;
-	dgUnsigned32 index;
+	dgUnsigned32 key = dgHash (&ptr, sizeof (void*));
+	dgUnsigned32 index = key % DG_TRACK_MEMORY_LEAKS_ENTRIES;
 
-	//_ASSERTE (ptr != (void*)0x04cf8080);
-	//_ASSERTE (ptr != (void*)0x04d38080);
-	//_ASSERTE (ptr != (void*)0x04f48080);
-	//_ASSERTE (ptr != (void*)0x04f78080);
-	//if (m_leakAllocationCounter >= 2080840)
-	//m_leakAllocationCounter *=1;
-
-	key = dgHash (&ptr, sizeof (void*));
-	index = key % DG_TRACK_MEMORY_LEAKS_ENTRIES;
-
-	for (i = 0; m_pool[index].m_ptr && (i < DG_TRACK_MEMORY_LEAKS_ENTRIES); i ++) {
+	dgInt32 i = 0;
+	for (; m_pool[index].m_ptr && (i < DG_TRACK_MEMORY_LEAKS_ENTRIES); i ++) {
 		index = ((index + 1) < DG_TRACK_MEMORY_LEAKS_ENTRIES) ? index + 1 : 0;
 	}
 
-	_ASSERTE (i < 8);
-	_ASSERTE (i < DG_TRACK_MEMORY_LEAKS_ENTRIES);
+	dgAssert (i < 8);
+	dgAssert (i < DG_TRACK_MEMORY_LEAKS_ENTRIES);
 
 	m_density ++;
 	m_pool[index].m_size = size;
 	m_pool[index].m_ptr = ptr;
 	m_pool[index].m_allocationNumber = m_leakAllocationCounter;
 
+//	dgAssert (m_leakAllocationCounter != 129);
+
 	m_leakAllocationCounter ++;
 	m_totalAllocatedBytes += size; 
 	m_totalAllocatedCalls ++;
 }
 
-void dgMemoryAllocator::dgMemoryLeaksTracker::RemoveBlock (void *ptr)
+void dgMemoryAllocator::dgMemoryLeaksTracker::RemoveBlock (void* const ptr)
 {
-	dgInt32 i;
-	dgUnsigned32 key;
-	dgUnsigned32 index;
+	dgUnsigned32 key = dgHash (&ptr, sizeof (void*));
+	dgUnsigned32 index = key % DG_TRACK_MEMORY_LEAKS_ENTRIES;
 
-	key = dgHash (&ptr, sizeof (void*));
-	index = key % DG_TRACK_MEMORY_LEAKS_ENTRIES;
-
-	for (i = 0; i < DG_TRACK_MEMORY_LEAKS_ENTRIES; i ++) {
+	dgInt32 i = 0;
+	for (; i < DG_TRACK_MEMORY_LEAKS_ENTRIES; i ++) {
 		if (m_pool[index].m_ptr == ptr) {
 			m_density --;
 			m_totalAllocatedCalls--;
 			m_totalAllocatedBytes -= m_pool[index].m_size; 
-			_ASSERTE (m_totalAllocatedBytes >= 0);
+			dgAssert (m_totalAllocatedBytes >= 0);
 			m_pool[index].m_size = 0;
 			m_pool[index].m_ptr = NULL;
 			break;
@@ -386,7 +383,7 @@ void dgMemoryAllocator::dgMemoryLeaksTracker::RemoveBlock (void *ptr)
 		index = ((index + 1) < DG_TRACK_MEMORY_LEAKS_ENTRIES) ? index + 1 : 0;
 	}
 
-	_ASSERTE (i < DG_TRACK_MEMORY_LEAKS_ENTRIES);
+	dgAssert (i < DG_TRACK_MEMORY_LEAKS_ENTRIES);
 }
 #endif
 
@@ -409,46 +406,61 @@ dgInt32 dgGetMemoryUsed ()
 // but because of many complaint I changed it to use malloc and free
 void* dgApi dgMallocStack (size_t size)
 {
-	return dgGlobalAllocator::m_globalAllocator.MallocLow (dgInt32 (size));
+	DG_MEMORY_THREAD_SANITY_CHECK_LOCK();
+	void * const ptr = dgGlobalAllocator::m_globalAllocator.MallocLow (dgInt32 (size));
+	DG_MEMORY_THREAD_SANITY_CHECK_UNLOCK();
+	return ptr;
 }
 
 void* dgApi dgMallocAligned (size_t size, dgInt32 align)
 {
-	return dgGlobalAllocator::m_globalAllocator.MallocLow (dgInt32 (size), align);
+	DG_MEMORY_THREAD_SANITY_CHECK_LOCK();
+	void * const ptr = dgGlobalAllocator::m_globalAllocator.MallocLow (dgInt32 (size), align);
+	DG_MEMORY_THREAD_SANITY_CHECK_UNLOCK();
+	return ptr;
+	
 }
 
 // this can be used by function that allocates large memory pools memory locally on the stack
 // this by pases the pool allocation because this should only be used for very large memory blocks.
 // this was using virtual memory on windows but 
 // but because of many complaint I changed it to use malloc and free
-void  dgApi dgFreeStack (void *ptr)
+void  dgApi dgFreeStack (void* const ptr)
 {
+	DG_MEMORY_THREAD_SANITY_CHECK_LOCK();
 	dgGlobalAllocator::m_globalAllocator.FreeLow (ptr);
+	DG_MEMORY_THREAD_SANITY_CHECK_UNLOCK();
 }
 
 
 // general memory allocation for all data in the library
 void* dgApi dgMalloc (size_t size, dgMemoryAllocator* const allocator) 
 {
-	void *ptr;
-	ptr = NULL;
+	void* ptr = NULL;
+	dgAssert (allocator);
 
-	_ASSERTE (allocator);
+	DG_MEMORY_THREAD_SANITY_CHECK_LOCK();
 	if (size) {
 		ptr = allocator->Malloc (dgInt32 (size));
 	}
+
+	DG_MEMORY_THREAD_SANITY_CHECK_UNLOCK();
 	return ptr;
+
+	
 }
 
 
 // general deletion allocation for all data in the library
-void dgApi dgFree (void *ptr)
+void dgApi dgFree (void* const ptr)
 {
 	if (ptr) {
+		DG_MEMORY_THREAD_SANITY_CHECK_LOCK();
 		dgMemoryAllocator::dgMemoryInfo* info;
 		info = ((dgMemoryAllocator::dgMemoryInfo*) ptr) - 1; 
-		_ASSERTE (info->m_allocator);
+		dgAssert (info->m_allocator);
 		info->m_allocator->Free (ptr);
+		DG_MEMORY_THREAD_SANITY_CHECK_UNLOCK();
 	}
 }
 

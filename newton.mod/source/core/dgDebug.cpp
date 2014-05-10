@@ -22,24 +22,22 @@
 #include "dgStdafx.h"
 #include "dgDebug.h"
 
+#ifdef DG_TRACE
+	void dgApi dgExpandTraceMessage (const char *fmt, ...)
+	{
+		va_list v_args;
+		char text[4096];
 
+		text[0] = 0;
+		va_start (v_args, fmt);     
+		vsprintf(text, fmt, v_args);
+		va_end (v_args);            
 
-#ifdef _DEBUG
-void dgApi dgExpandTraceMessage (const char *fmt, ...)
-{
-//	unsigned ctrl;
-	va_list v_args;
-	char text[1024];
-
-	text[0] = 0;
-//	ctrl = dgGetCtrlWorld ();
-
-	va_start (v_args, fmt);     
-	vsprintf(text, fmt, v_args);
-	va_end (v_args);            
-
-	OutputDebugStringA (text);
-
-//	dgSetCtrlWorld (ctrl);
-}
+		#ifdef _WIN32 
+			OutputDebugStringA (text);
+		#else 
+			printf ("%s\n", text);
+		#endif
+	}
 #endif
+

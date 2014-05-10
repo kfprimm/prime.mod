@@ -24,15 +24,15 @@
 //      are changed infrequently
 //
 
-#if !defined(AFX_STDAFX_H__B43B2EC6_1B4C_42C3_A0B3_E1BDCAB46D6A__INCLUDED_)
-#define AFX_STDAFX_H__B43B2EC6_1B4C_42C3_A0B3_E1BDCAB46D6A__INCLUDED_
+#ifndef _DG_PHYSICS_STDAFX_H__
+#define _DG_PHYSICS_STDAFX_H__
 
 
 #define WIN32_LEAN_AND_MEAN		// Exclude rarely-used stuff from Windows headers
 
 
 // TODO: reference additional headers your program requires here
-#include	"dg.h"
+#include <dg.h>
 
 
 

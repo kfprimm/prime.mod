@@ -19,521 +19,323 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DGBODY_H__C16EDCD6_53C4_4C6F_A70A_591819F7187E__INCLUDED_)
-#define AFX_DGBODY_H__C16EDCD6_53C4_4C6F_A70A_591819F7187E__INCLUDED_
+#ifndef _DG_BODY_H_
+#define _DG_BODY_H_
 
 #include "dgPhysicsStdafx.h"
+#include "dgBroadPhase.h"
 #include "dgBodyMasterList.h"
 
 class dgLink;
 class dgBody;  
 class dgWorld;  
 class dgCollision;
-class dgBroadPhaseCell;
+class dgBroadPhaseNode;
+class dgCollisionInstance;
 
 
-#define DG_MIN_SPEED_ATT	dgFloat32(0.0f)
-#define DG_MAX_SPEED_ATT	dgFloat32(0.02f)
 #define DG_INFINITE_MASS	dgFloat32(1.0e15f)
-#define DG_FREEZE_MAG		dgFloat32(0.1f)
-#define DG_FREEZE_MAG2		dgFloat32(DG_FREEZE_MAG * DG_FREEZE_MAG)
-
-#define DG_ErrTolerance		(1.0e-2f)
-#define DG_ErrTolerance2	(DG_ErrTolerance * DG_ErrTolerance)
-
-DG_MSC_VECTOR_ALIGMENT
-struct dgLineBox
-{
-	dgVector m_l0;
-	dgVector m_l1;
-	dgVector m_boxL0;
-	dgVector m_boxL1;
-} DG_GCC_VECTOR_ALIGMENT;
 
 
-class dgConvexCastReturnInfo
-{
-	public:
-	dgFloat32 m_point[4];					// collision point in global space
-	dgFloat32 m_normal[4];					// surface normal at collision point in global space
-	dgFloat32 m_normalOnHitPoint[4];		// surface normal at the surface of the hit body, 
-	                                        // is the same as the normal calculate by a raycast passing by the hit point in the direction of the cast
-	dgFloat32 m_penetration;                // contact penetration at collision point
-	dgInt32   m_contaID;	                // collision ID at contact point
-	const dgBody* m_hitBody;				// body hit at contact point
-};
 
 
 typedef void (dgApi *OnBodyDestroy) (dgBody& me);
 typedef void (dgApi *OnApplyExtForceAndTorque) (dgBody& me, dgFloat32 timestep, dgInt32 threadIndex);
 typedef void (dgApi *OnMatrixUpdateCallback) (const dgBody& me, const dgMatrix& matrix, dgInt32 threadIndex);
-typedef dgUnsigned32 (dgApi *OnRayPrecastAction) (const dgBody* const body, const dgCollision* const collision, void* const userData);
-typedef dgFloat32 (dgApi *OnRayCastAction) (const dgBody* const body, const dgVector& normal, dgInt32 collisionID, void* const userData, dgFloat32 intersetParam);
-typedef dgUnsigned32 (dgApi *GetBuoyancyPlane) (void* collisionID, void* context, const dgMatrix& matrix, dgPlane& plane);
-
 #define OverlapTest(body0,body1) dgOverlapTest ((body0)->m_minAABB, (body0)->m_maxAABB, (body1)->m_minAABB, (body1)->m_maxAABB)
-//#define OverlapTest_SSE(body0,body1) dgOverlapTest_SSE ((body0)->m_minAABB, (body0)->m_maxAABB, (body1)->m_minAABB, (body1)->m_maxAABB)
 
-
-class dgBroadPhaseList
-{
-	public:
-	dgBroadPhaseCell* m_cell;
-	void* m_axisArrayNode[3];
-};
-
-
+//DG_MSC_VECTOR_ALIGMENT
 DG_MSC_VECTOR_ALIGMENT
 class dgBody  
 {
 	public:
+	enum dgRTTI
+	{
+		m_baseBodyRTTI = 1<<0,
+		m_dynamicBodyRTTI = 1<<1,
+		m_kinematicBodyRTTI = 1<<2,
+		m_deformableBodyRTTI = 1<<3,
+	};
+
+	enum dgType
+	{
+		m_dynamicBody = 0,
+		m_kinamticBody,
+		m_deformableBody,
+	};
+
+
 	DG_CLASS_ALLOCATOR(allocator)
 
+
 	dgBody();
-	~dgBody();
+	dgBody (dgWorld* const world, const dgTree<const dgCollision*, dgInt32>* const collisionNode, dgDeserialize serializeCallback, void* const userData);
+	virtual ~dgBody();
 
-	void AddForce (const dgVector& force);
-	void AddTorque (const dgVector& torque);
-	void AttachCollision (dgCollision* collision);
-
-	void SetGroupID (dgUnsigned32 id);
-	void SetMatrix(const dgMatrix& matrix);
-	void SetMatrixIgnoreSleep(const dgMatrix& matrix);
-	void SetUserData (void* const userData);
-	void SetForce (const dgVector& force);
-	void SetTorque (const dgVector& torque);
-	void SetOmega (const dgVector& omega);
-	void SetVelocity (const dgVector& velocity);
-	void SetLinearDamping (dgFloat32 linearDamp);
-	void SetAngularDamping (const dgVector& angularDamp);
-	void SetCentreOfMass (const dgVector& com);
-	void SetAparentMassMatrix (const dgVector& massMatrix);
-	void SetMassMatrix (dgFloat32 mass, dgFloat32 Ix, dgFloat32 Iy, dgFloat32 Iz);
-//	void SetGyroscopicTorqueMode (bool mode);
-	void SetCollisionWithLinkedBodies (bool state);
-//	void SetFreezeTreshhold (dgFloat32 freezeAccel2, dgFloat32 freezeAlpha2, dgFloat32 freezeSpeed2, dgFloat32 freezeOmega2);
-
-
-
-	void SetContinuesCollisionMode (bool mode);
-	void SetDestructorCallback (OnBodyDestroy destructor);
-	void SetMatrixUpdateCallback (OnMatrixUpdateCallback callback);
-	OnMatrixUpdateCallback GetMatrixUpdateCallback ();
-//	void SetAutoactiveNotify (OnActivation activate);
-	void SetExtForceAndTorqueCallback (OnApplyExtForceAndTorque callback);
-	OnApplyExtForceAndTorque GetExtForceAndTorqueCallback () const;
-
-	dgConstraint* GetFirstJoint() const;
-	dgConstraint* GetNextJoint(dgConstraint* joint) const;
-
-	dgConstraint* GetFirstContact() const;
-	dgConstraint* GetNextContact(dgConstraint* joint) const;
-
+	dgType GetType () const;
+	dgInt32 IsRTTIType (dgUnsigned32 rtti) const;
 
 	void* GetUserData() const;
+	void SetUserData (void* const userData);
 	dgWorld* GetWorld() const;
-	const dgVector& GetMass() const;
-	const dgVector& GetInvMass() const;
-	const dgVector& GetAparentMass() const;
 
 
-	const dgVector& GetOmega() const;
-	const dgVector& GetVelocity() const;
-	const dgVector& GetForce() const;
-	const dgVector& GetTorque() const;
-	const dgVector& GetNetForce() const;
-	const dgVector& GetNetTorque() const;
-
-	dgCollision* GetCollision () const;
-	dgUnsigned32 GetGroupID () const;
 	const dgMatrix& GetMatrix() const;
-	const dgVector& GetPosition() const;
+	void SetMatrix(const dgMatrix& matrix);
 	const dgQuaternion& GetRotation() const;
+	const dgVector& GetPosition() const;
+	
 
-	dgFloat32 GetLinearDamping () const;
-	dgVector GetAngularDamping () const;
-	dgVector GetCentreOfMass () const;
-	bool IsInEquelibrium () const;
+	void SetCentreOfMass (const dgVector& com);
+	const dgVector& GetCentreOfMass () const;
 
 	void GetAABB (dgVector &p0, dgVector &p1) const;	
 
-	bool GetSleepState () const;
-	bool GetAutoSleep () const;
-	void SetAutoSleep (bool state);
+	const dgVector& GetOmega() const;
+	const dgVector& GetVelocity() const;
+	const dgVector& GetNetForce() const;
+	const dgVector& GetNetTorque() const;
 
-	bool GetFreeze () const;
-	void SetFreeze (bool state);
+	dgVector GetVelocityAtPoint (const dgVector& point) const;
+
+	void SetOmega (const dgVector& omega);
+	void SetVelocity (const dgVector& velocity);
+
+	dgUnsigned32 GetGroupID () const;
+	virtual void SetGroupID (dgUnsigned32 id);
+	dgInt32 GetUniqueID () const;
+
+	bool GetContinuesCollisionMode () const;
+	void SetContinuesCollisionMode (bool mode);
+	bool GetCollisionWithLinkedBodies () const;
+	void SetCollisionWithLinkedBodies (bool state);
 
 	void Freeze ();
 	void Unfreeze ();
+	bool GetFreeze () const;
+	void SetFreeze (bool state);
 
-	dgInt32 GetUniqueID () const;
+	bool GetSleepState () const;
+	void SetSleepState (bool state);
 
-	bool GetCollisionWithLinkedBodies () const;
-	bool GetContinuesCollisionMode () const;
+	bool GetAutoSleep () const;
+	void SetAutoSleep (bool state);
 
-	void AddBuoyancyForce (dgFloat32 fluidDensity, dgFloat32 fluidLinearViscousity, dgFloat32 fluidAngularViscousity, 
-						   const dgVector& gravityVector, GetBuoyancyPlane buoyancyPlane, void* const context);
+	bool IsCollidable() const;
+	
 
-
-	dgVector CalculateInverseDynamicForce (const dgVector& desiredVeloc, dgFloat32 timestep) const;
-
-//	dgFloat32 RayCast (const dgVector& globalP0, const dgVector& globalP1, 
-	dgFloat32 RayCast (const dgLineBox& line,
-					   OnRayCastAction filter, OnRayPrecastAction preFilter, void* const userData, dgFloat32 minT) const;
-//	dgFloat32 RayCastSimd (const dgVector& globalP0, const dgVector& globalP1, 
-//					   OnRayCastAction filter, OnRayPrecastAction preFilter, void* userData, dgFloat32 minT) const;
-
-
-	void CalcInvInertiaMatrix ();
-	void CalcInvInertiaMatrixSimd ();
-	const dgMatrix& GetCollisionMatrix () const;
-
+	dgCollisionInstance* GetCollision () const;
 	dgBodyMasterList::dgListNode* GetMasterList() const;
 
-	void InvalidateCache ();
+	OnBodyDestroy GetDestructorCallback () const;
+	void SetDestructorCallback (OnBodyDestroy destructor);
+	OnMatrixUpdateCallback GetMatrixUpdateCallback () const;
+	void SetMatrixUpdateCallback (OnMatrixUpdateCallback callback);
 
+	dgVector GetMass() const;
+	dgVector GetInvMass() const;
+	const dgMatrix& GetInertiaMatrix () const;
 
-	private:
-	void SetMatrixOriginAndRotation(const dgMatrix& matrix);
+	virtual dgMatrix CalculateInertiaMatrix () const;
+	virtual dgMatrix CalculateInvInertiaMatrix () const;
 	
-	void CalculateContinueVelocity (dgFloat32 timestep, dgVector& veloc, dgVector& omega) const;
-	void CalculateContinueVelocitySimd (dgFloat32 timestep,	dgVector& veloc, dgVector& omega) const;
+	virtual const dgVector& GetForce() const = 0;
+	virtual const dgVector& GetTorque() const = 0;
+	virtual void AddForce (const dgVector& force) = 0;
+	virtual void AddTorque (const dgVector& torque) = 0;
+	virtual void SetForce (const dgVector& force) = 0;
+	virtual void SetTorque (const dgVector& torque) = 0;
 
-	dgVector GetTrajectory (const dgVector& veloc, const dgVector& omega) const;
-	void IntegrateVelocity (dgFloat32 timestep);
+	virtual dgFloat32 GetLinearDamping () const = 0;
+	virtual dgVector GetAngularDamping () const = 0;
+	virtual void SetLinearDamping (dgFloat32 linearDamp) = 0;
+	virtual void SetAngularDamping (const dgVector& angularDamp) = 0;
+	virtual void AddDampingAcceleration() = 0;
+
+	virtual void SetMassMatrix (dgFloat32 mass, dgFloat32 Ix, dgFloat32 Iy, dgFloat32 Iz);
+	virtual void SetMassProperties (dgFloat32 mass, const dgCollisionInstance* const collision);
+
+	virtual dgVector PredictLinearVelocity(dgFloat32 timestep) const = 0;
+	virtual dgVector PredictAngularVelocity(dgFloat32 timestep) const = 0;
+	
+	virtual bool IsInEquilibrium () const = 0;
+	virtual void SetCollidable (bool state) = 0;
+
+	virtual void AddImpulse (const dgVector& pointVeloc, const dgVector& pointPosit);
+	virtual void ApplyImpulsePair (const dgVector& linearImpulse, const dgVector& angularImpulse);
+	virtual void ApplyImpulsesAtPoint (dgInt32 count, dgInt32 strideInBytes, const dgFloat32* const impulseArray, const dgFloat32* const pointArray);
+	
+	virtual void InvalidateCache();
+	
+	virtual void IntegrateVelocity (dgFloat32 timestep);
+	virtual void AttachCollision (dgCollisionInstance* const collision);
+	virtual void SetMatrixIgnoreSleep(const dgMatrix& matrix);
+
+	virtual void ApplyExtenalForces (dgFloat32 timestep, dgInt32 threadIndex) = 0;		
+	virtual OnApplyExtForceAndTorque GetExtForceAndTorqueCallback () const = 0;
+	virtual void SetExtForceAndTorqueCallback (OnApplyExtForceAndTorque callback) = 0;
+
+	virtual dgFloat32 RayCast (const dgLineBox& line, OnRayCastAction filter, OnRayPrecastAction preFilter, void* const userData, dgFloat32 minT) const;
+	virtual dgFloat32 ConvexRayCast (const dgFastRayTest& ray, const dgCollisionInstance* const convexShape, const dgVector& shapeMinBox, const dgVector& shapeMaxBox, const dgMatrix& origin, const dgVector& shapeVeloc, OnRayCastAction filter, OnRayPrecastAction preFilter, void* const userData, dgFloat32 minT, dgInt32 threadId) const;
+
+	
+	virtual void Serialize (const dgTree<dgInt32, const dgCollision*>* const collisionNode, dgSerialize serializeCallback, void* const userData);
+	
+	virtual dgConstraint* GetFirstJoint() const;
+	virtual dgConstraint* GetNextJoint(dgConstraint* const joint) const;
+	virtual dgConstraint* GetFirstContact() const;
+	virtual dgConstraint* GetNextContact(dgConstraint* const joint) const;
+	virtual dgVector CalculateInverseDynamicForce (const dgVector& desiredVeloc, dgFloat32 timestep) const;
+
+	protected:
+	void UpdateWorlCollisionMatrix() const;
+	void SetMatrixOriginAndRotation(const dgMatrix& matrix);
 	void UpdateMatrix (dgFloat32 timestep, dgInt32 threadIndex);
 	void UpdateCollisionMatrix (dgFloat32 timestep, dgInt32 threadIndex);
-	void UpdateCollisionMatrixSimd (dgFloat32 timestep, dgInt32 threadIndex);
 
-	void ApplyExtenalForces (dgFloat32 timestep, dgInt32 threadIndex);
-	void AddImpulse (const dgVector& pointVeloc, const dgVector& pointPosit);
+		
+	// member variables:
+	protected:
+	void CalcInvInertiaMatrix ();
+	dgVector GetApparentMass() const;
+	void SetAparentMassMatrix (const dgVector& massMatrix);
 
-//	void AddGyroscopicTorque();
-	void AddDamingAcceleration();
 
-
-
-	dgMatrix m_matrix;
-	dgMatrix m_collisionWorldMatrix;
 	dgMatrix m_invWorldInertiaMatrix;
+	dgMatrix m_matrix;
 	dgQuaternion m_rotation;
-	
-	dgVector m_veloc;
-	dgVector m_omega;
-	dgVector m_accel;
-	dgVector m_alpha;
-	dgVector m_netForce;
-	dgVector m_netTorque;
-	dgVector m_prevExternalForce;
-	dgVector m_prevExternalTorque;
-
 	dgVector m_mass;
 	dgVector m_invMass;
-	dgVector m_aparentMass;
-	dgVector m_localCentreOfMass;	
-	dgVector m_globalCentreOfMass;	
+	dgVector m_veloc;
+	dgVector m_omega;
 	dgVector m_minAABB;
 	dgVector m_maxAABB;
-	dgVector m_dampCoef;
-
-
+	dgVector m_netForce;
+	dgVector m_netTorque;
+	dgVector m_localCentreOfMass;	
+	dgVector m_globalCentreOfMass;	
+	dgVector m_aparentMass;
 	dgInt32 m_index;
 	dgInt32 m_uniqueID;
 	dgInt32 m_bodyGroupId;
-	dgInt32 m_genericLRUMark;
-	dgInt32 m_sleepingCounter;
+	dgInt32 m_rtti;
+	dgInt32 m_type;
 	dgUnsigned32 m_dynamicsLru;	
-	dgUnsigned32 m_isInDerstruionArrayLRU;
+	dgUnsigned32 m_genericLRUMark;
+	
+	dgThread::dgCriticalSection m_criticalSectionLock;
+	union 
+	{
+		dgUnsigned32 m_flags;
+		struct {
+			dgUnsigned32 m_freeze					: 1;
+			dgUnsigned32 m_sleeping					: 1;
+			dgUnsigned32 m_autoSleep				: 1;
+			dgUnsigned32 m_equilibrium				: 1;
+			dgUnsigned32 m_continueCollisionMode    : 1;
+			dgUnsigned32 m_spawnnedFromCallback		: 1;
+			dgUnsigned32 m_collideWithLinkedBodies  : 1;
+			dgUnsigned32 m_inCallback				: 1;
+			dgUnsigned32 m_collidable				: 1;
+			dgUnsigned32 m_resting					: 1;
+			dgUnsigned32 m_active					: 1;
+		};
+	};
 
-	dgUnsigned32 m_freeze					: 1;
-	dgUnsigned32 m_sleeping					: 1;
-	dgUnsigned32 m_autoSleep				: 1;
-	dgUnsigned32 m_isInWorld				: 1;
-	dgUnsigned32 m_equilibrium				: 1;
-	dgUnsigned32 m_continueCollisionMode    : 1;
-	dgUnsigned32 m_spawnnedFromCallback		: 1;
-	dgUnsigned32 m_collideWithLinkedBodies  : 1;
-	dgUnsigned32 m_solverInContinueCollision: 1;
-	dgUnsigned32 m_inCallback				: 1;
-		
 	void* m_userData;
 	dgWorld* m_world;
-	dgCollision* m_collision;
-	dgBroadPhaseList m_collisionCell;
+	dgCollisionInstance* m_collision;
+	dgBroadPhase::dgNode* m_collisionCell;
 	dgBodyMasterList::dgListNode* m_masterNode;
-
+	
 	OnBodyDestroy m_destructor;
 	OnMatrixUpdateCallback m_matrixUpdate;
-	OnApplyExtForceAndTorque m_applyExtForces;
-
 
 	friend class dgWorld;
 	friend class dgContact;
-	friend class dgCollision;
-	friend class dgBodyChunk;
-	friend class dgSortArray;
 	friend class dgConstraint;
-	friend class dgContactArray;
-	friend class dgContactSolver;
-	friend class dgBroadPhaseCell;
+	friend class dgBroadPhase;
+	friend class dgCollisionBVH;
+	friend class dgBroadPhaseNode;
+	friend class dgBodyMasterList;
+	friend class dgCollisionScene;
 	friend class dgCollisionConvex;
-	friend class dgCollisionEllipse;
 	friend class dgCollisionCompound;
 	friend class dgCollisionUserMesh;
 	friend class dgWorldDynamicUpdate;
-	friend class dgCollisionConvexHull;
-	friend class dgCollisionScene;
-	friend class dgCollisionBVH;
-	friend class dgBodyMasterList;
-	friend class dgJacobianMemory;
 	friend class dgBilateralConstraint;
-	friend class dgBroadPhaseCollision;
-	friend class dgSolverWorlkerThreads;
-	friend class dgCollisionConvexModifier;
+	friend class dgCollisionConvexPolygon;
 	friend class dgCollidingPairCollector;
-	friend class dgAABBOverlapPairList;
-	friend class dgParallelSolverClear;	
-	friend class dgParallelSolverUpdateForce;
-	friend class dgParallelSolverUpdateVeloc;
-	friend class dgParallelSolverBodyInertia;
-	friend class dgBroadPhaseApplyExternalForce;
-	friend class dgParallelSolverBuildJacobianRows;
-	friend class dgParallelSolverBuildJacobianMatrix;
-}DG_GCC_VECTOR_ALIGMENT;
+
+} DG_GCC_VECTOR_ALIGMENT;
 
 // *****************************************************************************
 // 
 //	 Implementation	
 // 
 // *****************************************************************************
-
-inline void dgBody::SetAutoSleep (bool state)
+DG_INLINE const dgMatrix& dgBody::GetInertiaMatrix () const 
 {
-	m_autoSleep = dgUnsigned32 (state);
-	if (m_autoSleep == 0) {
-		m_sleeping = false;
-	}
-}
-
-inline bool dgBody::GetAutoSleep () const
-{
-	return m_autoSleep;
-}
-
-inline bool dgBody::GetSleepState () const
-{
-	return m_sleeping;
+	return m_invWorldInertiaMatrix;
 }
 
 
 
-
-/*
-inline bool dgBody::GetActive () const
+DG_INLINE dgVector dgBody::GetInvMass() const
 {
-	return m_active;
-}
-*/
-
-inline bool dgBody::GetCollisionWithLinkedBodies () const
-{
-	return m_collideWithLinkedBodies;
+	return m_invMass;
 }
 
-inline void dgBody::SetCollisionWithLinkedBodies (bool state)
+DG_INLINE dgVector dgBody::GetMass() const
 {
-	m_collideWithLinkedBodies = dgUnsigned32 (state);
+	return m_mass;
 }
 
-inline void dgBody::SetUserData(void* const userData)
+
+DG_INLINE dgBody::dgType dgBody::GetType () const
+{
+	return dgType (m_type);
+}
+
+DG_INLINE dgInt32 dgBody::IsRTTIType (dgUnsigned32 rtti) const
+{
+	return rtti & m_rtti;
+}
+
+DG_INLINE void dgBody::SetUserData(void* const userData)
 {
 	m_userData = userData;
 }
 
-inline void* dgBody::GetUserData() const
+DG_INLINE void* dgBody::GetUserData() const
 {
 	return m_userData;
 }
 
-inline dgWorld* dgBody::GetWorld() const
+DG_INLINE dgWorld* dgBody::GetWorld() const
 {
 	return m_world;
 }
 
-inline dgUnsigned32 dgBody::GetGroupID () const
+
+DG_INLINE dgUnsigned32 dgBody::GetGroupID () const
 {
 	return dgUnsigned32 (m_bodyGroupId);
 }
 
-inline void dgBody::SetGroupID (dgUnsigned32 id)
+DG_INLINE void dgBody::SetGroupID (dgUnsigned32 id)
 {
 	m_bodyGroupId = dgInt32 (id);
 }
 
 
-inline void dgBody::SetDestructorCallback (OnBodyDestroy destructor)
+
+DG_INLINE dgBodyMasterList::dgListNode* dgBody::GetMasterList() const
 {
-	m_destructor = destructor;
+	return m_masterNode;
 }
 
-inline void dgBody::SetExtForceAndTorqueCallback (OnApplyExtForceAndTorque callback)
-{
-	m_applyExtForces = callback;
-}
-
-inline OnApplyExtForceAndTorque dgBody::GetExtForceAndTorqueCallback () const
-{
-	return m_applyExtForces;
-}
-
-/*
-inline void dgBody::SetAutoactiveNotify (OnActivation activate)
-{
-	m_activation = activate;
-	if (m_activation) {
-		m_activation (*this, m_active ? 1 : 0);
-	}
-}
-*/
-
-inline void dgBody::SetMatrixUpdateCallback (OnMatrixUpdateCallback callback)
-{
-	m_matrixUpdate = callback;
-}
-
-inline OnMatrixUpdateCallback dgBody::GetMatrixUpdateCallback ()
-{
-	return m_matrixUpdate;
-}
-
-/*
-inline void dgBody::SetFreezeTreshhold (dgFloat32 freezeAccel2, dgFloat32 freezeAlpha2, dgFloat32 freezeSpeed2, dgFloat32 freezeOmega2)
-{
-	m_freezeAccel2 = GetMax (freezeAccel2, dgFloat32(DG_FREEZE_MAG2));
-	m_freezeAlpha2 = GetMax (freezeAlpha2, dgFloat32(DG_FREEZE_MAG2));
-	m_freezeSpeed2 = GetMax (freezeSpeed2, dgFloat32(DG_FREEZE_MAG2));
-	m_freezeOmega2 = GetMax (freezeOmega2, dgFloat32(DG_FREEZE_MAG2));
-}
-
-inline void dgBody::GetFreezeTreshhold (dgFloat32& freezeAccel2, dgFloat32& freezeAlpha2, dgFloat32& freezeSpeed2, dgFloat32& freezeOmega2) const
-{
-	freezeAccel2 = m_freezeAccel2;
-	freezeAlpha2 = m_freezeAlpha2;
-	freezeSpeed2 = m_freezeSpeed2;
-	freezeOmega2 = m_freezeOmega2;
-}
-*/
-
-
-inline void dgBody::SetOmega (const dgVector& omega)
-{
-	m_omega = omega;
-}
-
-inline void dgBody::SetVelocity (const dgVector& velocity)
-{
-	m_veloc = velocity;
-}
-
-inline void dgBody::SetCentreOfMass (const dgVector& com)
-{
-	m_localCentreOfMass.m_x = com.m_x;
-	m_localCentreOfMass.m_y = com.m_y;
-	m_localCentreOfMass.m_z = com.m_z;
-	m_localCentreOfMass.m_w = dgFloat32 (1.0f);
-	m_globalCentreOfMass = m_matrix.TransformVector (m_localCentreOfMass);
-}
-
-
-
-inline void dgBody::AddForce (const dgVector& force)
-{
-	SetForce (m_accel + force);
-}
-
-inline void dgBody::AddTorque (const dgVector& torque)
-{
-	SetTorque (torque + m_alpha);
-}
-
-inline const dgVector& dgBody::GetMass() const
-{
-	return m_mass;
-}
-
-inline const dgVector& dgBody::GetAparentMass() const
-{
-	return m_aparentMass;
-}
-
-inline const dgVector& dgBody::GetInvMass() const
-{
-	return m_invMass;
-}
-
-inline const dgVector& dgBody::GetOmega() const
-{
-	return m_omega;
-}
-
-inline const dgVector& dgBody::GetVelocity() const
-{
-	return m_veloc; 
-}
-
-inline const dgVector& dgBody::GetForce() const
-{
-	return m_accel; 
-}
-
-inline const dgVector& dgBody::GetTorque() const
-{
-	return m_alpha;
-}
-
-inline const dgVector& dgBody::GetNetForce() const
-{
-	return m_netForce; 
-}
-
-inline const dgVector& dgBody::GetNetTorque() const
-{
-	return m_netTorque;
-}
-
-
-inline dgCollision* dgBody::GetCollision () const
-{
-	return m_collision;
-}
-
-
-
-inline const dgVector& dgBody::GetPosition() const
-{
-	return m_matrix.m_posit;
-}
-
-inline const dgQuaternion& dgBody::GetRotation() const
-{
-	return m_rotation;
-}
-
-inline const dgMatrix& dgBody::GetMatrix() const
-{
-	return m_matrix;
-}
-
-
-
-
-inline dgVector dgBody::GetCentreOfMass () const
-{
-	return m_localCentreOfMass;
-}
-
-inline void dgBody::GetAABB (dgVector &p0, dgVector &p1) const
+DG_INLINE void dgBody::GetAABB (dgVector &p0, dgVector &p1) const
 {
 	p0.m_x = m_minAABB.m_x;
 	p0.m_y = m_minAABB.m_y;
@@ -543,202 +345,178 @@ inline void dgBody::GetAABB (dgVector &p0, dgVector &p1) const
 	p1.m_z = m_maxAABB.m_z;
 }
 
-/*
-inline void dgBody::SetGyroscopicTorqueMode (bool mode)
+DG_INLINE const dgVector& dgBody::GetOmega() const
 {
-	m_applyGyroscopic = mode;
+	return m_omega;
 }
 
-inline bool dgBody::GetGyroscopicTorqueMode () const
+DG_INLINE const dgVector& dgBody::GetVelocity() const
 {
-	return m_applyGyroscopic;
-}
-*/
-
-inline const dgMatrix& dgBody::GetCollisionMatrix () const
-{
-	return m_collisionWorldMatrix;
+	return m_veloc; 
 }
 
-
-inline void dgBody::SetContinuesCollisionMode (bool mode)
+DG_INLINE void dgBody::SetOmega (const dgVector& omega)
 {
-	m_continueCollisionMode = dgUnsigned32 (mode);
+	m_omega = omega;
+	m_equilibrium = false;
 }
 
-inline bool dgBody::GetContinuesCollisionMode () const
+DG_INLINE dgVector dgBody::GetVelocityAtPoint (const dgVector& point) const
 {
-	return m_continueCollisionMode;
+	return m_veloc + m_omega * (point - m_globalCentreOfMass);
 }
 
-inline void dgBody::ApplyExtenalForces (dgFloat32 timestep, dgInt32 threadIndex)
+DG_INLINE void dgBody::SetVelocity (const dgVector& velocity)
 {
-	m_accel = dgVector (dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f));
-	m_alpha = dgVector (dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f));
-	if (m_applyExtForces) {
-		m_applyExtForces(*this, timestep, threadIndex);
-	}
+	m_veloc = velocity;
+	m_equilibrium = false;
 }
 
-
-
-inline dgFloat32 dgBody::GetLinearDamping () const
+DG_INLINE const dgMatrix& dgBody::GetMatrix() const
 {
-//	return (m_linearDampCoef - DG_MIN_SPEED_ATT) / (DG_MAX_SPEED_ATT - DG_MIN_SPEED_ATT);
-	return (m_dampCoef.m_w - DG_MIN_SPEED_ATT) / (DG_MAX_SPEED_ATT - DG_MIN_SPEED_ATT);
+	return m_matrix;
 }
 
-inline dgVector dgBody::GetAngularDamping () const
+DG_INLINE const dgVector& dgBody::GetPosition() const
 {
-	return dgVector ((m_dampCoef.m_x - DG_MIN_SPEED_ATT) / (DG_MAX_SPEED_ATT - DG_MIN_SPEED_ATT),
-					 (m_dampCoef.m_y - DG_MIN_SPEED_ATT) / (DG_MAX_SPEED_ATT - DG_MIN_SPEED_ATT),
-					 (m_dampCoef.m_z - DG_MIN_SPEED_ATT) / (DG_MAX_SPEED_ATT - DG_MIN_SPEED_ATT), dgFloat32 (0.0f));
+	return m_matrix.m_posit;
 }
 
-inline void dgBody::SetLinearDamping (dgFloat32 linearDamp)
+DG_INLINE const dgQuaternion& dgBody::GetRotation() const
 {
-	linearDamp = ClampValue (linearDamp, dgFloat32(0.0f), dgFloat32(1.0f));
-	m_dampCoef.m_w = DG_MIN_SPEED_ATT + (DG_MAX_SPEED_ATT - DG_MIN_SPEED_ATT) * linearDamp;
+	return m_rotation;
 }
 
-inline void dgBody::SetAngularDamping (const dgVector& angularDamp)
+DG_INLINE const dgVector& dgBody::GetCentreOfMass () const
 {
-	dgFloat32 tmp;
+	return m_localCentreOfMass;
+}
 
-	tmp = ClampValue (angularDamp.m_x, dgFloat32(0.0f), dgFloat32(1.0f));
-	m_dampCoef.m_x = DG_MIN_SPEED_ATT + (DG_MAX_SPEED_ATT - DG_MIN_SPEED_ATT) * tmp;
-
-	tmp = ClampValue (angularDamp.m_y, dgFloat32(0.0f), dgFloat32(1.0f));
-	m_dampCoef.m_y = DG_MIN_SPEED_ATT + (DG_MAX_SPEED_ATT - DG_MIN_SPEED_ATT) * tmp;
-
-	tmp = ClampValue (angularDamp.m_z, dgFloat32(0.0f), dgFloat32(1.0f));
-	m_dampCoef.m_z = DG_MIN_SPEED_ATT + (DG_MAX_SPEED_ATT - DG_MIN_SPEED_ATT) * tmp;
+DG_INLINE void dgBody::SetCentreOfMass (const dgVector& com)
+{
+	m_localCentreOfMass.m_x = com.m_x;
+	m_localCentreOfMass.m_y = com.m_y;
+	m_localCentreOfMass.m_z = com.m_z;
+	m_localCentreOfMass.m_w = dgFloat32 (1.0f);
+	m_globalCentreOfMass = m_matrix.TransformVector (m_localCentreOfMass);
 }
 
 
-inline void dgBody::AddDamingAcceleration()
-{
-	m_veloc -= m_veloc.Scale (m_dampCoef.m_w);
-	dgVector omega (m_matrix.UnrotateVector (m_omega));
-	omega -= omega.CompProduct (m_dampCoef);
-	m_omega = m_matrix.RotateVector (omega);
-}
-
-/*
-inline void dgBody::AddGyroscopicTorque()
-{
-	_ASSERTE (0);
-	if (m_applyGyroscopic) {
-		const dgVector inertia = m_mass;
-		dgVector omega (m_matrix.UnrotateVector (m_omega));
-		m_alpha -= m_matrix.RotateVector(omega.CompProduct(inertia) * omega);
-	}
-}
-*/
-
-
-inline void dgBody::SetForce (const dgVector& force)
-{
-	dgFloat32 errMag2;
-	dgVector error;
-
-	m_accel = force;
-	error = m_accel - m_prevExternalForce;
-	errMag2 = (error % error) * m_invMass[3] * m_invMass[3];
-	if (errMag2 > DG_ErrTolerance2) {
-		m_sleepingCounter = 0;
-	}
-}
-
-inline void dgBody::SetTorque (const dgVector& torque)
-{
-	dgFloat32 errMag2;
-	dgVector error;
-
-	m_alpha = torque;
-	error = m_alpha - m_prevExternalTorque;
-	errMag2 = (error % error) * m_invMass[3] * m_invMass[3];
-	if (errMag2 > DG_ErrTolerance2) {
-		m_sleepingCounter = 0;
-	}
-}
-
-
-//inline int dgBody::GetApplicationFreezeState() const
-//{
-//	return m_aplycationFreeze ? 1 : 0; 
-//}
-//inline void dgBody::SetApplicationFreezeState(dgInt32 state)
-//{
-//	m_aplycationFreeze = state ? true : false;
-//}
-
-inline dgBodyMasterList::dgListNode* dgBody::GetMasterList() const
-{
-	return m_masterNode;
-}
-
-inline bool dgBody::GetFreeze () const
-{
-	return m_freeze;
-}
-
-inline dgInt32 dgBody::GetUniqueID () const 
+DG_INLINE dgInt32 dgBody::GetUniqueID () const 
 {
 	return m_uniqueID;
 }
 
-inline bool dgBody::IsInEquelibrium () const
-{
-	dgFloat32 invMassMag2 = m_invMass[3] * m_invMass[3];
-	if (m_equilibrium) {
-		dgVector error (m_accel - m_prevExternalForce);
-		dgFloat32 errMag2 = (error % error) * invMassMag2;
-		if (errMag2 < DG_ErrTolerance2) {
-			error = m_alpha - m_prevExternalTorque;
-			errMag2 = (error % error) * invMassMag2;
-			if (errMag2 < DG_ErrTolerance2) {
-				errMag2 = (m_netForce % m_netForce) * invMassMag2;
-				if (errMag2 < DG_ErrTolerance2) {
-					errMag2 = (m_netTorque % m_netTorque) * invMassMag2;
-					if (errMag2 < DG_ErrTolerance2) {
-						errMag2 = m_veloc % m_veloc;
-						if (errMag2 < DG_ErrTolerance2) {
-							errMag2 = m_omega % m_omega;
-							if (errMag2 < DG_ErrTolerance2) {
-								return true;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
 
-	return false;
+DG_INLINE void dgBody::SetDestructorCallback (OnBodyDestroy destructor)
+{
+	m_destructor = destructor;
 }
 
-inline void dgBody::SetMatrixOriginAndRotation(const dgMatrix& matrix)
+DG_INLINE OnBodyDestroy dgBody::GetDestructorCallback () const
+{
+	return m_destructor;
+}
+
+
+DG_INLINE void dgBody::SetMatrixUpdateCallback (OnMatrixUpdateCallback callback)
+{
+	m_matrixUpdate = callback;
+}
+
+DG_INLINE OnMatrixUpdateCallback dgBody::GetMatrixUpdateCallback () const
+{
+	return m_matrixUpdate;
+}
+
+
+
+DG_INLINE dgCollisionInstance* dgBody::GetCollision () const
+{
+	return m_collision;
+}
+
+DG_INLINE void dgBody::SetContinuesCollisionMode (bool mode)
+{
+	m_continueCollisionMode = dgUnsigned32 (mode);
+}
+
+DG_INLINE bool dgBody::GetContinuesCollisionMode () const
+{
+	return m_continueCollisionMode;
+}
+
+DG_INLINE void dgBody::SetCollisionWithLinkedBodies (bool state)
+{
+	m_collideWithLinkedBodies = dgUnsigned32 (state);
+}
+
+DG_INLINE bool dgBody::GetCollisionWithLinkedBodies () const
+{
+	return m_collideWithLinkedBodies;
+}
+
+DG_INLINE bool dgBody::GetFreeze () const
+{
+	return m_freeze;
+}
+
+DG_INLINE void dgBody::SetAutoSleep (bool state)
+{
+	m_autoSleep = dgUnsigned32 (state);
+	if (m_autoSleep == 0) {
+		m_sleeping = false;
+	}
+}
+
+DG_INLINE bool dgBody::GetAutoSleep () const
+{
+	return m_autoSleep;
+}
+
+DG_INLINE bool dgBody::GetSleepState () const
+{
+	return m_sleeping;
+}
+
+DG_INLINE void dgBody::SetSleepState (bool state)
+{
+	m_sleeping = state;
+	m_equilibrium = state;
+}
+
+
+DG_INLINE bool dgBody::IsCollidable() const
+{
+	return m_collidable;
+}
+
+DG_INLINE dgVector dgBody::GetApparentMass() const
+{
+	return m_aparentMass;
+}
+
+
+DG_INLINE void dgBody::SetMatrixOriginAndRotation(const dgMatrix& matrix)
 {
 	m_matrix = matrix;
 
 #ifdef _DEBUG
 	for (int i = 0; i < 4; i ++) {
 		for (int j = 0; j < 4; j ++) {
-			_ASSERTE (dgCheckFloat(m_matrix[i][j]));
+			dgAssert (dgCheckFloat(m_matrix[i][j]));
 		}
 	}
 
 	int j0 = 1;
 	int j1 = 2;
 	for (dgInt32 i = 0; i < 3; i ++) {
-		dgFloat32 val;
-		_ASSERTE (m_matrix[i][3] == 0.0f);
-		val = m_matrix[i] % m_matrix[i];
-		_ASSERTE (dgAbsf (val - 1.0f) < 1.0e-5f);
+		dgAssert (m_matrix[i][3] == 0.0f);
+		dgFloat32 val = m_matrix[i] % m_matrix[i];
+		dgAssert (dgAbsf (val - 1.0f) < 1.0e-4f);
 		dgVector tmp (m_matrix[j0] * m_matrix[j1]);
 		val = tmp % m_matrix[i];
-		_ASSERTE (dgAbsf (val - 1.0f) < 1.0e-5f);
+		dgAssert (dgAbsf (val - 1.0f) < 1.0e-4f);
 		j0 = j1;
 		j1 = i;
 	}
@@ -746,13 +524,35 @@ inline void dgBody::SetMatrixOriginAndRotation(const dgMatrix& matrix)
 
 	m_rotation = dgQuaternion (m_matrix);
 	m_globalCentreOfMass = m_matrix.TransformVector (m_localCentreOfMass);
-
-//	matrix.m_front = matrix.m_front.Scale (dgRsqrt (matrix.m_front % matrix.m_front));
-//	matrix.m_right = matrix.m_front * matrix.m_up;
-//	matrix.m_right = matrix.m_right.Scale (dgRsqrt (matrix.m_right % matrix.m_right));
-//	matrix.m_up = matrix.m_right * matrix.m_front;
 }
 
 
-#endif // !defined(AFX_DGBODY_H__C16EDCD6_53C4_4C6F_A70A_591819F7187E__INCLUDED_)
+DG_INLINE const dgVector& dgBody::GetNetForce() const
+{
+	return m_netForce; 
+}
+
+DG_INLINE const dgVector& dgBody::GetNetTorque() const
+{
+	return m_netTorque;
+}
+
+
+DG_INLINE void dgBody::CalcInvInertiaMatrix ()
+{
+	dgAssert (m_invWorldInertiaMatrix[0][3] == dgFloat32 (0.0f));
+	dgAssert (m_invWorldInertiaMatrix[1][3] == dgFloat32 (0.0f));
+	dgAssert (m_invWorldInertiaMatrix[2][3] == dgFloat32 (0.0f));
+	dgAssert (m_invWorldInertiaMatrix[3][3] == dgFloat32 (1.0f));
+
+	m_invWorldInertiaMatrix = CalculateInvInertiaMatrix ();
+
+	dgAssert (m_invWorldInertiaMatrix[0][3] == dgFloat32 (0.0f));
+	dgAssert (m_invWorldInertiaMatrix[1][3] == dgFloat32 (0.0f));
+	dgAssert (m_invWorldInertiaMatrix[2][3] == dgFloat32 (0.0f));
+	dgAssert (m_invWorldInertiaMatrix[3][3] == dgFloat32 (1.0f));
+}
+
+
+#endif 
 

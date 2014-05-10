@@ -19,8 +19,8 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_STDAFX_H__FGRTY_5GR39H_98TQ__INCLUDED_)
-#define AFX_STDAFX_H__FGRTY_5GR39H_98TQ__INCLUDED_
+#ifndef _DG_TYPES_H_
+#define _DG_TYPES_H_
 
 #include "dgTypes.h"
 

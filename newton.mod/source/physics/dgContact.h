@@ -19,8 +19,8 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DGCONTACT_H__BDE5B2AC_5834_46FD_A994_65D855788F69__INCLUDED_)
-#define AFX_DGCONTACT_H__BDE5B2AC_5834_46FD_A994_65D855788F69__INCLUDED_
+#if !defined(AFX_DGCONTACT_H__BDE5B2AC_5834_46FD_A994_65D855788F69_H)
+#define AFX_DGCONTACT_H__BDE5B2AC_5834_46FD_A994_65D855788F69_H
 
 
 #include "dgConstraint.h"
@@ -29,17 +29,21 @@
 class dgBody;
 class dgWorld;
 class dgContact; 
-class dgCollision;
 class dgContactPoint; 
 class dgContactMaterial;
 class dgPolygonMeshDesc;
+class dgCollisionInstance;
 
 
 #define DG_MAX_CONTATCS			128
-#define DG_CACHE_PAIR_BUFFER	256
+
+
 
 typedef bool (dgApi *OnAABBOverlap) (const dgContactMaterial& material, const dgBody& body0, const dgBody& body1, dgInt32 threadIndex);
 typedef void (dgApi *OnContactCallback) (dgContact& contactJoint, dgFloat32 timestep, dgInt32 threadIndex);
+typedef bool (dgApi *OnCompoundCollisionPrefilter) (const dgContactMaterial& material, const dgBody* bodyA, const void* collisionNodeA, const dgBody* bodyB, const void* collisionNodeB, dgInt32 threadIndex);
+
+typedef void (dgApi *OnDebugCollisionMeshCallback) (void* userData, int vertexCount, const dgFloat32* FaceArray, int faceId);
 
 
 class dgActiveContacts: public dgList<dgContact*>
@@ -56,38 +60,26 @@ class dgCollidingPairCollector
 	public: 
 	struct dgPair 
 	{
-		dgBody* m_body0;
-		dgBody* m_body1;
 		dgContact* m_contact;
-		const dgContactMaterial* m_material;
 		dgContactPoint* m_contactBuffer;
-		dgInt16 m_contactCount;
-		dgInt16 m_isTrigger;
+		dgFloat32 m_timeOfImpact;
+		dgInt32 m_contactCount				: 16;
+		dgInt32 m_isDeformable				: 1;
+		dgInt32 m_cacheIsValid				: 1;
 	};
-
-	struct dgThreadPairCache
-	{
-		dgInt32 m_count;
-		dgPair m_chacheBuffer[DG_CACHE_PAIR_BUFFER];
-	};
-	dgThreadPairCache* m_chacheBuffers[DG_MAXIMUN_THREADS];	
 
 
 	dgCollidingPairCollector ();
 	~dgCollidingPairCollector ();
 
 	void Init ();
-	void SetCaches (dgThreadPairCache* const chaches);
-	void FlushChache (dgThreadPairCache* const chache);
-	void AddPair (dgBody* const body0, dgBody* const body1, dgInt32 threadIndex);
+	void AddPair (dgContact* const contatJoint, dgInt32 threadIndex);
 	
-
-	dgPair* m_pairs;
 	dgInt32 m_count;
 	dgInt32 m_maxSize;
 	dgBody* m_sentinel;
+	dgThread::dgCriticalSection m_lock;
 };
-
 
 
 DG_MSC_VECTOR_ALIGMENT
@@ -96,14 +88,12 @@ class dgContactPoint
 	public:
 	dgVector m_point;
 	dgVector m_normal;
-	dgBody* m_body0;
-	dgBody* m_body1;
-	dgCollision* m_collision0;
-	union {
-		dgCollision* m_collision1;
-		dgInt32 m_isEdgeContact;
-	};
-	dgInt64 m_userId;
+	const dgBody* m_body0;
+	const dgBody* m_body1;
+	const dgCollisionInstance* m_collision0;
+	const dgCollisionInstance* m_collision1;
+	dgInt64 m_shapeId0;
+	dgInt64 m_shapeId1;
 	dgFloat32 m_penetration;
 }DG_GCC_VECTOR_ALIGMENT;
 
@@ -111,38 +101,45 @@ DG_MSC_VECTOR_ALIGMENT
 class dgCollisionParamProxy
 {	
 	public:
+	dgCollisionParamProxy(dgContact* const contact, dgContactPoint* const contactBuffer, dgInt32 threadIndex, bool ccdMode, bool intersectionTestOnly)
+		:m_contactJoint(contact)
+		,m_contacts(contactBuffer)
+		,m_polyMeshData(NULL)		
+		,m_threadIndex(threadIndex)
+		,m_continueCollision(ccdMode)
+		,m_intersectionTestOnly(intersectionTestOnly)
+	{
+	}
+
+	dgMatrix m_matrix;
+	dgVector m_normal;
+	dgVector m_closestPointBody0;
+	dgVector m_closestPointBody1;
+	dgUnsigned64 m_shapeFaceID;
+	dgContact* m_contactJoint;
 	dgBody* m_floatingBody;
 	dgBody* m_referenceBody;
-	dgCollision* m_floatingCollision;
-	dgCollision* m_referenceCollision;
-	dgMatrix m_floatingMatrix;
-	dgMatrix m_referenceMatrix;
+	dgCollisionInstance* m_floatingCollision;
+	dgCollisionInstance* m_referenceCollision;
+	dgContactPoint* m_contacts;
+	dgPolygonMeshDesc* m_polyMeshData;
+	
 	dgFloat32 m_timestep;
-	dgFloat32 m_penetrationPadding; 
-	dgInt32 m_continueCollision;
-	dgInt32 m_unconditionalCast;
+	dgFloat32 m_skinThickness;
 	dgInt32 m_threadIndex;
 	dgInt32 m_maxContacts;
-	dgContactPoint* m_contacts;
-
-	// used but Mink solver	
-	const dgMatrix* m_localMatrixInv;
-	const dgPolygonMeshDesc* m_polyMeshData;
-
-	dgInt32 m_isTriggerVolume : 1;
-	dgInt32 m_inTriggerVolume : 1;
-
-
-	dgCollisionParamProxy(dgInt32 threadIndex)
-	{
-		m_threadIndex = threadIndex;
-		m_polyMeshData = NULL;
-		m_localMatrixInv = NULL;
-//		m_projectContinueCollisionContacts = 1;
-	}
+	bool m_continueCollision;
+	bool m_intersectionTestOnly;
 
 }DG_GCC_VECTOR_ALIGMENT;
 
+
+class dgClothPatchMaterial
+{
+	public:
+	dgFloat32 m_damper;
+	dgFloat32 m_stiffness;
+};
 
 
 DG_MSC_VECTOR_ALIGMENT 
@@ -151,56 +148,44 @@ class dgContactMaterial: public dgContactPoint
 	public:
 
 	enum {
-		m_collisionEnable__ = 1<<0,
-		m_friction0Enable__ = 1<<1,
-		m_friction1Enable__ = 1<<2,
-		m_override0Accel__ = 1<<3,
-		m_override1Accel__ = 1<<4,
-		m_overrideNormalAccel__ = 1<<5,
-		m_collisionContinueCollisionEnable__ = 1<<6,
+		m_collisionEnable = 1<<0,
+		m_friction0Enable = 1<<1,
+		m_friction1Enable = 1<<2,
+		m_override0Accel  = 1<<3,
+		m_override1Accel  = 1<<4,
+		m_overrideNormalAccel = 1<<5,
 	};
 
 	dgContactMaterial();
 	void* GetUserData () const; 
 	void SetUserData (void* const userData); 
 	void SetCollisionCallback (OnAABBOverlap abbOvelap, OnContactCallback callback); 
-	void SetCompoundCollisionCallback (OnAABBOverlap abbOvelap); 
+	void SetCompoundCollisionCallback (OnCompoundCollisionPrefilter abbCompounndOvelap); 
 
 	dgVector m_dir0;
 	dgVector m_dir1;
-	dgFloat32 m_normal_Force;
-	dgFloat32 m_dir0_Force;
-	dgFloat32 m_dir1_Force;
+	dgForceImpactPair m_normal_Force;
+	dgForceImpactPair m_dir0_Force;
+	dgForceImpactPair m_dir1_Force;
 	dgFloat32 m_softness;
 	dgFloat32 m_restitution;
 	dgFloat32 m_staticFriction0;
 	dgFloat32 m_staticFriction1;
 	dgFloat32 m_dynamicFriction0;
 	dgFloat32 m_dynamicFriction1;
-	dgFloat32 m_penetrationPadding;
+	dgFloat32 m_skinThickness;
 	dgInt32 m_flags;
-//	union {
-//		dgInt32 m_flags;
-//		struct {
-//			dgUnsigned32 m_collisionEnable					: 1;
-//			dgUnsigned32 m_friction0Enable					: 1;
-//			dgUnsigned32 m_friction1Enable					: 1;
-//			dgUnsigned32 m_override0Accel					: 1;
-//			dgUnsigned32 m_override1Accel					: 1;
-//			dgUnsigned32 m_overrideNormalAccel				: 1;
-//			dgUnsigned32 m_collisionContinueCollisionEnable : 1;
-//		};
-//	};
 
 	private:
 	void *m_userData;
 	OnAABBOverlap m_aabbOverlap;
 	OnContactCallback m_contactPoint;
-	OnAABBOverlap m_compoundAABBOverlap;
+	OnCompoundCollisionPrefilter m_compoundAABBOverlap;
 
 	friend class dgWorld;
+	friend class dgBroadPhase;
+	friend class dgCollisionScene;
 	friend class dgCollisionCompound;
-	friend class dgBroadPhaseCollision;
 	friend class dgSolverWorlkerThreads;
 	friend class dgCollidingPairCollector;
 	friend class dgBroadPhaseMaterialCallbackWorkerThread;
@@ -210,43 +195,55 @@ class dgContactMaterial: public dgContactPoint
 
 
 DG_MSC_VECTOR_ALIGMENT 
-class dgContact: 
-	public dgConstraint, 
-	public dgList<dgContactMaterial>
+class dgContact: public dgConstraint, public dgList<dgContactMaterial>
 {
-	
-	dgContact(dgWorld* world);
+	public:
+	dgFloat32 GetTimeOfImpact() const;
+	void SetTimeOfImpact(dgFloat32 timetoImpact);
+	const dgContactMaterial* GetMaterial() const;
+
+	protected:
+	dgContact(dgWorld* const world, const dgContactMaterial* const material);
 	virtual ~dgContact();
 
 	DG_CLASS_ALLOCATOR(allocator)
 
 	virtual void GetInfo (dgConstraintInfo* const info) const;
 	virtual dgUnsigned32 JacobianDerivative (dgContraintDescritor& params); 
-	virtual void JointAccelerations(const dgJointAccelerationDecriptor& params); 
-	virtual void JointAccelerationsSimd(const dgJointAccelerationDecriptor& params); 
-	virtual void JointVelocityCorrection(const dgJointAccelerationDecriptor& params); 
+	virtual void JointAccelerations (dgJointAccelerationDecriptor* const params); 
+	virtual void JointVelocityCorrection(dgJointAccelerationDecriptor* const params); 
 	
+	virtual bool IsDeformable() const ;
 	virtual void SetDestructorCallback (OnConstraintDestroy destructor);
 
 	void JacobianContactDerivative (dgContraintDescritor& params, const dgContactMaterial& contact, dgInt32 normalIndex, dgInt32& frictionIndex); 
 	void CalculatePointDerivative (dgInt32 index, dgContraintDescritor& desc, const dgVector& dir, const dgPointParam& param) const;
 
-	
-	dgVector m_prevPosit0;
-	dgVector m_prevPosit1;
-	dgQuaternion m_prevRotation0;
-	dgQuaternion m_prevRotation1;
+	void AppendToActiveList();
+	void SwapBodies();
 
+	dgVector m_positAcc;
+	dgQuaternion m_rotationAcc;
+	dgVector m_separtingVector;
+	dgFloat32 m_closestDistance;
+	dgFloat32 m_timeOfImpact;
 	dgWorld* m_world;
-	dgActiveContacts::dgListNode *m_contactNode;
-	const dgContactMaterial* m_myCacheMaterial;
-	dgInt32 m_broadphaseLru;
+	const dgContactMaterial* m_material;
+	dgActiveContacts::dgListNode* m_contactNode;
+	dgUnsigned32 m_broadphaseLru;
+	dgUnsigned32 m_isNewContact				: 1;
+
 
 	friend class dgWorld;
+	friend class dgBroadPhase;
+	friend class dgContactSolver;
 	friend class dgActiveContacts;
-	friend class dgTireCollision;
-	friend class dgBroadPhaseCollision;
+	friend class dgCollisionScene;
+	friend class dgCollisionConvex;
+	friend class dgCollisionCompound;
+	friend class dgWorldDynamicUpdate;
 	friend class dgSolverWorlkerThreads;
+	friend class dgCollisionConvexPolygon;
 	friend class dgCollidingPairCollector;
 }DG_GCC_VECTOR_ALIGMENT;
 
@@ -256,7 +253,7 @@ inline void dgContactMaterial::SetCollisionCallback (OnAABBOverlap aabbOverlap, 
 	m_contactPoint = contact;
 }
 
-inline void dgContactMaterial::SetCompoundCollisionCallback (OnAABBOverlap aabbOverlap)
+inline void dgContactMaterial::SetCompoundCollisionCallback (OnCompoundCollisionPrefilter aabbOverlap)
 {
 	m_compoundAABBOverlap = aabbOverlap;
 }
@@ -271,11 +268,28 @@ inline void dgContactMaterial::SetUserData (void* const userData)
 	m_userData = userData;
 }
 
-
+inline bool dgContact::IsDeformable() const 
+{
+	return false;
+}
 
 inline void dgContact::SetDestructorCallback (OnConstraintDestroy destructor)
 {
 }
 
+inline const dgContactMaterial* dgContact::GetMaterial() const
+{
+	return m_material;
+}
+
+inline void dgContact::SetTimeOfImpact(dgFloat32 timetoImpact)
+{
+	m_timeOfImpact = timetoImpact;
+}
+
+inline dgFloat32 dgContact::GetTimeOfImpact() const
+{
+	return m_timeOfImpact;
+}
 #endif 
 

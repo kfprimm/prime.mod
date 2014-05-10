@@ -19,8 +19,8 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#ifndef __DGCOLLIION_HEIGHT_FIELD__
-#define __DGCOLLIION_HEIGHT_FIELD__
+#ifndef __DGCOLLISION_HEIGHT_FIELD__
+#define __DGCOLLISION_HEIGHT_FIELD__
 
 #include "dgCollision.h"
 #include "dgCollisionMesh.h"
@@ -32,8 +32,26 @@ typedef dgFloat32 (*dgCollisionHeightFieldRayCastCallback) (const dgBody* const 
 class dgCollisionHeightField: public dgCollisionMesh
 {
 	public:
+	enum dgElevationType
+	{
+		m_float32Bit = 0,
+		m_unsigned16Bit,
+	};
+
+	enum dgCollisionHeightFieldGridConstruction
+	{
+		m_normalDiagonals = 0,
+		m_invertedDiagonals,
+		m_alternateOddRowsDiagonals,
+		m_alternateEvenRowsDiagonals,
+		m_alternateOddColumsDiagonals,
+		m_alternateEvenColumsDiagonals,
+		m_starDiagonals,
+		m_starInvertexDiagonals,
+	};
 	dgCollisionHeightField (dgWorld* const world, dgInt32 width, dgInt32 height, dgInt32 contructionMode, 
-							const dgUnsigned16* const elevationMap, const dgInt8* const atributeMap, dgFloat32 horizontalScale, dgFloat32 vertcalScale);
+							const void* const elevationMap, dgElevationType elevationDataType, dgFloat32 verticalScale, 
+							const dgInt8* const atributeMap, dgFloat32 horizontalScale);
 
 	dgCollisionHeightField (dgWorld* const world, dgDeserialize deserialization, void* const userData);
 
@@ -44,52 +62,118 @@ class dgCollisionHeightField: public dgCollisionMesh
 
 
 	private:
+	class dgPerIntanceData
+	{
+		public:
+		dgWorld* m_world;
+		dgInt32 m_refCount;
+		dgInt32 m_vertexCount[DG_MAX_THREADS_HIVE_COUNT];
+		dgVector *m_vertex[DG_MAX_THREADS_HIVE_COUNT];
+	};
+
+	void CalculateAABB();
 	
 	void AllocateVertex(dgWorld* const world, dgInt32 thread) const;
 	void CalculateMinExtend2d (const dgVector& p0, const dgVector& p1, dgVector& boxP0, dgVector& boxP1) const;
 	void CalculateMinExtend3d (const dgVector& p0, const dgVector& p1, dgVector& boxP0, dgVector& boxP1) const;
-	dgFloat32 RayCastCell (const FastRayTest& ray, dgInt32 xIndex0, dgInt32 zIndex0, dgVector& normalOut) const;
-	dgFloat32 RayCastCellSimd (const FastRayTest& ray, dgInt32 xIndex0, dgInt32 zIndex0, dgVector& normalOut) const;
+	dgFloat32 RayCastCell (const dgFastRayTest& ray, dgInt32 xIndex0, dgInt32 zIndex0, dgVector& normalOut, dgFloat32 maxT) const;
 
 	virtual void Serialize(dgSerialize callback, void* const userData) const;
-	virtual dgFloat32 RayCast (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const;
-	virtual dgFloat32 RayCastSimd (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const;
+	virtual dgFloat32 RayCast (const dgVector& localP0, const dgVector& localP1, dgFloat32 maxT, dgContactPoint& contactOut, const dgBody* const body, void* const userData) const;
 	virtual void GetCollidingFaces (dgPolygonMeshDesc* const data) const;
-	virtual void GetCollidingFacesSimd (dgPolygonMeshDesc* const data) const;
 
-	virtual void GetCollisionInfo(dgCollisionInfo* info) const;
-	void DebugCollision (const dgMatrix& matrixPtr, OnDebugCollisionMeshCallback callback, void* const userData) const;
-
-	void GetVertexListIndexList (const dgVector& p0, const dgVector& p1, dgGetVertexListIndexList &data) const;
-
+	virtual void GetCollisionInfo(dgCollisionInfo* const info) const;
+	virtual dgVector SupportVertex (const dgVector& dir, dgInt32* const vertexIndex) const;
+	virtual void DebugCollision (const dgMatrix& matrixPtr, OnDebugCollisionMeshCallback callback, void* const userData) const;
+	void GetVertexListIndexList (const dgVector& p0, const dgVector& p1, dgMeshVertexListIndexList &data) const;
 	void GetLocalAABB (const dgVector& p0, const dgVector& p1, dgVector& boxP0, dgVector& boxP1) const;
 
+	dgVector m_minBox;
+	dgVector m_maxBox;
 
 	dgInt32 m_width;
 	dgInt32 m_height;
 	dgInt32 m_diagonalMode;
 	dgInt8* m_atributeMap;
-	dgUnsigned16* m_elevationMap;
+	dgInt8* m_diagonals;
+	void* m_elevationMap;
 	dgFloat32 m_verticalScale;
 	dgFloat32 m_horizontalScale;
-//	dgFloat32 m_verticalScaleInv;
 	dgFloat32 m_horizontalScaleInv;
 	dgCollisionHeightFieldRayCastCallback m_userRayCastCallback;
+	dgElevationType m_elevationDataType;
 
-	dgVector m_minBox;
-	dgVector m_maxBox;
-
-	struct dgPerIntanceData
-	{
-		dgWorld* m_world;
-		dgInt32 m_refCount;
-		dgInt32 m_vertexCount[DG_MAXIMUN_THREADS];
-		dgVector *m_vertex[DG_MAXIMUN_THREADS];
-	};
-
+	static dgVector m_yMask;
+	static dgVector m_padding;
+	static dgInt32 m_cellIndices[][4];
+	static dgInt32 m_verticalEdgeMap[][7];
+	static dgInt32 m_horizontalEdgeMap[][7];
+	
 	dgPerIntanceData* m_instanceData;
 	friend class dgCollisionCompound;
 };
+
+
+DG_INLINE void dgCollisionHeightField::CalculateMinExtend2d (const dgVector& p0, const dgVector& p1, dgVector& boxP0, dgVector& boxP1) const
+{
+	//	dgFloat32 x0 = dgMin (p0.m_x, p1.m_x) - dgFloat32 (1.0e-3f);
+	//	dgFloat32 z0 = dgMin (p0.m_z, p1.m_z) - dgFloat32 (1.0e-3f);
+
+	//	dgFloat32 x1 = dgMax (p0.m_x, p1.m_x) + dgFloat32 (1.0e-3f);
+	//	dgFloat32 z1 = dgMax (p0.m_z, p1.m_z) + dgFloat32 (1.0e-3f);
+
+	dgVector q0 (p0.GetMin(p1) - m_padding);
+	dgVector q1 (p0.GetMax(p1) + m_padding);
+
+	boxP0 = ((q0.Scale4(m_horizontalScaleInv).Floor().Scale4(m_horizontalScale) & m_yMask) + dgVector(dgFloat32 (-1.0e10f)).AndNot(m_yMask)) & dgVector::m_triplexMask;
+	boxP1 = (((q1.Scale4(m_horizontalScaleInv).Floor().Scale4(m_horizontalScale) + dgVector(m_horizontalScale)) & m_yMask) + dgVector(dgFloat32 (1.0e10f)).AndNot(m_yMask)) & dgVector::m_triplexMask;
+
+	//	x0 = m_horizontalScale * dgFloor (x0 * m_horizontalScaleInv);
+	//	z0 = m_horizontalScale * dgFloor (z0 * m_horizontalScaleInv);
+	//	x1 = m_horizontalScale * dgFloor (x1 * m_horizontalScaleInv) + m_horizontalScale;
+	//	z1 = m_horizontalScale * dgFloor (z1 * m_horizontalScaleInv) + m_horizontalScale;
+
+	//	boxP0.m_x = dgMax (x0, m_minBox.m_x);
+	//	boxP0.m_z = dgMax (z0, m_minBox.m_z);
+	//	boxP0.m_y = -dgFloat32 (1.0e10f);
+	//	boxP0.m_w = dgFloat32 (0.0f);
+
+	//	boxP1.m_x = dgMin (x1, m_maxBox.m_x);
+	//	boxP1.m_z = dgMin (z1, m_maxBox.m_z);
+	//	boxP1.m_y = dgFloat32 (1.0e10f);
+	//	boxP1.m_w = dgFloat32 (0.0f);
+}
+
+
+DG_INLINE void dgCollisionHeightField::CalculateMinExtend3d (const dgVector& p0, const dgVector& p1, dgVector& boxP0, dgVector& boxP1) const
+{
+	dgAssert (p0.m_x <= p1.m_x);
+	dgAssert (p0.m_y <= p1.m_y);
+	dgAssert (p0.m_z <= p1.m_z);
+	dgAssert (p0.m_w == dgFloat32 (0.0f));
+	dgAssert (p1.m_w == dgFloat32 (0.0f));
+
+	//	dgFloat32 x0 = m_horizontalScale * dgFloor ((p0.m_x - dgFloat32 (1.0e-3f)) * m_horizontalScaleInv);
+	//	dgFloat32 z0 = m_horizontalScale * dgFloor ((p0.m_z - dgFloat32 (1.0e-3f)) * m_horizontalScaleInv);
+	//	dgFloat32 x1 = m_horizontalScale * dgFloor ((p1.m_x + dgFloat32 (1.0e-3f)) * m_horizontalScaleInv) + m_horizontalScale;
+	//	dgFloat32 z1 = m_horizontalScale * dgFloor ((p1.m_z + dgFloat32 (1.0e-3f)) * m_horizontalScaleInv) + m_horizontalScale;
+
+	dgVector q0 (p0 - m_padding);
+	dgVector q1 (p1 + m_padding);
+
+	boxP0 = (q0.Scale4(m_horizontalScaleInv).Floor().Scale4(m_horizontalScale) & m_yMask) + q0.AndNot(m_yMask);
+	boxP1 = ((q1.Scale4(m_horizontalScaleInv).Floor().Scale4(m_horizontalScale) + dgVector(m_horizontalScale)) & m_yMask) + q1.AndNot(m_yMask);
+
+	//	boxP0.m_x = dgMax (x0, m_minBox.m_x);
+	//	boxP0.m_z = dgMax (z0, m_minBox.m_z);
+	//	boxP0.m_y = p0.m_y - dgFloat32 (1.0e-3f);
+	//	boxP0.m_w = dgFloat32 (0.0f);
+
+	//	boxP1.m_x = dgMin (x1, m_maxBox.m_x);
+	//	boxP1.m_z = dgMin (z1, m_maxBox.m_z);
+	//	boxP1.m_y = p1.m_y + dgFloat32 (1.0e-3f);
+	//	boxP1.m_w = dgFloat32 (0.0f);
+}
 
 
 #endif

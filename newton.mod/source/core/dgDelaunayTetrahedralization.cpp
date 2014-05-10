@@ -26,22 +26,20 @@
 #include "dgDelaunayTetrahedralization.h"
 
 
+
 dgDelaunayTetrahedralization::dgDelaunayTetrahedralization(dgMemoryAllocator* const allocator, const dgFloat64* const vertexCloud, dgInt32 count, dgInt32 strideInByte, dgFloat64 distTol)
 	:dgConvexHull4d(allocator)
 {
-#if (defined (_WIN_32_VER) || defined (_WIN_64_VER))
-	dgUnsigned32 controlWorld = dgControlFP (0xffffffff, 0);
-	dgControlFP (_PC_53, _MCW_PC);
-#endif
+	dgSetPrecisionDouble precision;
 
 	dgStack<dgBigVector> pool(count);
 
 	dgBigVector* const points = &pool[0];
 	dgInt32 stride = dgInt32 (strideInByte / sizeof (dgFloat64));
 	for (dgInt32 i = 0; i < count; i ++) {
-		volatile float x = float (vertexCloud[i * stride + 0]);
-		volatile float y = float (vertexCloud[i * stride + 1]);
-		volatile float z = float (vertexCloud[i * stride + 2]);
+		dgFloat64 x = RoundToFloat (vertexCloud[i * stride + 0]);
+		dgFloat64 y = RoundToFloat (vertexCloud[i * stride + 1]);
+		dgFloat64 z = RoundToFloat (vertexCloud[i * stride + 2]);
 		points[i] = dgBigVector (x, y, z, x * x + y * y + z * z);
 	}
 
@@ -71,9 +69,9 @@ dgDelaunayTetrahedralization::dgDelaunayTetrahedralization(dgMemoryAllocator* co
 					q.m_y += dgFloat64 (1.0e-3f);
 					q.m_z += dgFloat64 (1.0e-3f);
 					index = AddVertex(q);
-					_ASSERTE (index != -1);
+					dgAssert (index != -1);
 				}
-				_ASSERTE (index != -1);
+				dgAssert (index != -1);
 //				m_points[index] = points[i];
 				m_points[index].m_index = i;
 			}
@@ -89,19 +87,13 @@ dgDelaunayTetrahedralization::dgDelaunayTetrahedralization(dgMemoryAllocator* co
 		points[0].m_z += dgFloat64 (1.0e-0f);
 		points[0].m_w = points[0].m_x * points[0].m_x + points[0].m_y * points[0].m_y + points[0].m_z * points[0].m_z;
 		BuildHull (allocator, &pool[0], oldCount, distTol);
-		_ASSERTE (oldCount == m_count);
+		dgAssert (oldCount == m_count);
 		// restore the old point
 		//points[0].m_w = points[0].m_x * points[0].m_x + points[0].m_y * points[0].m_y + points[0].m_z * points[0].m_z;
 	}
 #endif
 
-#ifdef _DEBUG
 	SortVertexArray ();
-#endif
-
-#if (defined (_WIN_32_VER) || defined (_WIN_64_VER))
-	dgControlFP (controlWorld, _MCW_PC);
-#endif
 }
 
 dgDelaunayTetrahedralization::~dgDelaunayTetrahedralization()
@@ -109,25 +101,20 @@ dgDelaunayTetrahedralization::~dgDelaunayTetrahedralization()
 }
 
 
+
 dgInt32 dgDelaunayTetrahedralization::AddVertex (const dgBigVector& vertex)
 {
-#if (defined (_WIN_32_VER) || defined (_WIN_64_VER))
-	dgUnsigned32 controlWorld = dgControlFP (0xffffffff, 0);
-	dgControlFP (_PC_53, _MCW_PC);
-#endif
+	dgSetPrecisionDouble precision;
 
 	dgBigVector p (vertex);
 	p.m_w = p % p;
 	dgInt32 index = dgConvexHull4d::AddVertex(p);
 
-#if (defined (_WIN_32_VER) || defined (_WIN_64_VER))
-	dgControlFP (controlWorld, _MCW_PC);
-#endif
 	return index;
 }
 
 
-#ifdef _DEBUG
+
 dgInt32 dgDelaunayTetrahedralization::CompareVertexByIndex(const dgHullVector* const  A, const dgHullVector* const B, void* const context)
 {
 	if (A->m_index < B ->m_index) {
@@ -146,9 +133,7 @@ void dgDelaunayTetrahedralization::SortVertexArray ()
 		dgConvexHull4dTetraherum* const tetra = &node->GetInfo();
 		for (dgInt32 i = 0; i < 4; i ++) {
 			dgConvexHull4dTetraherum::dgTetrahedrumFace& face = tetra->m_faces[i];
-			dgInt32 index = face.m_otherVertex;
-			face.m_otherVertex = points[index].m_index;
-			for (dgInt32 j = 0; j < 3; j ++) {
+			for (dgInt32 j = 0; j < 4; j ++) {
 				dgInt32 index = face.m_index[j];
 				face.m_index[j] = points[index].m_index;
 			}
@@ -158,38 +143,23 @@ void dgDelaunayTetrahedralization::SortVertexArray ()
 	dgSort(points, m_count, CompareVertexByIndex);
 }
 
-#endif
 
 
 void dgDelaunayTetrahedralization::RemoveUpperHull ()
 {
-	#if (defined (_WIN_32_VER) || defined (_WIN_64_VER))
-	dgUnsigned32 controlWorld = dgControlFP (0xffffffff, 0);
-	dgControlFP (_PC_53, _MCW_PC);
-	#endif
+	dgSetPrecisionDouble precision;
 
 	dgListNode* nextNode = NULL;
-//	const dgHullVector* const points = &m_points[0];
 	for (dgListNode* node = GetFirst(); node; node = nextNode) {
 		nextNode = node->GetNext();
 
 		dgConvexHull4dTetraherum* const tetra = &node->GetInfo();
 		tetra->SetMark(0);
-
-//		const dgBigVector &p0 = points[tetra->m_faces[0].m_index[0]];
-//		const dgBigVector &p1 = points[tetra->m_faces[0].m_index[1]];
-//		const dgBigVector &p2 = points[tetra->m_faces[0].m_index[2]];
-//		const dgBigVector &p3 = points[tetra->m_faces[0].m_otherVertex];
-//		dgFloat64 w = GetTetraVolume (p0, p1, p2, p3);
 		dgFloat64 w = GetTetraVolume (tetra);
 		if (w >= dgFloat64 (0.0f)) {
 			DeleteFace(node);
 		}
 	}
-
-	#if (defined (_WIN_32_VER) || defined (_WIN_64_VER))
-	dgControlFP (controlWorld, _MCW_PC);
-	#endif
 }
 
 
@@ -211,21 +181,14 @@ void dgDelaunayTetrahedralization::DeleteFace (dgListNode* const node)
 	dgConvexHull4d::DeleteFace (node);
 }
 
-//dgFloat64 dgDelaunayTetrahedralization::GetTetraVolume (const dgBigVector& p0, const dgBigVector& p1, const dgBigVector& p2, const dgBigVector& p3) const
+
 dgFloat64 dgDelaunayTetrahedralization::GetTetraVolume (const dgConvexHull4dTetraherum* const tetra) const
 {
-	//	dgBigVector p1p0 (p1.Sub4(p0));
-	//	dgBigVector p2p0 (p2.Sub4(p0));
-	//	dgBigVector p3p0 (p3.Sub4(p0));
-	//	dgBigVector normal (p1p0.CrossProduct4 (p2p0, p3p0));
-	//  dgFloat64 det = normal.m_w;
-
 	const dgHullVector* const points = &m_points[0];
 	const dgBigVector &p0 = points[tetra->m_faces[0].m_index[0]];
 	const dgBigVector &p1 = points[tetra->m_faces[0].m_index[1]];
 	const dgBigVector &p2 = points[tetra->m_faces[0].m_index[2]];
-	const dgBigVector &p3 = points[tetra->m_faces[0].m_otherVertex];
-
+	const dgBigVector &p3 = points[tetra->m_faces[0].m_index[3]];
 
 	dgFloat64 matrix[3][3];
 	for (dgInt32 i = 0; i < 3; i ++) {
@@ -251,9 +214,7 @@ dgFloat64 dgDelaunayTetrahedralization::GetTetraVolume (const dgConvexHull4dTetr
 		exactMatrix[2][i] = dgGoogol(p3[i]) - dgGoogol(p0[i]);
 	}
 
-	dgGoogol exactDet (Determinant3x3(exactMatrix));
-	det = exactDet.GetAproximateValue();
-	return det;
+	return Determinant3x3(exactMatrix);
 }
 
 

@@ -19,8 +19,8 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DGCONSTRAINT_H__F9EC24E0_6E0F_4CD5_909E_A5F5E1AC7C0B__INCLUDED_)
-#define AFX_DGCONSTRAINT_H__F9EC24E0_6E0F_4CD5_909E_A5F5E1AC7C0B__INCLUDED_
+#if !defined(AFX_DGCONSTRAINT_H__F9EC24E0_6E0F_4CD5_909E_A5F5E1AC7C0B_H)
+#define AFX_DGCONSTRAINT_H__F9EC24E0_6E0F_4CD5_909E_A5F5E1AC7C0B_H
 
 #include "dgBodyMasterList.h"
 
@@ -34,7 +34,7 @@
 
 #define DG_CONSTRAINT_MAX_ROWS				 (3 * 16)
 
-#define MIN_JOINT_PIN_LENGTH				dgFloat32 (16.0f)
+#define MIN_JOINT_PIN_LENGTH				dgFloat32 (50.0f)
 
 class dgBody;
 class dgWorld;
@@ -46,7 +46,6 @@ typedef void (dgApi *ConstraintsForceFeeback) (const dgConstraint& me, dgFloat32
 class dgConstraintInfo
 {
 	public:
-
 	dgMatrix m_attachMatrix_0;
 	dgMatrix m_attachMatrix_1;
 	dgFloat32 m_minLinearDof[3];
@@ -55,13 +54,13 @@ class dgConstraintInfo
 	dgFloat32 m_maxAngularDof[3];
 	dgBody* m_attachBody_0;
 	dgBody* m_attachBody_1;
-	dgFloat32 m_extraParameters[16];
+	dgFloat32 m_extraParameters[64];
 	dgInt32 m_collideCollisionOn;
-	char m_discriptionType[16];
+	char m_discriptionType[64];
 };
 
 
-class dgJointCallBackParam
+class dgJointCallbackParam
 {
 	public:
 	dgFloat32 m_accel;
@@ -71,13 +70,20 @@ class dgJointCallBackParam
 };
 
 
+class dgForceImpactPair
+{
+	public:
+	dgFloat32 m_force;
+	dgFloat32 m_impact;
+};
+
 class dgBilateralBounds
 {
 	public:
 	dgFloat32 m_low;
 	dgFloat32 m_upper;
 	dgInt32 m_normalIndex;
-	dgFloat32 *m_jointForce;
+	dgForceImpactPair* m_jointForce;
 };
 
 DG_MSC_VECTOR_ALIGMENT
@@ -92,10 +98,11 @@ DG_MSC_VECTOR_ALIGMENT
 class dgJacobianPair
 {
 	public:
-	dgJacobian m_jacobian_IM0;
-	dgJacobian m_jacobian_IM1;
+	dgJacobian m_jacobianM0;
+	dgJacobian m_jacobianM1;
 } DG_GCC_VECTOR_ALIGMENT;
 
+class dgJacobianMatrixElement;
 class dgJointAccelerationDecriptor
 {
 	public: 
@@ -103,17 +110,7 @@ class dgJointAccelerationDecriptor
 	dgFloat32 m_timeStep;
 	dgFloat32 m_invTimeStep;
 	dgFloat32 m_firstPassCoefFlag;
-//	dgBody *m_body0;
-//	dgBody *m_body1;
-	dgFloat32* m_penetration;
-	dgFloat32* m_coordenateAccel;
-	const dgJacobianPair* m_Jt;
-	const dgFloat32* m_restitution;
-	const dgInt32* m_accelIsMotor;
-	const dgInt32* m_normalForceIndex;
-	const dgFloat32* m_externAccelaration;
-	const dgFloat32* m_penetrationStiffness;
-	
+	dgJacobianMatrixElement *m_rowMatrix;
 };
 
 
@@ -128,38 +125,42 @@ class dgContraintDescritor
 	dgFloat32 m_restitution[DG_CONSTRAINT_MAX_ROWS];
 	dgFloat32 m_penetration[DG_CONSTRAINT_MAX_ROWS];
 	dgFloat32 m_penetrationStiffness[DG_CONSTRAINT_MAX_ROWS];
-	dgUnsigned32 m_isMotor[DG_CONSTRAINT_MAX_ROWS];
+	bool m_isMotor[DG_CONSTRAINT_MAX_ROWS];
 	dgWorld* m_world;
 	dgInt32 m_threadIndex;
 	dgFloat32 m_timestep;
 	dgFloat32 m_invTimestep;
-}DG_GCC_VECTOR_ALIGMENT;
+} DG_GCC_VECTOR_ALIGMENT;
 
-enum dgConstraintID
-{
-	dgBallConstraintId,
-	dgHingeConstraintId,
-	dgSliderConstraintId,
-	dgContactConstraintId,
-	dgUpVectorConstraintId,
-	dgUniversalConstraintId,
-	dgCorkscrewConstraintId,
-	dgPointToCurveConstraintId,
-
-	dgUnknownConstraintId
-};
 
 typedef void (dgApi *OnConstraintDestroy) (dgConstraint& me);
 
+//DG_MSC_VECTOR_ALIGMENT
 DG_MSC_VECTOR_ALIGMENT
 class dgConstraint
 {
 	public:
 	DG_CLASS_ALLOCATOR(allocator)
 
+	enum dgConstraintID
+	{
+		m_ballConstraint,
+		m_hingeConstraint,
+		m_sliderConstraint,
+		m_contactConstraint,
+		m_upVectorConstraint,
+		m_universalConstraint,
+		m_corkScrewConstraint,
+		m_unknownConstraint
+	};
+
+
 	dgUnsigned32 GetId () const;
 	dgBody* GetBody0 ()	const;
 	dgBody* GetBody1 ()	const;
+
+	void SetBodies (dgBody* const body0, dgBody* const body1);
+
 	dgBodyMasterListRow::dgListNode* GetLink0()	const;
 	dgBodyMasterListRow::dgListNode* GetLink1()	const;
 	void* GetUserData () const;
@@ -198,10 +199,9 @@ class dgConstraint
 	
 
 	virtual dgUnsigned32 JacobianDerivative (dgContraintDescritor& params) = 0; 
-	virtual void JointAccelerations(const dgJointAccelerationDecriptor& params) = 0; 
-	virtual void JointAccelerationsSimd(const dgJointAccelerationDecriptor& params) = 0;  
 
-	virtual void JointVelocityCorrection(const dgJointAccelerationDecriptor& params) = 0; 
+	virtual void JointAccelerations(dgJointAccelerationDecriptor* const params) = 0; 
+	virtual void JointVelocityCorrection(dgJointAccelerationDecriptor* const params) = 0; 
 
 	void SetUpdateFeedbackFunction (ConstraintsForceFeeback function);
 	void InitPointParam (dgPointParam& param, dgFloat32 stiffness, const dgVector& p0Global, const dgVector& p1Global) const;
@@ -216,12 +216,13 @@ class dgConstraint
 	dgBodyMasterListRow::dgListNode* m_link1;
 	ConstraintsForceFeeback m_updaFeedbackCallback;
 	dgUnsigned32 m_dynamicsLru;
-
-	dgUnsigned32 m_index			: 16;
+	dgUnsigned32 m_index;
+	
 	dgUnsigned32 m_maxDOF			:  6;
 	dgUnsigned32 m_constId			:  6;		
 	dgUnsigned32 m_enableCollision	:  1;
-	dgUnsigned32 m_isUnilateral		:  1;
+	dgUnsigned32 m_useExactSolver	:  1;
+	dgUnsigned32 m_active			:  1;
 
 	friend class dgWorld;
 	friend class dgJacobianMemory;
@@ -231,24 +232,24 @@ class dgConstraint
 	friend class dgParallelSolverInitFeedbackUpdate;
 	friend class dgParallelSolverBuildJacobianMatrix;
 	friend class dgBroadPhaseMaterialCallbackWorkerThread;
-}DG_GCC_VECTOR_ALIGMENT;
+} DG_GCC_VECTOR_ALIGMENT;
 
 inline dgConstraint::dgConstraint() 
+	:m_userData(NULL)
+	,m_body0(NULL)
+	,m_body1(NULL)
+	,m_link0(NULL)
+	,m_link1(NULL)
+	,m_updaFeedbackCallback(NULL)
+	,m_dynamicsLru(0)
+	,m_index(0)
+	,m_maxDOF(6)
+	,m_constId(m_unknownConstraint)
+	,m_enableCollision(false)
+	,m_useExactSolver(false)
+	,m_active(false)
 {
-	_ASSERTE ((((dgUnsigned64) this) & 15) == 0);
-
-	m_link0 = NULL;
-	m_link1 = NULL;
-	m_body0 = NULL;
-	m_body1 = NULL;
-	m_userData = NULL;
-
-	m_maxDOF = 6;
-	m_dynamicsLru = 0;
-	m_isUnilateral = false;
-	m_enableCollision = false;
-	m_constId = dgUnknownConstraintId;
-	m_updaFeedbackCallback = NULL;
+	dgAssert ((((dgUnsigned64) this) & 15) == 0);
 }
 
 inline dgConstraint::~dgConstraint()
@@ -285,6 +286,13 @@ inline dgBody* dgConstraint::GetBody1 () const
 	return m_body1;
 }
 
+inline void dgConstraint::SetBodies (dgBody* const body0, dgBody* const body1)
+{
+	m_body0 = body0;
+	m_body1 = body1;
+}
+
+
 inline dgBodyMasterListRow::dgListNode* dgConstraint::GetLink0()	const
 {
 	return m_link0;
@@ -309,5 +317,6 @@ inline dgInt32 dgConstraint::GetMaxDOF() const
 	return dgInt32 (m_maxDOF);
 }
 
-#endif // !defined(AFX_DGCONSTRAINT_H__F9EC24E0_6E0F_4CD5_909E_A5F5E1AC7C0B__INCLUDED_)
+
+#endif // !defined(AFX_DGCONSTRAINT_H__F9EC24E0_6E0F_4CD5_909E_A5F5E1AC7C0B_H)
 

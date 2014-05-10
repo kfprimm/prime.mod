@@ -35,11 +35,11 @@
 template<class dgNodeData, class dgEdgeData> class dgGraphEdge;
 template<class dgNodeData, class dgEdgeData> class dgGraphNode;
 
+
 template<class dgNodeData, class dgEdgeData>
 class dgGraph: public dgList<dgGraphNode<dgNodeData, dgEdgeData> >
 {
 	public:
-//	dgGraph ();
 	dgGraph (dgMemoryAllocator* const allocator);
 	~dgGraph ();
 
@@ -47,11 +47,7 @@ class dgGraph: public dgList<dgGraphNode<dgNodeData, dgEdgeData> >
 	typename dgGraph<dgNodeData, dgEdgeData>::dgListNode* AddNode ();
 	void DeleteNode (typename dgGraph<dgNodeData, dgEdgeData>::dgListNode* const node);
 
-	void Trace () const;
-
-	#ifdef _DEBUG
-	dgInt32 m_counter;
-	#endif
+	//void Trace () const;
 };
 
 template<class dgNodeData, class dgEdgeData> 
@@ -65,11 +61,7 @@ class dgGraphNode: public dgList<dgGraphEdge<dgNodeData, dgEdgeData> >
 	void DeleteHalfEdge(typename dgGraphNode<dgNodeData, dgEdgeData>::dgListNode* const edge);
 	void DeleteEdge(typename dgGraphNode<dgNodeData, dgEdgeData>::dgListNode* const edge);
 
-	void Trace () const;
-
-#ifdef _DEBUG
-	dgInt32 m_index;
-#endif
+	//void Trace () const;
 
 	dgNodeData m_nodeData;
 };
@@ -86,24 +78,11 @@ class dgGraphEdge
 };
 
 
-/*
-template<class dgNodeData, class dgEdgeData>
-dgGraph<dgNodeData, dgEdgeData>::dgGraph () 
-	:dgList<dgGraphNode<dgNodeData, dgEdgeData> >()
-{
-#ifdef _DEBUG
-	m_counter = 0;
-#endif
-}
-*/
 
 template<class dgNodeData, class dgEdgeData>
 dgGraph<dgNodeData, dgEdgeData>::dgGraph (dgMemoryAllocator* const allocator) 
 	:dgList<dgGraphNode<dgNodeData, dgEdgeData> >(allocator)
 {
-#ifdef _DEBUG
-	m_counter = 0;
-#endif
 }
 
 
@@ -118,10 +97,6 @@ typename dgGraph<dgNodeData, dgEdgeData>::dgListNode* dgGraph<dgNodeData, dgEdge
 	typename dgGraph<dgNodeData, dgEdgeData>::dgListNode* const node = dgGraph<dgNodeData, dgEdgeData>::Append();
 
 	node->GetInfo().SetAllocator(dgGraph<dgNodeData, dgEdgeData>::GetAllocator());
-#ifdef _DEBUG
-	node->GetInfo().m_index = m_counter;
-	m_counter ++;
-#endif
 
 	return node;
 }
@@ -138,25 +113,26 @@ void dgGraph<dgNodeData, dgEdgeData>::DeleteNode (typename dgGraph<dgNodeData, d
 			}
 		}
 	}
-	Remove (node);
+	dgList<dgGraphNode<dgNodeData, dgEdgeData> >::Remove (node);
 }
 
+/*
 template<class dgNodeData, class dgEdgeData>
 void dgGraph<dgNodeData, dgEdgeData>::Trace () const
 {
 	for (typename dgGraphNode<dgNodeData, dgEdgeData>::dgListNode* link = dgGraphNode<dgNodeData, dgEdgeData>::GetFirst(); link; link = link->GetNext()) {	
 		link->GetInfo().Trace ();
-//		dgTrace (("%d: ", link->GetInfo().m_index));
-//		for (dgGraphNode<dgNodeData, dgEdgeData>::dgListNode* edge = link->GetInfo().GetFirst(); edge; edge = edge->GetNext()) {	
-//			dgListNode* node;
-//			node = edge->GetInfo().m_node;
-//			dgTrace (("%d ", node->GetInfo().m_index));
-//		}
-//		dgTrace (("\n"));
+		dgTrace (("%d: ", link->GetInfo().m_index));
+		for (dgGraphNode<dgNodeData, dgEdgeData>::dgListNode* edge = link->GetInfo().GetFirst(); edge; edge = edge->GetNext()) {	
+			dgListNode* node;
+			node = edge->GetInfo().m_node;
+			dgTrace (("%d ", node->GetInfo().m_index));
+		}
+		dgTrace (("\n"));
 	}
 	dgTrace (("\n"));
 }
-
+*/
 
 template<class dgNodeData, class dgEdgeData> 
 dgGraphNode<dgNodeData, dgEdgeData>::dgGraphNode() 
@@ -184,7 +160,7 @@ typename dgGraphNode<dgNodeData, dgEdgeData>::dgListNode* dgGraphNode<dgNodeData
 template<class dgNodeData, class dgEdgeData> 
 void dgGraphNode<dgNodeData, dgEdgeData>::DeleteHalfEdge(typename dgGraphNode<dgNodeData, dgEdgeData>::dgListNode* const edge)
 {
-	Remove (edge);
+	dgList<dgGraphEdge<dgNodeData, dgEdgeData> >::Remove (edge);
 }
 
 template<class dgNodeData, class dgEdgeData> 
@@ -202,6 +178,7 @@ void dgGraphNode<dgNodeData, dgEdgeData>::DeleteEdge(typename dgGraphNode<dgNode
 	DeleteHalfEdge(edge);
 }	
 
+/*
 template<class dgNodeData, class dgEdgeData> 
 void dgGraphNode<dgNodeData, dgEdgeData>::Trace () const
 {
@@ -214,7 +191,7 @@ void dgGraphNode<dgNodeData, dgEdgeData>::Trace () const
 	dgTrace (("\n"));
 
 }
-
+*/
 
 template<class dgNodeData, class dgEdgeData> 
 dgGraphEdge<dgNodeData, dgEdgeData>::dgGraphEdge() 

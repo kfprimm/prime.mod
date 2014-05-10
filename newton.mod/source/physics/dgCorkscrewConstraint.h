@@ -19,8 +19,8 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DGCORKSCREWCONSTRAINT_H__GRT672DF293FR__INCLUDED_)
-#define AFX_DGCORKSCREWCONSTRAINT_H__GRT672DF293FR__INCLUDED_
+#if !defined(AFX_DGCORKSCREWCONSTRAINT_H__GRT672DF293FR_H)
+#define AFX_DGCORKSCREWCONSTRAINT_H__GRT672DF293FR_H
 #include "dgBilateralConstraint.h"
 
 //template<class T> class dgPool;
@@ -28,7 +28,7 @@
 class dgCorkscrewConstraint;
 
 
-typedef dgUnsigned32 (dgApi *dgCorkscrewJointAcceleration) (const dgCorkscrewConstraint& hinge, dgJointCallBackParam* param);
+typedef dgUnsigned32 (dgApi *dgCorkscrewJointAcceleration) (const dgCorkscrewConstraint& hinge, dgJointCallbackParam* param);
 
 class dgCorkscrewConstraint: public dgBilateralConstraint
 {
@@ -39,9 +39,9 @@ class dgCorkscrewConstraint: public dgBilateralConstraint
 	dgFloat32 GetJointVeloc () const;
 
 	dgVector GetJointForce () const;
-	dgFloat32 CalculateStopAlpha (dgFloat32 angle, const dgJointCallBackParam* param) const;
-	dgFloat32 CalculateStopAccel (dgFloat32 distance, const dgJointCallBackParam* param) const;
-	void SetJointParameterCallBack (dgCorkscrewJointAcceleration callback);
+	dgFloat32 CalculateStopAlpha (dgFloat32 angle, const dgJointCallbackParam* param) const;
+	dgFloat32 CalculateStopAccel (dgFloat32 distance, const dgJointCallbackParam* param) const;
+	void SetJointParameterCallback (dgCorkscrewJointAcceleration callback);
 
 	
 	private:
@@ -71,5 +71,5 @@ class dgCorkscrewConstraint: public dgBilateralConstraint
 //{
 //};
 
-#endif // !defined(AFX_DGCORKSCREWCONSTRAINT_H__GRT672DF293FR__INCLUDED_)
+#endif // !defined(AFX_DGCORKSCREWCONSTRAINT_H__GRT672DF293FR_H)
 

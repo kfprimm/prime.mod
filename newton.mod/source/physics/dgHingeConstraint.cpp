@@ -32,12 +32,12 @@
 dgHingeConstraint::dgHingeConstraint ()
 	:dgBilateralConstraint() 
 {
-	_ASSERTE ((((dgUnsigned64) &m_localMatrix0) & 15) == 0);
+	dgAssert ((((dgUnsigned64) &m_localMatrix0) & 15) == 0);
 //	constraint->Init ();
 
 	m_maxDOF = 6;
 	m_jointAccelFnt = NULL;
-	m_constId = dgHingeConstraintId;
+	m_constId = m_hingeConstraint;
 	m_angle = dgFloat32 (dgFloat32 (0.0f));
 }
 
@@ -54,7 +54,7 @@ dgHingeConstraint* dgHingeConstraint::Create(dgWorld* world)
 	dgHingeConstraintArray& array = *world;
 	constraint = array.GetElement();
 
-	_ASSERTE ((((dgUnsigned64) &constraint->m_localMatrix0) & 15) == 0);
+	dgAssert ((((dgUnsigned64) &constraint->m_localMatrix0) & 15) == 0);
 	constraint->Init ();
 	constraint->m_maxDOF = 6;
 	constraint->m_constId = dgHingeConstraintId;
@@ -73,7 +73,7 @@ void dgHingeConstraint::Remove(dgWorld* world)
 }
 */
 
-void dgHingeConstraint::SetJointParameterCallBack (dgHingeJointAcceleration callback)
+void dgHingeConstraint::SetJointParameterCallback (dgHingeJointAcceleration callback)
 {
 	m_jointAccelFnt = callback;
 }
@@ -85,8 +85,8 @@ dgFloat32 dgHingeConstraint::GetJointAngle () const
 
 dgFloat32 dgHingeConstraint::GetJointOmega () const
 {
-	_ASSERTE (m_body0);
-	_ASSERTE (m_body1);
+	dgAssert (m_body0);
+	dgAssert (m_body1);
 	dgVector dir (m_body0->GetMatrix().RotateVector (m_localMatrix0[0]));
 	const dgVector& omega0 = m_body0->GetOmega();
 	const dgVector& omega1 = m_body1->GetOmega();
@@ -94,7 +94,7 @@ dgFloat32 dgHingeConstraint::GetJointOmega () const
 }
 
 
-dgFloat32 dgHingeConstraint::CalculateStopAlpha (dgFloat32 angle, const dgJointCallBackParam* param) const
+dgFloat32 dgHingeConstraint::CalculateStopAlpha (dgFloat32 angle, const dgJointCallbackParam* param) const
 {
 	dgFloat32 alpha;
 	dgFloat32 omega;
@@ -127,11 +127,11 @@ dgVector dgHingeConstraint::GetJointForce () const
 	dgMatrix matrix1;
 
 	CalculateGlobalMatrixAndAngle (matrix0, matrix1);
-	return dgVector (matrix0.m_front.Scale (m_jointForce[0]) + 
-		             matrix0.m_up.Scale (m_jointForce[1]) + 
-					 matrix0.m_right.Scale (m_jointForce[2]) +
-					 matrix0.m_up.Scale (m_jointForce[3]) +
-					 matrix0.m_right.Scale (m_jointForce[4]));
+	return dgVector (matrix0.m_front.Scale3 (m_jointForce[0].m_force) + 
+		             matrix0.m_up.Scale3 (m_jointForce[1].m_force) + 
+					 matrix0.m_right.Scale3 (m_jointForce[2].m_force) +
+					 matrix0.m_up.Scale3 (m_jointForce[3].m_force) +
+					 matrix0.m_right.Scale3 (m_jointForce[4].m_force));
 }
 
 
@@ -143,9 +143,9 @@ dgUnsigned32 dgHingeConstraint::JacobianDerivative (dgContraintDescritor& params
 
 	m_angle = -angle.m_x;
 
-	_ASSERTE (dgAbsf (1.0f - (matrix0.m_front % matrix0.m_front)) < dgFloat32 (1.0e-5f)); 
-	_ASSERTE (dgAbsf (1.0f - (matrix0.m_up % matrix0.m_up)) < dgFloat32 (1.0e-5f)); 
-	_ASSERTE (dgAbsf (1.0f - (matrix0.m_right % matrix0.m_right)) < dgFloat32 (1.0e-5f)); 
+	dgAssert (dgAbsf (1.0f - (matrix0.m_front % matrix0.m_front)) < dgFloat32 (1.0e-5f)); 
+	dgAssert (dgAbsf (1.0f - (matrix0.m_up % matrix0.m_up)) < dgFloat32 (1.0e-5f)); 
+	dgAssert (dgAbsf (1.0f - (matrix0.m_right % matrix0.m_right)) < dgFloat32 (1.0e-5f)); 
 
 	const dgVector& dir0 = matrix0.m_front;
 	const dgVector& dir1 = matrix0.m_up;
@@ -153,10 +153,10 @@ dgUnsigned32 dgHingeConstraint::JacobianDerivative (dgContraintDescritor& params
 
 	const dgVector& p0 = matrix0.m_posit;
 	const dgVector& p1 = matrix1.m_posit;
-	dgVector q0 (p0 + matrix0.m_front.Scale(MIN_JOINT_PIN_LENGTH));
-	dgVector q1 (p1 + matrix1.m_front.Scale(MIN_JOINT_PIN_LENGTH));
+	dgVector q0 (p0 + matrix0.m_front.Scale3(MIN_JOINT_PIN_LENGTH));
+	dgVector q1 (p1 + matrix1.m_front.Scale3(MIN_JOINT_PIN_LENGTH));
 
-//	_ASSERTE (((p1 - p0) % (p1 - p0)) < 1.0e-2f);
+//	dgAssert (((p1 - p0) % (p1 - p0)) < 1.0e-2f);
 
 	dgPointParam pointDataP;
 	dgPointParam pointDataQ;
@@ -171,7 +171,7 @@ dgUnsigned32 dgHingeConstraint::JacobianDerivative (dgContraintDescritor& params
 
 	dgInt32 ret = 5;
 	if (m_jointAccelFnt) {
-		dgJointCallBackParam axisParam;
+		dgJointCallbackParam axisParam;
 		axisParam.m_accel = dgFloat32 (0.0f);
 		axisParam.m_timestep = params.m_timestep;
 		axisParam.m_minFriction = DG_MIN_BOUND;

@@ -32,15 +32,15 @@
 dgUpVectorConstraint::dgUpVectorConstraint ()
 	:dgBilateralConstraint() 
 {
-	_ASSERTE ((sizeof (dgUpVectorConstraint) & 15) == 0);
-	_ASSERTE ((((dgUnsigned64) &m_localMatrix0) & 15) == 0);
+	dgAssert ( dgInt32 (sizeof (dgUpVectorConstraint) & 15) == 0);
+	dgAssert ((((dgUnsigned64) &m_localMatrix0) & 15) == 0);
 
 //	dgUpVectorConstraintArray& array = * world;
 //	constraint = array.GetElement();
 
 	SetStiffness (dgFloat32 (0.995f));
 	m_maxDOF = 2;
-	m_constId = dgUpVectorConstraintId;
+	m_constId = m_upVectorConstraint;
 	m_callBack = NULL;
 }
 
@@ -57,7 +57,7 @@ dgUpVectorConstraint* dgUpVectorConstraint::Create(dgWorld* world)
 	dgUpVectorConstraintArray& array = * world;
 	constraint = array.GetElement();
 
-	_ASSERTE ((((dgUnsigned64) &constraint->m_localMatrix0) & 15) == 0);
+	dgAssert ((((dgUnsigned64) &constraint->m_localMatrix0) & 15) == 0);
 
 	constraint->Init ();
 
@@ -104,7 +104,7 @@ dgVector dgUpVectorConstraint::GetPinDir () const
 }
 
 
-void dgUpVectorConstraint::SetJointParameterCallBack (dgUpVectorJointCallBack callback)
+void dgUpVectorConstraint::SetJointParameterCallback (dgUpVectorJointCallback callback)
 {
 	m_callBack = callback;
 }
@@ -112,22 +112,18 @@ void dgUpVectorConstraint::SetJointParameterCallBack (dgUpVectorJointCallBack ca
 
 dgUnsigned32 dgUpVectorConstraint::JacobianDerivative (dgContraintDescritor& params)
 {
-	dgInt32 ret;
-	dgFloat32 mag; 
-	dgFloat32 angle; 
 	dgMatrix matrix0;
 	dgMatrix matrix1;
-
 	CalculateGlobalMatrixAndAngle (matrix0, matrix1);
 
 	dgVector lateralDir (matrix0.m_front * matrix1.m_front);
 
-	ret = 0;
-	mag = lateralDir % lateralDir;
-	if (mag > 1.0e-6f) {
+	dgInt32 ret = 0;
+	dgFloat32 mag = lateralDir % lateralDir;
+	if (mag > dgFloat32 (1.0e-6f)) {
 		mag = dgSqrt (mag);
-		lateralDir = lateralDir.Scale (dgFloat32 (1.0f) / mag);
-		angle = dgAsin (mag);
+		lateralDir = lateralDir.Scale3 (dgFloat32 (1.0f) / mag);
+		dgFloat32 angle = dgAsin (mag);
 		CalculateAngularDerivative (0, params, lateralDir, m_stiffness, angle, &m_jointForce[0]);
 
 		dgVector frontDir (lateralDir * matrix1.m_front);

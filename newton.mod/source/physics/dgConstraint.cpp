@@ -29,16 +29,6 @@
 //////////////////////////////////////////////////////////////////////
 
 
-//#define LINEAR_VEL_DAMP	dgFloat32 (100.0f)
-//#define LINEAR_POS_DAMP	dgFloat32 (1500.0f)
-//#define ANGULAR_VEL_DAMP dgFloat32 (100.0f)
-//#define ANGULAR_POS_DAMP dgFloat32 (1500.0f)
-
-//#define DG_VEL_DAMP				dgFloat32(100.0f)
-//#define DG_POS_DAMP				dgFloat32(1500.0f)
-
-
-
 void* dgConstraint::GetUserData () const
 {
 	return m_userData;
@@ -57,8 +47,8 @@ bool dgConstraint::IsBilateral () const
 
 void dgConstraint::InitPointParam (dgPointParam& param, dgFloat32 stiffness, const dgVector& p0Global, const dgVector& p1Global) const
 {
-	_ASSERTE (m_body0);
-	_ASSERTE (m_body1);
+	dgAssert (m_body0);
+	dgAssert (m_body1);
 	param.m_stiffness = stiffness; 
 
 	param.m_r0 = p0Global - m_body0->m_globalCentreOfMass;
@@ -79,9 +69,8 @@ void dgConstraint::InitPointParam (dgPointParam& param, dgFloat32 stiffness, con
 
 void dgConstraint::InitInfo (dgConstraintInfo* const info) const
 {
-
 	info->m_attachBody_0 = GetBody0();
-	_ASSERTE (info->m_attachBody_0);
+	dgAssert (info->m_attachBody_0);
 	dgWorld* const world = info->m_attachBody_0->GetWorld();
 	if (info->m_attachBody_0  == world->GetSentinelBody()) {
 		info->m_attachBody_0  = NULL;
@@ -96,10 +85,11 @@ void dgConstraint::InitInfo (dgConstraintInfo* const info) const
 	info->m_attachMatrix_1 = dgGetIdentityMatrix();
 	
 	info->m_discriptionType[0] = 0;
+
 }
 
 
 void dgConstraint::GetInfo (dgConstraintInfo* const info) const
 {
-	_ASSERTE (0);
+	dgAssert (0);
 }

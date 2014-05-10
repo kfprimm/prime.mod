@@ -27,18 +27,15 @@ class dgPolyhedraMassProperties
 	public:
 	dgPolyhedraMassProperties();
 
-	void AddCGFace (dgInt32 indexCount, const dgVector* faceVertex);
-	void AddInertiaFace (dgInt32 indexCount, const dgFloat32* faceVertex);
-	void AddInertiaAndCrossFace (dgInt32 indexCount, const dgFloat32* faceVertex);
+	void AddCGFace (dgInt32 indexCount, const dgVector* const faceVertex);
+	void AddInertiaFace (dgInt32 indexCount, const dgFloat32* const faceVertex);
+	void AddInertiaAndCrossFace (dgInt32 indexCount, const dgFloat32* const faceVertex);
 	
 	dgFloat32 MassProperties (dgVector& cg, dgVector& inertia, dgVector& crossInertia);
 
 	private:
-	
-
 	dgFloat32 intg[10];
-	static dgFloat32 mult[10];
-
+	dgFloat32 mult[10];
 };
 
 #endif

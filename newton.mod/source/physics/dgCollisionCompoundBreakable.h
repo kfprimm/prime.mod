@@ -19,11 +19,12 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#ifndef AFX_DGCOLLISIONCOMPOUND_BREAKABLE_H__INCLUDED_
-#define AFX_DGCOLLISIONCOMPOUND_BREAKABLE_H__INCLUDED_
+#ifndef AFX_DGCOLLISIONCOMPOUND_BREAKABLE_H_H
+#define AFX_DGCOLLISIONCOMPOUND_BREAKABLE_H_H
 
 #include "dgCollisionCompound.h"
 
+#if 0
 class dgMeshEffect;
 
 class dgCollisionCompoundBreakable: public dgCollisionCompound
@@ -168,15 +169,12 @@ class dgCollisionCompoundBreakable: public dgCollisionCompound
 
 		protected:
 		virtual dgFloat32 GetVolume () const;
-		virtual bool OOBBTest (const dgMatrix& matrix, const dgCollisionConvex* const shape, void* const cacheOrder) const;
 		virtual dgVector SupportVertex (const dgVector& dir) const;
-		virtual dgVector SupportVertexSimd (const dgVector& dir) const;
-		virtual void CalcAABB (const dgMatrix &matrix, dgVector& p0, dgVector& p1) const;
-		virtual void CalcAABBSimd (const dgMatrix &matrix, dgVector &p0, dgVector &p1) const;
-		virtual void DebugCollision (const dgMatrix& matrix, OnDebugCollisionMeshCallback callback, void* const userData) const;
-		virtual dgFloat32 RayCast (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const;
-		virtual dgFloat32 RayCastSimd (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const;
-		virtual dgVector CalculateVolumeIntegral (const dgMatrix& globalMatrix, GetBuoyancyPlane bouyancyPlane, void* const context) const;
+
+		virtual void CalcAABB (const dgMatrix& matrix, dgVector& p0, dgVector& p1) const;
+		virtual void DebugCollision  (const dgMatrix& matrix, OnDebugCollisionMeshCallback callback, void* const userData) const;
+		virtual dgFloat32 RayCast (const dgVector& localP0, const dgVector& localP1, dgFloat32 maxT, dgContactPoint& contactOut, const dgBody* const body, void* const userData) const;
+		virtual dgVector CalculateVolumeIntegral (const dgMatrix& globalMatrix, const dgVector& plane) const;
 
 		private:
 		virtual dgInt32 CalculateSignature () const;
@@ -184,8 +182,8 @@ class dgCollisionCompoundBreakable: public dgCollisionCompound
 		virtual dgFloat32 GetBoxMinRadius () const;
 		virtual dgFloat32 GetBoxMaxRadius () const;
 		virtual dgInt32 CalculatePlaneIntersection (const dgVector& normal, const dgVector& point, dgVector* const contactsOut)  const;
-		virtual dgInt32 CalculatePlaneIntersectionSimd (const dgVector& normal, const dgVector& point, dgVector* const contactsOut) const;
-		virtual void GetCollisionInfo(dgCollisionInfo* info) const;
+
+		virtual void GetCollisionInfo(dgCollisionInfo* const info) const;
 		virtual void Serialize(dgSerialize callback, void* const userData) const;
 
 		virtual void SetBreakImpulse(dgFloat32 force);
@@ -266,7 +264,7 @@ class dgCollisionCompoundBreakable: public dgCollisionCompound
 
 	void LinkNodes ();	
 
-	virtual void GetCollisionInfo(dgCollisionInfo* info) const;
+	virtual void GetCollisionInfo(dgCollisionInfo* const info) const;
 	virtual void Serialize(dgSerialize callback, void* const userData) const;
 	
 	dgInt32 m_lru;
@@ -279,5 +277,5 @@ class dgCollisionCompoundBreakable: public dgCollisionCompound
 	dgIsland m_detachedIslands;
 	
 };
-
+#endif
 #endif

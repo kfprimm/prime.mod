@@ -19,8 +19,8 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DGCOLLISIONCYLINDER_H__AS235640FER__INCLUDED_)
-#define AFX_DGCOLLISIONCYLINDER_H__AS235640FER__INCLUDED_
+#ifndef _DGCOLLISION_CYLINDER_H__
+#define _DGCOLLISION_CYLINDER_H__
 
 #include "dgCollisionConvex.h"
 
@@ -30,38 +30,44 @@
 class dgCollisionCylinder: public dgCollisionConvex  
 {
 	public:
-	dgCollisionCylinder(dgMemoryAllocator* const allocator, dgUnsigned32 signature, dgFloat32 radius, dgFloat32 height, const dgMatrix& matrix);
+	dgCollisionCylinder(dgMemoryAllocator* const allocator, dgUnsigned32 signature, dgFloat32 radius, dgFloat32 height);
 	dgCollisionCylinder(dgWorld* const world, dgDeserialize deserialization, void* const userData);
 	virtual ~dgCollisionCylinder();
 
 
 	private:
 	void Init (dgFloat32 radius, dgFloat32 height);
-//	dgVector ImplicitCylindexSupport (const dgVector& dir) const;
-	virtual dgFloat32 RayCast (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const;
-	virtual dgFloat32 RayCastSimd (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const;
+	virtual dgFloat32 RayCast (const dgVector& localP0, const dgVector& localP1, dgFloat32 maxT, dgContactPoint& contactOut, const dgBody* const body, void* const userData) const;
 
-	virtual dgVector SupportVertex (const dgVector& dir) const;
-	virtual dgVector SupportVertexSimd (const dgVector& dir) const;
+	virtual dgVector SupportVertex (const dgVector& dir, dgInt32* const vertexIndex) const;
 
-	virtual dgFloat32 CalculateMassProperties (dgVector& inertia, dgVector& crossInertia, dgVector& centerOfMass) const;
+	virtual void MassProperties ();
 	virtual void DebugCollision (const dgMatrix& matrix, OnDebugCollisionMeshCallback callback, void* const userData) const;
 	
 	virtual dgInt32 CalculatePlaneIntersection (const dgVector& normal, const dgVector& point, dgVector* const contactsOut) const;
-	virtual dgInt32 CalculatePlaneIntersectionSimd (const dgVector& normal, const dgVector& point, dgVector* const contactsOut) const;
 	
 	virtual dgInt32 CalculateSignature () const;
 	virtual void SetCollisionBBox (const dgVector& p0, const dgVector& p1);
 
-	virtual void GetCollisionInfo(dgCollisionInfo* info) const;
+	virtual dgFloat32 GetSkinThickness () const; 
+
+	virtual void GetCollisionInfo(dgCollisionInfo* const info) const;
 	virtual void Serialize(dgSerialize callback, void* const userData) const;
 
-	dgFloat32 m_height[2];
+	static dgInt32 CalculateSignature (dgFloat32 radius, dgFloat32 height);
+
+
+	// special feature based contact calculation for conics convex (ex spheres, capsules, tapered capsules, and chamfered cylinders)
+	// in newton we only deal with sub set of conic function, that can be expressed by the equation
+	// ((x - x0) / a)^2 + ((y - y0) / b)^2 + ((z - z0) / c)^2  = 1   and possible a linear or circular sweep of the same equation
+	// this preclude parabolic and hyperbolic conics 
+	virtual dgVector ConvexConicSupporVertex (const dgVector& dir) const;
+	virtual dgVector ConvexConicSupporVertex (const dgVector& point, const dgVector& dir) const;
+	virtual dgInt32 CalculateContacts (const dgVector& point, const dgVector& normal, dgCollisionParamProxy& proxy, dgVector* const contactsOut) const;
+
+
+	dgFloat32 m_height;
 	dgFloat32 m_radius;
-//	dgFloat32 m_delCosTetha;
-//	dgFloat32 m_delSinTetha;
-//	dgFloat32 m_tethaStep;
-//	dgFloat32 m_tethaStepInv;
 
 	dgVector m_vertex[DG_CYLINDER_SEGMENTS * 2];
 	static dgInt32 m_shapeRefCount;

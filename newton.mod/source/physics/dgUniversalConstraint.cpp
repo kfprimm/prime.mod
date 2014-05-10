@@ -33,9 +33,9 @@
 dgUniversalConstraint::dgUniversalConstraint ()
 	:dgBilateralConstraint() 
 {
-	_ASSERTE ((((dgUnsigned64) &m_localMatrix0) & 15) == 0);
+	dgAssert ((((dgUnsigned64) &m_localMatrix0) & 15) == 0);
 	m_maxDOF = 6;
-	m_constId = dgUniversalConstraintId;
+	m_constId = m_universalConstraint;
 
 	m_angle0 = dgFloat32 (0.0f);
 	m_angle1 = dgFloat32 (0.0f);
@@ -56,7 +56,7 @@ dgUniversalConstraint* dgUniversalConstraint::Create(dgWorld* world)
 	dgUniversalConstraintArray& array = * world;
 	constraint = array.GetElement();
 
-	_ASSERTE ((((dgUnsigned64) &constraint->m_localMatrix0) & 15) == 0);
+	dgAssert ((((dgUnsigned64) &constraint->m_localMatrix0) & 15) == 0);
 	constraint->Init ();
 	constraint->m_maxDOF = 6;
 	constraint->m_constId = dgUniversalConstraintId;
@@ -77,7 +77,7 @@ void dgUniversalConstraint::Remove(dgWorld* world)
 }
 */
 
-void dgUniversalConstraint::SetJointParameterCallBack (dgUniversalJointAcceleration callback)
+void dgUniversalConstraint::SetJointParameterCallback (dgUniversalJointAcceleration callback)
 {
 	m_jointAccelFnt = callback;
 }
@@ -96,8 +96,8 @@ dgFloat32 dgUniversalConstraint::GetJointAngle1 () const
 
 dgFloat32 dgUniversalConstraint::GetJointOmega0 () const
 {
-	_ASSERTE (m_body0);
-	_ASSERTE (m_body1);
+	dgAssert (m_body0);
+	dgAssert (m_body1);
 
 	dgVector dir (m_body0->GetMatrix().RotateVector (m_localMatrix0[0]));
 	const dgVector& omega0 = m_body0->GetOmega();
@@ -113,8 +113,8 @@ dgFloat32 dgUniversalConstraint::GetJointOmega0 () const
 
 dgFloat32 dgUniversalConstraint::GetJointOmega1 () const
 {
-	_ASSERTE (m_body0);
-	_ASSERTE (m_body1);
+	dgAssert (m_body0);
+	dgAssert (m_body1);
 
 	dgVector dir (m_body1->GetMatrix().RotateVector (m_localMatrix1[1]));
 	const dgVector& omega0 = m_body0->GetOmega();
@@ -131,7 +131,7 @@ dgFloat32 dgUniversalConstraint::GetJointOmega1 () const
 }
 
 
-dgFloat32 dgUniversalConstraint::CalculateStopAlpha0 (dgFloat32 angle, const dgJointCallBackParam* param) const
+dgFloat32 dgUniversalConstraint::CalculateStopAlpha0 (dgFloat32 angle, const dgJointCallbackParam* param) const
 {
 	dgFloat32 alpha;
 	dgFloat32 omega;
@@ -159,7 +159,7 @@ dgFloat32 dgUniversalConstraint::CalculateStopAlpha0 (dgFloat32 angle, const dgJ
 
 }
 
-dgFloat32 dgUniversalConstraint::CalculateStopAlpha1 (dgFloat32 angle, const dgJointCallBackParam* param) const
+dgFloat32 dgUniversalConstraint::CalculateStopAlpha1 (dgFloat32 angle, const dgJointCallbackParam* param) const
 {
 	dgFloat32 alpha;
 	dgFloat32 omega;
@@ -195,10 +195,10 @@ dgVector dgUniversalConstraint::GetJointForce () const
 
 	CalculateGlobalMatrixAndAngle (matrix0, matrix1);
 
-	return dgVector (matrix0.m_up.Scale (m_jointForce[0]) + 
-		             matrix0.m_right.Scale (m_jointForce[1]) + 
-					 matrix0.m_up.Scale (m_jointForce[2]) +
-					 matrix0.m_right.Scale (m_jointForce[3]));
+	return dgVector (matrix0.m_up.Scale3 (m_jointForce[0].m_force) + 
+		             matrix0.m_right.Scale3 (m_jointForce[1].m_force) + 
+					 matrix0.m_up.Scale3 (m_jointForce[2].m_force) +
+					 matrix0.m_right.Scale3 (m_jointForce[3].m_force));
 }
 
 dgUnsigned32 dgUniversalConstraint::JacobianDerivative (dgContraintDescritor& params)
@@ -216,13 +216,13 @@ dgUnsigned32 dgUniversalConstraint::JacobianDerivative (dgContraintDescritor& pa
 	dgVector dir2 (dir0 * dir1);
 
 	dgVector dir3 (dir2 * dir0);
-	dir3 = dir3.Scale (dgRsqrt (dir3 % dir3));
+	dir3 = dir3.Scale3 (dgRsqrt (dir3 % dir3));
 
 	const dgVector& p0 = matrix0.m_posit;
 	const dgVector& p1 = matrix1.m_posit;
 
-	dgVector q0 (p0 + dir3.Scale(MIN_JOINT_PIN_LENGTH));
-	dgVector q1 (p1 + dir1.Scale(MIN_JOINT_PIN_LENGTH));
+	dgVector q0 (p0 + dir3.Scale3(MIN_JOINT_PIN_LENGTH));
+	dgVector q1 (p1 + dir1.Scale3(MIN_JOINT_PIN_LENGTH));
 
 	dgPointParam pointDataP;
 	dgPointParam pointDataQ;
@@ -244,7 +244,7 @@ dgUnsigned32 dgUniversalConstraint::JacobianDerivative (dgContraintDescritor& pa
 
 	sinAngle = (matrix1.m_up * matrix0.m_up) % matrix0.m_front;
 	cosAngle = matrix0.m_up % matrix1.m_up;
-//	_ASSERTE (dgAbsf (m_angle0 - dgAtan2 (sinAngle, cosAngle)) < 1.0e-1f);
+//	dgAssert (dgAbsf (m_angle0 - dgAtan2 (sinAngle, cosAngle)) < 1.0e-1f);
 	m_angle0 = dgAtan2 (sinAngle, cosAngle);
 
 //	dgVector sinAngle1 (matrix0.m_front * matrix1.m_front);
@@ -255,12 +255,12 @@ dgUnsigned32 dgUniversalConstraint::JacobianDerivative (dgContraintDescritor& pa
 
 	sinAngle = (matrix0.m_front * matrix1.m_front) % matrix1.m_up;
 	cosAngle = matrix0.m_front % matrix1.m_front;
-//	_ASSERTE (dgAbsf (m_angle1 - dgAtan2 (sinAngle, cosAngle)) < 1.0e-1f);
+//	dgAssert (dgAbsf (m_angle1 - dgAtan2 (sinAngle, cosAngle)) < 1.0e-1f);
 	m_angle1 = dgAtan2 (sinAngle, cosAngle);
 
 	if (m_jointAccelFnt) {
 		dgUnsigned32 code;
-		dgJointCallBackParam axisParam[2];
+		dgJointCallbackParam axisParam[2];
 
 		// linear acceleration
 		axisParam[0].m_accel = dgFloat32 (0.0f);

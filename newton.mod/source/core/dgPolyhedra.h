@@ -33,29 +33,13 @@
 
 class dgEdge;
 class dgPlane;
-class dgSphere;
+class dgObb;
 class dgMatrix;
 class dgPolyhedra;
-
+class dgVertexCollapseVertexMetric;
 
 typedef dgInt64 dgEdgeKey;
 
-/*
-class dgPolyhedraDescriptor
-{
-	public:
-
-	 dgPolyhedraDescriptor (const dgPolyhedra& polyhedra);
-	 ~dgPolyhedraDescriptor ();
-	 void Update (const dgPolyhedra& polyhedra);
-
-	dgInt32 m_faceCount;							 // total face count including openfaces
-	dgInt32 m_edgeCount;							 // total edge count count including openfaces
-	dgInt32 m_vertexCount;						 // total vertex count including openfaces
-	dgInt32 m_maxVertexIndex;
-	dgList<dgEdge*> m_unboundedLoops;
-};
-*/
 
 DG_MSC_VECTOR_ALIGMENT
 class dgEdge
@@ -115,92 +99,26 @@ class dgPolyhedra: public dgTree <dgEdge, dgEdgeKey>
 	dgEdge* AddHalfEdge (dgInt32 v0, dgInt32 v1);
 	void DeleteEdge (dgEdge* const edge);
 	void DeleteEdge (dgInt32 v0, dgInt32 v1);
+
+	dgEdge* ConnectVertex (dgEdge* const e0, dgEdge* const e1);
 	
 	bool FlipEdge (dgEdge* const edge);
 	dgEdge* SpliteEdge (dgInt32 newIndex, dgEdge* const edge);
-	dgBigVector FaceNormal (dgEdge* const face, const dgFloat64* const vertex, dgInt32 strideInBytes) const;
+	dgBigVector FaceNormal (const dgEdge* const face, const dgFloat64* const vertex, dgInt32 strideInBytes) const;
 
 	void BeginConectedSurface() const;
 	bool GetConectedSurface (dgPolyhedra &polyhedra) const;
 	void EndConectedSurface() const;
 
-	dgSphere CalculateSphere (const dgFloat64* const vertex, dgInt32 strideInBytes, const dgMatrix* const basis = NULL) const;
+	dgObb CalculateSphere (const dgFloat64* const vertex, dgInt32 strideInBytes, const dgMatrix* const basis = NULL) const;
 	void ChangeEdgeIncidentVertex (dgEdge* const edge, dgInt32 newIndex);	
 	void DeleteDegenerateFaces (const dgFloat64* const pool, dgInt32 dstStrideInBytes, dgFloat64 minArea);
 
-	void Optimize (const dgFloat64* const pool, dgInt32 strideInBytes, dgFloat64 tol);
+	bool Optimize (const dgFloat64* const pool, dgInt32 strideInBytes, dgReportProgress normalizedProgress, dgFloat64 tol, dgInt32 maxFaceCount = 1<<28);
 	void Triangulate (const dgFloat64* const vertex, dgInt32 strideInBytes, dgPolyhedra* const leftOversOut);
 	void ConvexPartition (const dgFloat64* const vertex, dgInt32 strideInBytes, dgPolyhedra* const leftOversOut);
-
-/*
-	bool SanityCheck() const;
-
-
-	// create an edge and add it to the tree. 
-	// the edge is not linked to the existing edge list
-	
-
-	// create a complete edge and add it to the tree
-	//	the new edge is linked to the existing edge list
-//	dgEdge* AddEdge (dgInt32 v0, dgInt32 v1);
-
-	void DeleteEdge (dgInt32 v0, dgInt32 v1);
-	void DeleteEdge (dgEdge* const edge);
-
-	void DeleteAllFace();
-
-	
-
-  	dgInt32 GetMaxIndex() const;
-  	
-	dgInt32 GetUnboundedFaceCount() const;
-	
-	dgBigVector BigFaceNormal (dgEdge* const face, const dgFloat64* const pool, dgInt32 strideInBytes) const;
-
-
-	
-	
-	dgEdge* SpliteEdgeAndTriangulate (dgInt32 newIndex, dgEdge* const edge);
-
-	dgEdge* FindVertexNode (dgInt32 v0) const;
-	
-	dgInt32 PackVertex (dgFloat64* const destArray, const dgFloat64* const unpackArray, dgInt32 strideInBytes);
-	void DeleteOverlapingFaces (const dgFloat64* const pool, dgInt32 strideInBytes, dgFloat64 distTol);
-	void InvertWinding ();
-
-	// find edges edge shared by two or more non adjacent faces
-	// this make impossible to triangulate the polyhedra
-	void GetBadEdges (dgList<dgEdge*>& faceList, const dgFloat64* const pool, dgInt32 strideInBytes) const; 
-
-	
-	void GetCoplanarFaces (dgList<dgEdge*>& faceList, dgEdge* startFace, const dgFloat64* const pool, dgInt32 hisStrideInBytes, dgFloat64 normalDeviation) const;
-	void GetOpenFaces (dgList<dgEdge*>& faceList) const;
-	void CollapseDegenerateFaces (dgPolyhedraDescriptor &desc, const dgFloat64* const pool, dgInt32 strideInBytes, dgFloat64 area);
-	
-
-
-	// this function assume the mesh is a legal mesh;
-	dgInt32 TriangleList (dgUnsigned32 outputBuffer[], dgInt32 maxBufferSize, dgInt32 vertexCacheSize = 12) const;
-	void SwapInfo (dgPolyhedra& source);
-
-
-*/
-
-	// this function ayend to create a better triangulation of a mesh
-	// by first calling the calling quadrangular and then triangulate 
-	// all quad strips.
-	// this function assume the mesh is a legal mesh;
-	// note1: recommend a call to Triangulate or OptimalTriangulation 
-	//			 before using this function
-	// note2: a index set to 0xffffffff indicate a run start
-	// return index count
-	//	dgInt32 TriangleStrips (dgUnsigned32 outputBuffer[], dgInt32 maxBufferSize, dgInt32 vertexCacheSize = 12) const;
-	//	void OptimalTriangulation (const dgFloat64* const vertex, dgInt32 strideInBytes);
-	//	void CombineOpenFaces (const dgFloat64* const pool, dgInt32 strideInBytes, dgFloat64 distTol);
-	//	bool TriangulateFace (dgEdge* const face, const dgFloat64* const vertex, dgInt32 strideInBytes, dgBigVector& normalOut);
-	//	void OptimizeTriangulation (const dgFloat64* const vertex, dgInt32 strideInBytes);
-	//	void Quadrangulate (const dgFloat64* const vertex, dgInt32 strideInBytes);
-	//	dgEdge* GetBadEdge (dgList<dgEdge*>& faceList  const dgFloat64* const pool, dgInt32 strideInBytes) const; 
+	dgEdge* CollapseEdge(dgEdge* const edge);
+	void PolygonizeFace (dgEdge* face, const dgFloat64* const pool, dgInt32 stride);
 
 	private:
 	void RefineTriangulation (const dgFloat64* const vertex, dgInt32 stride);
@@ -208,8 +126,16 @@ class dgPolyhedra: public dgTree <dgEdge, dgEdgeKey>
 	void OptimizeTriangulation (const dgFloat64* const vertex, dgInt32 strideInBytes);
 	void MarkAdjacentCoplanarFaces (dgPolyhedra& polyhedraOut, dgEdge* const face, const dgFloat64* const pool, dgInt32 strideInBytes);
 	dgEdge* FindEarTip (dgEdge* const face, const dgFloat64* const pool, dgInt32 stride, dgDownHeap<dgEdge*, dgFloat64>& heap, const dgBigVector &normal) const;
-	dgEdge* TriangulateFace (dgEdge* face, const dgFloat64* const pool, dgInt32 stride, dgDownHeap<dgEdge*, dgFloat64>& heap, dgBigVector* const faceNormalOut);
+	dgEdge* TriangulateFace (dgEdge* const face, const dgFloat64* const pool, dgInt32 stride, dgDownHeap<dgEdge*, dgFloat64>& heap, dgBigVector* const faceNormalOut);
 	
+
+	void RemoveHalfEdge (dgEdge* const edge);
+	dgEdge* OptimizeCollapseEdge (dgEdge* const edge);
+	bool IsOkToCollapse (const dgBigVector* const pool, dgEdge* const edge) const;
+	dgFloat64 EdgePenalty (const dgBigVector* const pool, dgEdge* const edge, dgFloat64 dist) const;
+	dgBigPlane EdgePlane (dgInt32 i0, dgInt32 i1, dgInt32 i2, const dgBigVector* const pool) const;
+	void CalculateAllMetrics (dgVertexCollapseVertexMetric* const table, const dgBigVector* const pool) const;
+	void CalculateVertexMetrics (dgVertexCollapseVertexMetric* const table, const dgBigVector* const pool, dgEdge* const edge) const;
 	
 
 	mutable dgInt32 m_baseMark;
@@ -294,7 +220,7 @@ inline dgInt32 dgPolyhedra::GetEdgeCount() const
 	for (iter.Begin(); iter; iter ++) {
 		edgeCount ++;
 	}
-	_ASSERTE (edgeCount == GetCount());;
+	dgAssert (edgeCount == GetCount());;
 #endif
 	return GetCount();
 }
@@ -316,7 +242,7 @@ inline dgInt32 dgPolyhedra::GetLastVertexIndex() const
 inline dgInt32 dgPolyhedra::IncLRU() const
 {	
 	m_edgeMark ++;
-	_ASSERTE (m_edgeMark < 0x7fffffff);
+	dgAssert (m_edgeMark < 0x7fffffff);
 	return m_edgeMark;
 }
 

@@ -19,10 +19,10 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#ifndef AFX_DGPHYSICS_H__EC18C699_D48D_448F_A510_A865B2CC0789__INCLUDED_
-#define AFX_DGPHYSICS_H__EC18C699_D48D_448F_A510_A865B2CC0789__INCLUDED_
+#ifndef __DGPHYSICS_H__
+#define __DGPHYSICS_H__
 
-#include "dg.h"
+#include <dg.h>
 
 #include "dgBody.h"
 #include "dgWorld.h"
@@ -30,25 +30,26 @@
 #include "dgCollision.h"
 #include "dgMeshEffect.h"
 #include "dgConstraint.h"
+#include "dgDynamicBody.h"
 #include "dgCollisionBVH.h"
+#include "dgKinematicBody.h"
 #include "dgCollisionMesh.h"
 #include "dgCollisionScene.h"
 #include "dgBodyMasterList.h"
 #include "dgUserConstraint.h"
 #include "dgBallConstraint.h"
 #include "dgHingeConstraint.h"
-#include "dgCollisionEllipse.h"
+#include "dgCollisionInstance.h"
 #include "dgCollisionUserMesh.h"
 #include "dgSlidingConstraint.h"
 #include "dgUpVectorConstraint.h"
 #include "dgCollisionConvexHull.h"
 #include "dgUniversalConstraint.h"
 #include "dgCorkscrewConstraint.h"
-#include "dgConnectorConstraint.h"
 #include "dgCollisionHeightField.h"
-#include "dgPointToCurveConstraint.h"
+#include "dgCollisionConvexPolygon.h"
+#include "dgCollisionDeformableMesh.h"
 #include "dgCollisionCompoundBreakable.h"
-
 
 #endif 
 

@@ -38,7 +38,7 @@ bool _CholeskyDecomposition (
 	dgUnsigned8 *rowArray;
 
 	rowArray	= (dgUnsigned8*)rowPointers;
-	if (typeSizeInBytes == sizeof (dgFloat32)) {
+	if (typeSizeInBytes == dgInt32 (sizeof (dgFloat32))) {
 		dgInt32 i;
 		dgFloat32 **rows;
 		rows = (dgFloat32**) dgStackAlloc (size * sizeof (dgFloat32*));
@@ -49,8 +49,8 @@ bool _CholeskyDecomposition (
 		return CholeskyDecomposition (rows, size);
 
 	} else {
-		_ASSERTE (0);
-		_ASSERTE (typeSizeInBytes == sizeof (dgFloat64));
+		dgAssert (0);
+		dgAssert (typeSizeInBytes == dgInt32 (sizeof (dgFloat64)));
 	}
 
 	return true;
@@ -68,7 +68,7 @@ void _BackAndForwardSustitition (
 	dgUnsigned8 *rowArray;
 
 	rowArray	= (dgUnsigned8*)rowPointers;
-	if (typeSizeInBytes == sizeof (dgFloat32)) {
+	if (typeSizeInBytes == dgInt32 (sizeof (dgFloat32))) {
 		dgInt32 i;
 		dgFloat32 **rows;
 		rows = (dgFloat32**) dgStackAlloc (size * sizeof (dgFloat32*));
@@ -79,8 +79,8 @@ void _BackAndForwardSustitition (
 		BackAndForwardSustitition (rows, size, (dgFloat32*)rightsideVector);
 
 	} else {
-		_ASSERTE (0);
-		_ASSERTE (typeSizeInBytes == sizeof (dgFloat64));
+		dgAssert (0);
+		dgAssert (typeSizeInBytes == sizeof (dgFloat64));
 	}
 }
 */
@@ -96,7 +96,7 @@ bool _SolveByCholeskyDecomposition (
 	dgUnsigned8 *rowArray;
 
 	rowArray	= (dgUnsigned8*)rowPointers;
-	if (typeSizeInBytes == sizeof (dgFloat32)) {
+	if (typeSizeInBytes == dgInt32 (sizeof (dgFloat32))) {
 		dgInt32 i;
 		dgFloat32 **rows;
 		rows = (dgFloat32**) dgStackAlloc (size * sizeof (dgFloat32*));
@@ -111,8 +111,8 @@ bool _SolveByCholeskyDecomposition (
 			return true;
 		}
 	} else {
-		_ASSERTE (0);
-		_ASSERTE (typeSizeInBytes == sizeof (dgFloat64));
+		dgAssert (0);
+		dgAssert (typeSizeInBytes == dgInt32 (sizeof (dgFloat64)));
 	}
 
 	return false;

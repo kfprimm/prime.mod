@@ -25,119 +25,76 @@
 #include "dgMeshEffect.h"
 #include "dgCollisionConvexHull.h"
 
+
+
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
+#define DG_CONVEX_VERTEX_CHUNK_SIZE	4
 
-struct dgPlaneLocation: public dgPlane 
+DG_MSC_VECTOR_ALIGMENT
+class dgCollisionConvexHull::dgConvexBox
 {
-	int m_index;
-	const dgConvexSimplexEdge* m_face;
-};
+	public:
+	dgVector m_box[2];
+	dgInt32 m_vertexStart;
+	dgInt32 m_vertexCount;
+	dgInt32 m_leftBox;
+	dgInt32 m_rightBox;
+}DG_GCC_VECTOR_ALIGMENT;
 
-
-dgCollisionConvexHull::dgCollisionConvexHull(dgMemoryAllocator* const allocator, dgUnsigned32 signature, dgInt32 count, dgInt32 strideInBytes, dgFloat32 tolerance, const dgFloat32* vertexArray, const dgMatrix& matrix)
-	:dgCollisionConvex(allocator, signature, matrix, m_convexHullCollision)
+dgCollisionConvexHull::dgCollisionConvexHull(dgMemoryAllocator* const allocator, dgUnsigned32 signature)
+	:dgCollisionConvex(allocator, signature, m_convexHullCollision)
+	,m_faceCount (0)
+	,m_supportTreeCount (0)
+	,m_faceArray (NULL)
+	,m_supportTree (NULL)
 {
-	m_faceCount = 0;
 	m_edgeCount = 0;
 	m_vertexCount = 0;
 	m_vertex = NULL;
 	m_simplex = NULL;
-	m_faceArray = NULL;
-	m_boundPlanesCount = 0;
+	m_rtti |= dgCollisionConvexHull_RTTI;
+}
 
+dgCollisionConvexHull::dgCollisionConvexHull(dgMemoryAllocator* const allocator, dgUnsigned32 signature, dgInt32 count, dgInt32 strideInBytes, dgFloat32 tolerance, const dgFloat32* const vertexArray)
+	:dgCollisionConvex(allocator, signature, m_convexHullCollision)
+	,m_faceCount (0)
+	,m_supportTreeCount (0)
+	,m_faceArray (NULL)
+	,m_supportTree (NULL)
+{
+	m_edgeCount = 0;
+	m_vertexCount = 0;
+	m_vertex = NULL;
+	m_simplex = NULL;
 	m_rtti |= dgCollisionConvexHull_RTTI;
 
-
-	Create (count, strideInBytes, vertexArray, tolerance);
-
-	dgInt32 planeCount = 0;
-	dgPlaneLocation planesArray[1024];
-	const dgConvexSimplexEdge* const* faceArray = m_faceArray;
-	for (dgInt32 i = 0; i < m_faceCount; i ++) {
-		const dgConvexSimplexEdge* const face = faceArray[i];
-
-		dgInt32 i0 = face->m_prev->m_vertex;
-		dgInt32 i1 = face->m_vertex;
-		dgInt32 i2 = face->m_next->m_vertex;
-		const dgBigVector p0 (m_vertex[i0]);
-		const dgBigVector p1 (m_vertex[i1]);
-		const dgBigVector p2 (m_vertex[i2]);
-
-		dgBigVector normal1 ((p1 - p0) * (p2 - p0));
-
-		dgVector normal ((m_vertex[i1] - m_vertex[i0]) * (m_vertex[i2] - m_vertex[i0]));
-		normal = normal.Scale (dgFloat32 (1.0f) / dgSqrt (normal % normal));
-		dgInt32 add = 1;
-		for (dgInt32 j = 0; j < 3; j ++) {
-			if (dgAbsf (normal[j]) > dgFloat32 (0.98f)) {
-				add = 0;
-			}
-		}
-
-		if (add) {
-			for (dgInt32 j = 0; j < planeCount; j ++) {
-				dgFloat32 coplanar;
-				coplanar = normal % planesArray[j];
-				if (coplanar > 0.98f) {
-					add = 0;
-					break;
-				}
-			}
-
-			if (add) {
-				dgPlane plane (normal, dgFloat32 (0.0f));
-				dgVector planeSupport (SupportVertex (plane));
-				plane.m_w = - (plane % planeSupport);
-//				_ASSERTE (plane.Evalue(m_boxOrigin) < 0.0f);
-				dgPlane& tmpPlane = planesArray[planeCount];
-				tmpPlane = plane;
-				planesArray[planeCount].m_index = i;
-				planesArray[planeCount].m_face = face;
-				planeCount ++;
-				_ASSERTE (planeCount < (sizeof (planesArray) / sizeof (planesArray[0])));
-			}
-		}
-	}
-
-	m_boundPlanesCount = 0;
-	for (dgInt32 i = 0; i < planeCount; i ++) {
-		dgPlaneLocation& plane = planesArray[i];
-		if (plane.m_face == m_faceArray[plane.m_index]) {
-			Swap (m_faceArray[plane.m_index], m_faceArray[m_boundPlanesCount]);
-		} else {
-			dgInt32 j;
-			for (j = m_boundPlanesCount; j < m_faceCount; j ++) {
-				if (plane.m_face == m_faceArray[j]) {
-					Swap (m_faceArray[j], m_faceArray[m_boundPlanesCount]);
-					break;
-				}
-			}
-			_ASSERTE (j < m_faceCount);
-		}
-		m_boundPlanesCount ++;
-	}
-
-	m_destructionImpulse = dgFloat32 (1.0e20f);
+	BuildHull (count, strideInBytes, tolerance, vertexArray);
 }
 
 dgCollisionConvexHull::dgCollisionConvexHull(dgWorld* const world, dgDeserialize deserialization, void* const userData)
 	:dgCollisionConvex (world, deserialization, userData)
+	,m_faceCount (0)
+	,m_supportTreeCount (0)
+	,m_faceArray (NULL)
+	,m_supportTree (NULL)
 {
 	m_rtti |= dgCollisionConvexHull_RTTI;
 	deserialization (userData, &m_vertexCount, sizeof (dgInt32));
 	deserialization (userData, &m_vertexCount, sizeof (dgInt32));
 	deserialization (userData, &m_faceCount, sizeof (dgInt32));
 	deserialization (userData, &m_edgeCount, sizeof (dgInt32));
-	deserialization (userData, &m_boundPlanesCount, sizeof (dgInt32));
-	deserialization (userData, &m_destructionImpulse, sizeof (dgFloat32));
+	deserialization (userData, &m_supportTreeCount, sizeof (dgInt32));
 	
 	m_vertex = (dgVector*) m_allocator->Malloc (dgInt32 (m_vertexCount * sizeof (dgVector)));
 	m_simplex = (dgConvexSimplexEdge*) m_allocator->Malloc (dgInt32 (m_edgeCount * sizeof (dgConvexSimplexEdge)));
 	m_faceArray = (dgConvexSimplexEdge **) m_allocator->Malloc(dgInt32 (m_faceCount * sizeof(dgConvexSimplexEdge *)));
-
+	if (m_supportTreeCount) {
+		m_supportTree = (dgConvexBox *) m_allocator->Malloc(dgInt32 (m_supportTreeCount * sizeof(dgConvexBox)));
+		deserialization (userData, m_supportTree, m_supportTreeCount * sizeof(dgConvexBox));
+	}
 	deserialization (userData, m_vertex, m_vertexCount * sizeof (dgVector));
 
 	for (dgInt32 i = 0; i < m_edgeCount; i ++) {
@@ -164,14 +121,19 @@ dgCollisionConvexHull::~dgCollisionConvexHull()
 	if (m_faceArray) {
 		m_allocator->Free(m_faceArray);
 	}
+	if (m_supportTree) {
+		m_allocator->Free(m_supportTree);
+	}
 }
 
-
-dgInt32 dgCollisionConvexHull::GetFaceIndices (dgInt32 index, dgInt32* indices) const
+void dgCollisionConvexHull::BuildHull (dgInt32 count, dgInt32 strideInBytes, dgFloat32 tolerance, const dgFloat32* const vertexArray)
 {
-	dgInt32 count;
+	Create (count, strideInBytes, vertexArray, tolerance);
+}
 
-	count = 0;
+dgInt32 dgCollisionConvexHull::GetFaceIndices (dgInt32 index, dgInt32* const indices) const
+{
+	dgInt32 count = 0;
 	const dgConvexSimplexEdge* face = m_faceArray[index];
 	do {
 		indices [count] = face->m_vertex;
@@ -184,7 +146,7 @@ dgInt32 dgCollisionConvexHull::GetFaceIndices (dgInt32 index, dgInt32* indices) 
 
 dgBigVector dgCollisionConvexHull::FaceNormal (const dgEdge *face, const dgBigVector* const pool) const
 {
-	const dgEdge *edge = face;
+	const dgEdge* edge = face;
 	dgBigVector p0 (pool[edge->m_incidentVertex]);
 	edge = edge->m_next;
 
@@ -198,13 +160,13 @@ dgBigVector dgCollisionConvexHull::FaceNormal (const dgEdge *face, const dgBigVe
 		dgBigVector n1 (e1 * e2);
 #ifdef _DEBUG
 		dgFloat64 mag = normal % n1;
-		_ASSERTE ( mag >= -dgFloat32 (0.1f));
+		dgAssert ( mag >= -dgFloat32 (0.1f));
 #endif
 		normal += n1;
 		e1 = e2;
 	} 
 	dgFloat64 den = sqrt (normal % normal) + dgFloat64 (1.0e-24f);
-	normal = normal.Scale (dgFloat64 (1.0f)/ den);
+	normal = normal.Scale3 (dgFloat64 (1.0f)/ den);
 
 #ifdef _DEBUG
 	edge = face;
@@ -213,7 +175,7 @@ dgBigVector dgCollisionConvexHull::FaceNormal (const dgEdge *face, const dgBigVe
 		dgBigVector e1 (pool[edge->m_next->m_incidentVertex] - pool[edge->m_incidentVertex]);	
 		dgBigVector n1 (e0 * e1);
 		dgFloat64 x = normal % n1;
-		_ASSERTE (x > -dgFloat64 (0.01f));
+		dgAssert (x > -dgFloat64 (0.01f));
 		e0 = e1;
 		edge = edge->m_next;
 	} while (edge != face);
@@ -256,11 +218,11 @@ bool dgCollisionConvexHull::RemoveCoplanarEdge (dgPolyhedra& polyhedra, const dg
 						dgBigVector e1 (hullVertexArray[edge0->m_twin->m_next->m_next->m_incidentVertex] - hullVertexArray[edge0->m_incidentVertex]);
 						dgBigVector e0 (hullVertexArray[edge0->m_incidentVertex] - hullVertexArray[edge0->m_prev->m_incidentVertex]);
 
-						_ASSERTE ((e0 % e0) >= dgFloat64 (0.0f));
-						_ASSERTE ((e1 % e1) >= dgFloat64 (0.0f));
+						dgAssert ((e0 % e0) >= dgFloat64 (0.0f));
+						dgAssert ((e1 % e1) >= dgFloat64 (0.0f));
 
-						e0 = e0.Scale (dgFloat64 (1.0f) / sqrt (e0 % e0));
-						e1 = e1.Scale (dgFloat64 (1.0f) / sqrt (e1 % e1));
+						e0 = e0.Scale3 (dgFloat64 (1.0f) / sqrt (e0 % e0));
+						e1 = e1.Scale3 (dgFloat64 (1.0f) / sqrt (e1 % e1));
 						dgBigVector n1 (e0 * e1);
 
 						dgFloat64 projection = n1 % normal0;
@@ -268,18 +230,18 @@ bool dgCollisionConvexHull::RemoveCoplanarEdge (dgPolyhedra& polyhedra, const dg
 
 							dgBigVector e1 (hullVertexArray[edge0->m_next->m_next->m_incidentVertex] - hullVertexArray[edge0->m_twin->m_incidentVertex]);
 							dgBigVector e0 (hullVertexArray[edge0->m_twin->m_incidentVertex] - hullVertexArray[edge0->m_twin->m_prev->m_incidentVertex]);
-							_ASSERTE ((e0 % e0) >= dgFloat64 (0.0f));
-							_ASSERTE ((e1 % e1) >= dgFloat64 (0.0f));
-							//e0 = e0.Scale (dgRsqrt (e0 % e0));
-							//e1 = e1.Scale (dgRsqrt (e1 % e1));
-							e0 = e0.Scale (dgFloat64 (1.0f) / sqrt (e0 % e0));
-							e1 = e1.Scale (dgFloat64 (1.0f) / sqrt (e1 % e1));
+							dgAssert ((e0 % e0) >= dgFloat64 (0.0f));
+							dgAssert ((e1 % e1) >= dgFloat64 (0.0f));
+							//e0 = e0.Scale3 (dgRsqrt (e0 % e0));
+							//e1 = e1.Scale3 (dgRsqrt (e1 % e1));
+							e0 = e0.Scale3 (dgFloat64 (1.0f) / sqrt (e0 % e0));
+							e1 = e1.Scale3 (dgFloat64 (1.0f) / sqrt (e1 % e1));
 
 							dgBigVector n1 (e0 * e1);
 							projection = n1 % normal0;
 							if (projection >= DG_MAX_EDGE_ANGLE) {
-								_ASSERTE (&(*iter) != edge0);
-								_ASSERTE (&(*iter) != edge0->m_twin);
+								dgAssert (&(*iter) != edge0);
+								dgAssert (&(*iter) != edge0->m_twin);
 								polyhedra.DeleteEdge(edge0);
 								removeEdge = true;
 							}
@@ -331,7 +293,7 @@ bool dgCollisionConvexHull::CheckConvex (dgPolyhedra& polyhedra1, const dgBigVec
 			} while (ptr != edge);
 		}
 	}
-	center = center.Scale (dgFloat64 (1.0f) / dgFloat64 (count));
+	center = center.Scale3 (dgFloat64 (1.0f) / dgFloat64 (count));
 
 	for (iter.Begin(); iter; iter ++) {
 		dgEdge* const edge = &(*iter);
@@ -359,7 +321,7 @@ bool dgCollisionConvexHull::CheckConvex (dgPolyhedra& polyhedra1, const dgBigVec
 bool dgCollisionConvexHull::Create (dgInt32 count, dgInt32 strideInBytes, const dgFloat32* const vertexArray, dgFloat32 tolerance)
 {
 	dgInt32 stride = strideInBytes / sizeof (dgFloat32);
-	dgStack<dgFloat64> buffer(3 * count);
+	dgStack<dgFloat64> buffer(3 * 2 * count);
 	for (dgInt32 i = 0; i < count; i ++) {
 		buffer[i * 3 + 0] = vertexArray[i * stride + 0];
 		buffer[i * 3 + 1] = vertexArray[i * stride + 1];
@@ -368,8 +330,48 @@ bool dgCollisionConvexHull::Create (dgInt32 count, dgInt32 strideInBytes, const 
 
 	dgConvexHull3d* convexHull =  new (GetAllocator()) dgConvexHull3d (GetAllocator(), &buffer[0], 3 * sizeof (dgFloat64), count, tolerance);
 	if (!convexHull->GetCount()) {
+		// this is a degenerated hull hull to add some thickness and for a thick plane
 		delete convexHull;
-		return false;
+
+		dgStack<dgVector> tmp(3 * count);
+		for (dgInt32 i = 0; i < count; i ++) {
+			tmp[i][0] = dgFloat32 (buffer[i*3 + 0]);
+			tmp[i][1] = dgFloat32 (buffer[i*3 + 1]);
+			tmp[i][2] = dgFloat32 (buffer[i*3 + 2]);
+			tmp[i][2] = dgFloat32 (0.0f);
+		}
+	
+		dgObb sphere;
+		sphere.SetDimensions (&tmp[0][0], sizeof (dgVector), count);
+
+		dgInt32 index = 0;
+		dgFloat32 size = dgFloat32 (1.0e10f);
+		for (dgInt32 i = 0; i < 3; i ++) {
+			if (sphere.m_size[i] < size) {
+				index = i;
+				size = sphere.m_size[i];
+			}
+		}
+		dgVector normal (dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f));
+		normal[index] = dgFloat32 (1.0f);
+		dgVector step = sphere.RotateVector (normal.Scale3 (dgFloat32 (0.05f)));
+		for (dgInt32 i = 0; i < count; i ++) {
+			dgVector p1 (tmp[i] + step);
+			dgVector p2 (tmp[i] - step);
+
+			buffer[i * 3 + 0] = p1.m_x;
+			buffer[i * 3 + 1] = p1.m_y;
+			buffer[i * 3 + 2] = p1.m_z;
+			buffer[(i + count) * 3 + 0] = p2.m_x;
+			buffer[(i + count) * 3 + 1] = p2.m_y;
+			buffer[(i + count) * 3 + 2] = p2.m_z;
+		}
+		count *= 2;
+		convexHull =  new (GetAllocator()) dgConvexHull3d (GetAllocator(), &buffer[0], 3 * sizeof (dgFloat64), count, tolerance);
+		if (!convexHull->GetCount()) {
+			delete convexHull;
+			return false;
+		}
 	}
 
 	// check for degenerated faces
@@ -402,7 +404,7 @@ bool dgCollisionConvexHull::Create (dgInt32 count, dgInt32 strideInBytes, const 
 				} else if ((dist21 >= dist10) && (dist21 >= dist20)) {
 					index = 0;
 				}
-				_ASSERTE (index != -1);
+				dgAssert (index != -1);
 				mask[face.m_index[index]] = 0;
 			}
 		}
@@ -422,8 +424,14 @@ bool dgCollisionConvexHull::Create (dgInt32 count, dgInt32 strideInBytes, const 
 		}
 	}
 
-
+	dgAssert (convexHull);
 	dgInt32 vertexCount = convexHull->GetVertexCount();
+	if (vertexCount < 4) {
+		delete convexHull;
+		return false;
+	}
+	
+
 	const dgBigVector* const hullVertexArray = convexHull->GetVertexPool();
 
 	dgPolyhedra polyhedra (GetAllocator());
@@ -432,57 +440,41 @@ bool dgCollisionConvexHull::Create (dgInt32 count, dgInt32 strideInBytes, const 
 		dgConvexHull3DFace& face = node->GetInfo();
 		polyhedra.AddFace (face.m_index[0], face.m_index[1], face.m_index[2]);
 	}
-
 	polyhedra.EndFace();
-	
 
 	if (vertexCount > 4) {
-		bool edgeRemoved = false;
-		while (RemoveCoplanarEdge (polyhedra, hullVertexArray)) {
-			edgeRemoved = true;
-		}
-		if (edgeRemoved) {
-			if (!CheckConvex (polyhedra, hullVertexArray)) {
-				return false;
-			}
-		}
+//		bool edgeRemoved = false;
+//		while (RemoveCoplanarEdge (polyhedra, hullVertexArray)) {
+//			edgeRemoved = true;
+//		}
+//		if (edgeRemoved) {
+//			if (!CheckConvex (polyhedra, hullVertexArray)) {
+//				delete convexHull;
+//				return false;
+//			}
+//		}
+		while (RemoveCoplanarEdge (polyhedra, hullVertexArray));
 	}
-
-	dgInt32 maxEdgeCount = polyhedra.GetCount();
-
-	dgStack<dgEdge*> stack(1024 + maxEdgeCount);
-	dgEdge* firstFace = &polyhedra.GetRoot()->GetInfo();
-
-	_ASSERTE (firstFace->m_twin->m_next != firstFace);
-
-	dgInt32 stackIndex = 1; 
-	stack[0] = firstFace;
 
 	dgStack<dgInt32> vertexMap(vertexCount);
 	memset (&vertexMap[0], -1, vertexCount * sizeof (dgInt32));
 
-//	m_edgeCount = 0;
-//	m_vertexCount = 0;
-
-	dgInt32 i1 = polyhedra.IncLRU();
-	while (stackIndex) {
-		stackIndex --;
-		dgEdge* const edge0 = stack[stackIndex];
-
-		if (edge0->m_mark != i1) {
-			if (vertexMap[edge0->m_incidentVertex] == -1) {
-				vertexMap[edge0->m_incidentVertex] = m_vertexCount;
+	dgInt32 mark = polyhedra.IncLRU();;
+	dgPolyhedra::Iterator iter (polyhedra);
+	for (iter.Begin(); iter; iter ++) {
+		dgEdge* const edge = &iter.GetNode()->GetInfo();
+		if (edge->m_mark != mark) {
+			if (vertexMap[edge->m_incidentVertex] == -1) {
+				vertexMap[edge->m_incidentVertex] = m_vertexCount;
 				m_vertexCount ++;
 			}
-			dgEdge* ptr = edge0;
+			dgEdge* ptr = edge;
 			do {
-				stack[stackIndex] = ptr->m_twin;
-				stackIndex++;
-				ptr->m_mark = i1;
+				ptr->m_mark = mark;
 				ptr->m_userData = m_edgeCount;
 				m_edgeCount ++;
 				ptr = ptr->m_twin->m_next;
-			} while (ptr != edge0) ;
+			} while (ptr != edge) ;
 		}
 	} 
 
@@ -492,26 +484,19 @@ bool dgCollisionConvexHull::Create (dgInt32 count, dgInt32 strideInBytes, const 
 	for (dgInt32 i = 0; i < vertexCount; i ++) {
 		if (vertexMap[i] != -1) {
 			m_vertex[vertexMap[i]] = hullVertexArray[i];
-			m_vertex[vertexMap[i]].m_w = dgFloat32 (1.0f);
+			m_vertex[vertexMap[i]].m_w = dgFloat32 (0.0f);
 		}
 	}
+	delete convexHull;
 
-	i1 = polyhedra.IncLRU();
-	stackIndex = 1; 
-	stack[0] = firstFace;
-	while (stackIndex) {
-
-		stackIndex --;
-		dgEdge* const edge0 = stack[stackIndex];
-
-		if (edge0->m_mark != i1) {
-
-			dgEdge *ptr = edge0;
+	vertexCount = m_vertexCount;
+	mark = polyhedra.IncLRU();;
+	for (iter.Begin(); iter; iter ++) {
+		dgEdge* const edge = &iter.GetNode()->GetInfo();
+		if (edge->m_mark != mark) {
+			dgEdge *ptr = edge;
 			do {
-				ptr->m_mark = i1;
-				stack[stackIndex] = ptr->m_twin;
-				stackIndex++;
-
+				ptr->m_mark = mark;
 				dgConvexSimplexEdge* const simplexPtr = &m_simplex[ptr->m_userData];
 				simplexPtr->m_vertex = vertexMap[ptr->m_incidentVertex];
 				simplexPtr->m_next = &m_simplex[ptr->m_next->m_userData];
@@ -519,23 +504,23 @@ bool dgCollisionConvexHull::Create (dgInt32 count, dgInt32 strideInBytes, const 
 				simplexPtr->m_twin = &m_simplex[ptr->m_twin->m_userData];
 
 				ptr = ptr->m_twin->m_next;
-			} while (ptr != edge0) ;
+			} while (ptr != edge) ;
 		}
 	} 
 
-	SetVolumeAndCG ();
+	
 	m_faceCount = 0;
-	dgStack<char> mark (m_edgeCount);
-	memset (&mark[0], 0, m_edgeCount * sizeof (dgInt8));
+	dgStack<char> faceMarks (m_edgeCount);
+	memset (&faceMarks[0], 0, m_edgeCount * sizeof (dgInt8));
 
 	dgStack<dgConvexSimplexEdge*> faceArray (m_edgeCount);
 	for (dgInt32 i = 0; i < m_edgeCount; i ++) {
 		dgConvexSimplexEdge* const face = &m_simplex[i];
-		if (!mark[i]) {
+		if (!faceMarks[i]) {
 			dgConvexSimplexEdge* ptr = face;
 			do {
-				_ASSERTE ((ptr - m_simplex) >= 0);
-				mark[dgInt32 (ptr - m_simplex)] = '1';
+				dgAssert ((ptr - m_simplex) >= 0);
+				faceMarks[dgInt32 (ptr - m_simplex)] = '1';
 				ptr = ptr->m_next;
 			} while (ptr != face);
 
@@ -545,52 +530,238 @@ bool dgCollisionConvexHull::Create (dgInt32 count, dgInt32 strideInBytes, const 
 	}
 	m_faceArray = (dgConvexSimplexEdge **) m_allocator->Malloc(dgInt32 (m_faceCount * sizeof(dgConvexSimplexEdge *)));
 	memcpy (m_faceArray, &faceArray[0], m_faceCount * sizeof(dgConvexSimplexEdge *));
+	
+	
+	if (vertexCount > DG_CONVEX_VERTEX_CHUNK_SIZE) {
+		// create a face structure for support vertex
+		dgStack<dgConvexBox> boxTree (vertexCount);
+		dgTree<dgVector,dgInt32> sortTree(GetAllocator());
+		dgStack<dgTree<dgVector,dgInt32>::dgTreeNode*> vertexNodeList(vertexCount);
 
-	delete convexHull;
+		dgVector minP ( dgFloat32 (1.0e15f),  dgFloat32 (1.0e15f),  dgFloat32 (1.0e15f), dgFloat32 (0.0f)); 
+		dgVector maxP (-dgFloat32 (1.0e15f), -dgFloat32 (1.0e15f), -dgFloat32 (1.0e15f), dgFloat32 (0.0f)); 	
+		for (dgInt32 i = 0; i < vertexCount; i ++) {
+			const dgVector& p = m_vertex[i];
+			vertexNodeList[i] = sortTree.Insert (p, i);
+			minP.m_x = dgMin (p.m_x, minP.m_x); 
+			minP.m_y = dgMin (p.m_y, minP.m_y); 
+			minP.m_z = dgMin (p.m_z, minP.m_z); 
+			
+			maxP.m_x = dgMax (p.m_x, maxP.m_x); 
+			maxP.m_y = dgMax (p.m_y, maxP.m_y); 
+			maxP.m_z = dgMax (p.m_z, maxP.m_z); 
+		}
+
+		boxTree[0].m_box[0] = minP;
+		boxTree[0].m_box[1] = maxP;
+		boxTree[0].m_leftBox = -1;
+		boxTree[0].m_rightBox = -1;
+		boxTree[0].m_vertexStart = 0;
+		boxTree[0].m_vertexCount = vertexCount;
+		dgInt32 boxCount = 1;
+
+		dgInt32 stack = 1;
+		dgInt32 stackBoxPool[64];
+		stackBoxPool[0] = 0;
+
+		while (stack) {
+			stack --;
+			dgInt32 boxIndex = stackBoxPool[stack];
+			dgConvexBox& box = boxTree[boxIndex];
+			if (box.m_vertexCount > DG_CONVEX_VERTEX_CHUNK_SIZE) {
+				dgVector median (dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f));
+				dgVector varian (dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f));
+				for (dgInt32 i = 0; i < box.m_vertexCount; i ++) {
+					dgVector& p = vertexNodeList[box.m_vertexStart + i]->GetInfo();
+					minP.m_x = dgMin (p.m_x, minP.m_x); 
+					minP.m_y = dgMin (p.m_y, minP.m_y); 
+					minP.m_z = dgMin (p.m_z, minP.m_z); 
+
+					maxP.m_x = dgMax (p.m_x, maxP.m_x); 
+					maxP.m_y = dgMax (p.m_y, maxP.m_y); 
+					maxP.m_z = dgMax (p.m_z, maxP.m_z); 
+
+					median += p;
+					varian += p.CompProduct3 (p);
+				}
+
+				varian = varian.Scale3 (dgFloat32 (box.m_vertexCount)) - median.CompProduct3(median);
+				dgInt32 index = 0;
+				dgFloat64 maxVarian = dgFloat64 (-1.0e10f);
+				for (dgInt32 i = 0; i < 3; i ++) {
+					if (varian[i] > maxVarian) {
+						index = i;
+						maxVarian = varian[i];
+					}
+				}
+				dgVector center = median.Scale3 (dgFloat32 (1.0f) / dgFloat32 (box.m_vertexCount));
+				dgFloat32 test = center[index];
+
+				dgInt32 i0 = 0;
+				dgInt32 i1 = box.m_vertexCount - 1;
+				do {    
+					for (; i0 <= i1; i0 ++) {
+						dgFloat32 val = vertexNodeList[box.m_vertexStart + i0]->GetInfo()[index];
+						if (val > test) {
+							break;
+						}
+					}
+
+					for (; i1 >= i0; i1 --) {
+						dgFloat32 val = vertexNodeList[box.m_vertexStart + i1]->GetInfo()[index];
+						if (val < test) {
+							break;
+						}
+					}
+
+					if (i0 < i1)	{
+						dgSwap(vertexNodeList[box.m_vertexStart + i0], vertexNodeList[box.m_vertexStart + i1]);
+						i0++; 
+						i1--;
+					}
+				} while (i0 <= i1);
+
+				if (i0 == 0){
+					i0 = box.m_vertexCount / 2;
+				}
+				if (i0 == (box.m_vertexCount - 1)){
+					i0 = box.m_vertexCount / 2;
+				}
+
+
+				{
+					dgVector minP ( dgFloat32 (1.0e15f),  dgFloat32 (1.0e15f),  dgFloat32 (1.0e15f), dgFloat32 (0.0f)); 
+					dgVector maxP (-dgFloat32 (1.0e15f), -dgFloat32 (1.0e15f), -dgFloat32 (1.0e15f), dgFloat32 (0.0f)); 	
+					for (dgInt32 i = i0; i < box.m_vertexCount; i ++) {
+						const dgVector& p = vertexNodeList[box.m_vertexStart + i]->GetInfo();
+						minP.m_x = dgMin (p.m_x, minP.m_x); 
+						minP.m_y = dgMin (p.m_y, minP.m_y); 
+						minP.m_z = dgMin (p.m_z, minP.m_z); 
+
+						maxP.m_x = dgMax (p.m_x, maxP.m_x); 
+						maxP.m_y = dgMax (p.m_y, maxP.m_y); 
+						maxP.m_z = dgMax (p.m_z, maxP.m_z); 
+					}
+
+					box.m_rightBox = boxCount;
+					boxTree[boxCount].m_box[0] = minP;
+					boxTree[boxCount].m_box[1] = maxP;
+					boxTree[boxCount].m_leftBox = -1;
+					boxTree[boxCount].m_rightBox = -1;
+					boxTree[boxCount].m_vertexStart = box.m_vertexStart + i0;
+					boxTree[boxCount].m_vertexCount = box.m_vertexCount - i0;
+					stackBoxPool[stack] = boxCount;
+					stack ++;
+					boxCount ++;
+				}
+
+				{
+					dgVector minP ( dgFloat32 (1.0e15f),  dgFloat32 (1.0e15f),  dgFloat32 (1.0e15f), dgFloat32 (0.0f)); 
+					dgVector maxP (-dgFloat32 (1.0e15f), -dgFloat32 (1.0e15f), -dgFloat32 (1.0e15f), dgFloat32 (0.0f)); 	
+					for (dgInt32 i = 0; i < i0; i ++) {
+						const dgVector& p = vertexNodeList[box.m_vertexStart + i]->GetInfo();
+						minP.m_x = dgMin (p.m_x, minP.m_x); 
+						minP.m_y = dgMin (p.m_y, minP.m_y); 
+						minP.m_z = dgMin (p.m_z, minP.m_z); 
+
+						maxP.m_x = dgMax (p.m_x, maxP.m_x); 
+						maxP.m_y = dgMax (p.m_y, maxP.m_y); 
+						maxP.m_z = dgMax (p.m_z, maxP.m_z); 
+					}
+
+					box.m_leftBox = boxCount;
+					boxTree[boxCount].m_box[0] = minP;
+					boxTree[boxCount].m_box[1] = maxP;
+					boxTree[boxCount].m_leftBox = -1;
+					boxTree[boxCount].m_rightBox = -1;
+					boxTree[boxCount].m_vertexStart = box.m_vertexStart;
+					boxTree[boxCount].m_vertexCount = i0;
+					stackBoxPool[stack] = boxCount;
+					stack ++;
+					boxCount ++;
+				}
+			}
+		}
+
+		for (dgInt32 i = 0; i < m_vertexCount; i ++) {
+			m_vertex[i] = vertexNodeList[i]->GetInfo();
+			vertexNodeList[i]->GetInfo().m_w = dgFloat32 (i);
+		}
+
+		m_supportTreeCount = boxCount;
+		m_supportTree = (dgConvexBox*) m_allocator->Malloc(dgInt32 (boxCount * sizeof(dgConvexBox)));		
+		memcpy (m_supportTree, &boxTree[0], boxCount * sizeof(dgConvexBox));
+
+		for (dgInt32 i = 0; i < m_edgeCount; i ++) {
+			dgConvexSimplexEdge* const ptr = &m_simplex[i];
+			dgTree<dgVector,dgInt32>::dgTreeNode* const node = sortTree.Find(ptr->m_vertex);
+			dgInt32 index = dgInt32 (node->GetInfo().m_w);
+			ptr->m_vertex = dgInt16 (index);
+		}
+	}
+
+	SetVolumeAndCG ();
 	return true;
 }
 
 
+dgInt32 dgCollisionConvexHull::CalculateSignature (dgInt32 vertexCount, const dgFloat32* const vertexArray, dgInt32 strideInBytes)
+{
+	dgStack<dgUnsigned32> buffer(1 + 3 * vertexCount);  
+	dgInt32 stride = dgInt32 (strideInBytes / sizeof (dgFloat32));
+
+	memset (&buffer[0], 0, size_t (buffer.GetSizeInBytes()));
+	buffer[0] = m_convexHullCollision;
+	
+	for (dgInt32 i = 0; i < vertexCount; i ++) {
+		buffer[1 + i * 3 + 0] = dgCollision::Quantize (vertexArray[i * stride + 0]);
+		buffer[1 + i * 3 + 1] = dgCollision::Quantize (vertexArray[i * stride + 1]);
+		buffer[1 + i * 3 + 2] = dgCollision::Quantize (vertexArray[i * stride + 2]);
+	}
+	return Quantize(&buffer[0], buffer.GetSizeInBytes());
+}
+
+dgInt32 dgCollisionConvexHull::CalculatePinNumber (dgInt32 vertexCount, const dgFloat32* const vertexArray, dgInt32 strideInBytes)
+{
+	dgStack<dgUnsigned32> buffer(1 + 3 * vertexCount);  
+	dgInt32 stride = dgInt32 (strideInBytes / sizeof (dgFloat32));
+
+	memset (&buffer[0], 0, size_t (buffer.GetSizeInBytes()));
+	buffer[0] = m_convexHullCollision;
+
+	for (dgInt32 i = 0; i < vertexCount; i ++) {
+		buffer[1 + i * 3 + 0] = dgCollision::Quantize (vertexArray[i * stride + 2]);
+		buffer[1 + i * 3 + 1] = dgCollision::Quantize (vertexArray[i * stride + 0]);
+		buffer[1 + i * 3 + 2] = dgCollision::Quantize (vertexArray[i * stride + 1]);
+	}
+
+	return Quantize(&buffer[0], buffer.GetSizeInBytes());
+}
+
 dgInt32 dgCollisionConvexHull::CalculateSignature () const
 {
-	_ASSERTE (0);
 	return dgInt32 (GetSignature());
-}
-
-void dgCollisionConvexHull::SetBreakImpulse(dgFloat32 force)
-{
-	m_destructionImpulse = force;
-}
-
-dgFloat32 dgCollisionConvexHull::GetBreakImpulse() const
-{
-	return m_destructionImpulse;
+//	return CalculateSignature (m_vertexCount, &m_vertex[0].m_x, sizeof (dgVector));
 }
 
 
 
 void dgCollisionConvexHull::SetCollisionBBox (const dgVector& p0__, const dgVector& p1__)
 {
-	_ASSERTE (0);
+	dgAssert (0);
 }
 
 
 
-void dgCollisionConvexHull::DebugCollision (const dgMatrix& matrixPtr, OnDebugCollisionMeshCallback callback, void* const userData) const
+void dgCollisionConvexHull::DebugCollision (const dgMatrix& matrix, OnDebugCollisionMeshCallback callback, void* const userData) const
 {
-	dgInt32 i;
-	dgInt32 count;
-	dgConvexSimplexEdge *ptr;
-	dgConvexSimplexEdge *face;
-	
-	dgStack<dgTriplex> tmp (m_vertexCount);
-	dgMatrix matrix (GetOffsetMatrix() * matrixPtr);
+	dgTriplex tmp[1024 * 4];
 	matrix.TransformTriplex (&tmp[0].m_x, sizeof (dgTriplex), &m_vertex[0].m_x, sizeof (dgVector), m_vertexCount);
 
-	for (i = 0; i < m_faceCount; i ++) {
-		face = m_faceArray[i];
-		ptr = face;
-		count = 0;
+	for (dgInt32 i = 0; i < m_faceCount; i ++) {
+		dgConvexSimplexEdge* const face = m_faceArray[i];
+		dgConvexSimplexEdge* ptr = face;
+		dgInt32 count = 0;
 		dgTriplex vertex[256];
 		do {
 			vertex[count] = tmp[ptr->m_vertex];
@@ -601,14 +772,126 @@ void dgCollisionConvexHull::DebugCollision (const dgMatrix& matrixPtr, OnDebugCo
 	}
 }
 
+dgVector dgCollisionConvexHull::SupportVertex (const dgVector& dir, dgInt32* const vertexIndex) const
+{
+	dgAssert (dir.m_w == dgFloat32 (0.0f));
+	dgInt32 index = -1;
+	dgVector maxProj (dgFloat32 (-1.0e20f)); 
+	if (m_vertexCount > DG_CONVEX_VERTEX_CHUNK_SIZE) {
+		dgFloat32 distPool[32];
+		const dgConvexBox* stackPool[32];
 
-void dgCollisionConvexHull::GetCollisionInfo(dgCollisionInfo* info) const
+		dgInt32 ix = (dir[0] > dgFloat64 (0.0f)) ? 1 : 0;
+		dgInt32 iy = (dir[1] > dgFloat64 (0.0f)) ? 1 : 0;
+		dgInt32 iz = (dir[2] > dgFloat64 (0.0f)) ? 1 : 0;
+
+		const dgConvexBox& leftBox = m_supportTree[m_supportTree[0].m_leftBox];
+		const dgConvexBox& rightBox = m_supportTree[m_supportTree[0].m_rightBox];
+		
+		dgVector leftP (leftBox.m_box[ix][0], leftBox.m_box[iy][1], leftBox.m_box[iz][2], dgFloat32 (0.0f));
+		dgVector rightP (rightBox.m_box[ix][0], rightBox.m_box[iy][1], rightBox.m_box[iz][2], dgFloat32 (0.0f));
+
+		dgFloat32 leftDist = leftP.DotProduct4(dir).m_x;
+		dgFloat32 rightDist = rightP.DotProduct4(dir).m_x;
+		if (rightDist >= leftDist) {
+			distPool[0] = leftDist;
+			stackPool[0] = &leftBox; 
+
+			distPool[1] = rightDist;
+			stackPool[1] = &rightBox; 
+		} else {
+			distPool[0] = rightDist;
+			stackPool[0] = &rightBox; 
+
+			distPool[1] = leftDist;
+			stackPool[1] = &leftBox; 
+		}
+		
+		dgInt32 stack = 2;
+		
+		while (stack) {
+			stack--;
+			dgFloat32 dist = distPool[stack];
+			if (dist > maxProj.m_x) {
+				const dgConvexBox& box = *stackPool[stack];
+
+				if (box.m_leftBox > 0) {
+					dgAssert (box.m_rightBox > 0);
+					const dgConvexBox& leftBox = m_supportTree[box.m_leftBox];
+					const dgConvexBox& rightBox = m_supportTree[box.m_rightBox];
+
+					dgVector leftP (leftBox.m_box[ix][0], leftBox.m_box[iy][1], leftBox.m_box[iz][2], dgFloat32 (0.0f));
+					dgVector rightP (rightBox.m_box[ix][0], rightBox.m_box[iy][1], rightBox.m_box[iz][2], dgFloat32 (0.0f));
+
+					dgFloat32 leftDist = leftP.DotProduct4(dir).m_x;
+					dgFloat32 rightDist = rightP.DotProduct4(dir).m_x;
+					if (rightDist >= leftDist) {
+						distPool[stack] = leftDist;
+						stackPool[stack] = &leftBox; 
+						stack ++;
+						dgAssert (stack < sizeof (distPool)/sizeof (distPool[0]));
+
+						distPool[stack] = rightDist;
+						stackPool[stack] = &rightBox; 
+						stack ++;
+						dgAssert (stack < sizeof (distPool)/sizeof (distPool[0]));
+
+					} else {
+						distPool[stack] = rightDist;
+						stackPool[stack] = &rightBox; 
+						stack ++;
+						dgAssert (stack < sizeof (distPool)/sizeof (distPool[0]));
+
+						distPool[stack] = leftDist;
+						stackPool[stack] = &leftBox; 
+						stack ++;
+						dgAssert (stack < sizeof (distPool)/sizeof (distPool[0]));
+					}
+				} else {
+					for (dgInt32 i = 0; i < box.m_vertexCount; i ++) {
+						const dgVector& p = m_vertex[box.m_vertexStart + i];
+						dgAssert (p.m_x >= box.m_box[0].m_x);
+						dgAssert (p.m_x <= box.m_box[1].m_x);
+						dgAssert (p.m_y >= box.m_box[0].m_y);
+						dgAssert (p.m_y <= box.m_box[1].m_y);
+						dgAssert (p.m_z >= box.m_box[0].m_z);
+						dgAssert (p.m_z <= box.m_box[1].m_z);
+						dgVector dist (p.DotProduct4(dir));
+						//if (dist.m_x > maxProj.m_x) {
+						//	maxProj = dist;
+						//	index = box.m_vertexStart + i;
+						//}
+						dgVector mask (dist > maxProj);
+						dgInt32 intMask = *((dgInt32*) &mask.m_x);
+						index = ((box.m_vertexStart + i) & intMask) | (index & ~intMask);
+						maxProj = maxProj.GetMax(dist);
+					}
+				}
+			}
+		}
+	} else {
+		for (dgInt32 i = 0; i < m_vertexCount; i ++) {
+			const dgVector& p = m_vertex[i];
+			dgVector dist (p.DotProduct4(dir));
+			//if (dist.m_x > maxProj.m_x) {
+			//	index = i;
+			//	maxProj = dist;
+			//}
+			dgVector mask (dist > maxProj);
+			dgInt32 intMask = *((dgInt32*) &mask.m_x);
+			index = (i & intMask) | (index & ~intMask);
+			maxProj = maxProj.GetMax(dist);
+		}
+	}
+
+	dgAssert (index != -1);
+	return m_vertex[index];
+}
+
+
+void dgCollisionConvexHull::GetCollisionInfo(dgCollisionInfo* const info) const
 {
 	dgCollisionConvex::GetCollisionInfo(info);
-
-	info->m_offsetMatrix = GetOffsetMatrix();
-//	strcpy (info->m_collisionType, "convexHull");
-	info->m_collisionType = m_collsionId;
 
 	info->m_convexHull.m_vertexCount = m_vertexCount;
 	info->m_convexHull.m_strideInBytes = sizeof (dgVector);
@@ -625,10 +908,11 @@ void dgCollisionConvexHull::Serialize(dgSerialize callback, void* const userData
 	callback (userData, &m_vertexCount, sizeof (dgInt32));
 	callback (userData, &m_faceCount, sizeof (dgInt32));
 	callback (userData, &m_edgeCount, sizeof (dgInt32));
-	callback (userData, &m_boundPlanesCount, sizeof (dgInt32));
-	callback (userData, &m_destructionImpulse, sizeof (dgFloat32));
-
-
+	callback (userData, &m_supportTreeCount, sizeof (dgInt32));
+	
+	if (m_supportTreeCount) {
+		callback (userData, m_supportTree, m_supportTreeCount * sizeof(dgConvexBox));
+	}
 	callback (userData, m_vertex, m_vertexCount * sizeof (dgVector));
 
 	for (dgInt32 i = 0; i < m_edgeCount; i ++) {
@@ -646,65 +930,4 @@ void dgCollisionConvexHull::Serialize(dgSerialize callback, void* const userData
 		callback (userData, &faceOffset, sizeof (dgInt32));
 	}
 }
-
-
-
-bool dgCollisionConvexHull::OOBBTest (const dgMatrix& matrix, const dgCollisionConvex* const shape, void* const cacheOrder) const
-{
-	bool ret;
-	_ASSERTE (cacheOrder);
-
-	ret = dgCollisionConvex::OOBBTest (matrix, shape, cacheOrder);
-	if (ret) {
-		const dgConvexSimplexEdge* const* faceArray = m_faceArray;
-		dgCollisionBoundPlaneCache* const cache = (dgCollisionBoundPlaneCache*)cacheOrder;
-
-		for (dgInt32 i = 0; i < dgInt32 (sizeof (cache->m_planes) / sizeof (dgPlane)); i ++) {
-			dgFloat32 dist;
-			const dgPlane& plane = cache->m_planes[i];
-			if ((plane % plane) > dgFloat32 (0.0f)) {
-				dgVector dir (matrix.UnrotateVector(plane.Scale (-1.0f)));
-				dir.m_w = dgFloat32 (0.0f);
-				dgVector p (matrix.TransformVector (shape->SupportVertex(dir)));
-				dist = plane.Evalue (p);
-				if (dist > dgFloat32 (0.1f)){
-					return false;
-				} 
-			}
-		}
-
-		for (dgInt32 i = 0; i < m_boundPlanesCount; i ++) {
-			dgInt32 i0;
-			dgInt32 i1;
-			dgInt32 i2;
-			dgFloat32 dist;
-
-			const dgConvexSimplexEdge* const face = faceArray[i];
-			i0 = face->m_prev->m_vertex;
-			i1 = face->m_vertex;
-			i2 = face->m_next->m_vertex;
-			const dgVector& p0 = m_vertex[i0];
-
-			dgVector normal ((m_vertex[i1] - p0) * (m_vertex[i2] - p0));
-			normal = normal.Scale (dgFloat32 (1.0f) / dgSqrt (normal % normal));
-
-			dgVector dir (matrix.UnrotateVector(normal.Scale (-1.0f)));
-			dir.m_w = dgFloat32 (0.0f);
-			dgVector p (matrix.TransformVector (shape->SupportVertex(dir)));
-
-			//_ASSERTE ((normal % (m_boxOrigin - p0)) < 0.0f);
-			dist = normal % (p - p0);
-			if (dist > dgFloat32 (0.1f)){
-				for (dgInt32 j = 0; j < (dgInt32 (sizeof (cache->m_planes) / sizeof (dgPlane)) - 1); j ++) {
-					cache->m_planes[j + 1] = cache->m_planes[j];
-				}
-				cache->m_planes[1] = dgPlane (normal, - (normal % p0));
-				return false;
-			} 
-		}
-	}
-	return ret;
-}
-
-
 

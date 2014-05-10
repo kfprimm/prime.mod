@@ -40,7 +40,7 @@ class dgBaseNode: public dgRef
 	dgBaseNode *GetSibling () const;
 
 	void Detach ();
-	void Attach (dgBaseNode *parent, bool addFirst = false);
+	void Attach (dgBaseNode* const parent, bool addFirst = false);
 	
 	dgBaseNode *GetRoot () const;
 	dgBaseNode *GetFirst() const;
@@ -49,28 +49,28 @@ class dgBaseNode: public dgRef
 	dgBaseNode *GetPrev() const;
 
 	dgBaseNode *Find (dgUnsigned32 nameCRC) const; 
-	dgBaseNode *Find (const char *name) const;
-	void DebugPrint (const char *fileName); 
+	dgBaseNode *Find (const char* const name) const;
+	void DebugPrint (const char* const fileName); 
 	bool SanityCheck();
 
 
 	protected:
 	dgBaseNode ();
-	dgBaseNode (const char *name);
+	dgBaseNode (const char* const name);
 	dgBaseNode (const dgBaseNode &clone);
 	~dgBaseNode ();
 
 //	virtual void Save (dgFile &file, dgSaveType saveType, void* const context) const; 
 	virtual void CloneFixUp (const dgBaseNode &clone);
-	virtual void PrintHierarchy (dgFile &file, char *indentation) const; 
+	virtual void PrintHierarchy (dgFile &file, char* indentation) const; 
 
 	private:
 	inline void Clear();
 
 	dgAddRtti(dgRef);
-	dgBaseNode *parent;
-	dgBaseNode *child;
-	dgBaseNode *sibling;
+	dgBaseNode* parent;
+	dgBaseNode* child;
+	dgBaseNode* sibling;
 
 };
 
@@ -79,19 +79,19 @@ class dgNode: public dgBaseNode
 {
 	public:
 	dgNode ();
-	dgNode (const char *name);
-	void Attach (T *parent, bool addFirst = false);
+	dgNode (const char* const name);
+	void Attach (T* parent, bool addFirst = false);
 	void Detach ();
-	T *GetChild () const;
-	T *GetSibling () const;
-	T *GetParent () const;
-	T *GetRoot () const;
-	T *GetFirst() const;
-	T *GetLast() const;
-	T *GetNext() const;
-	T *GetPrev() const;
-	T *Find (dgUnsigned32 nameCRC) const;
-	T *Find (const char *name) const;
+	T* GetChild () const;
+	T* GetSibling () const;
+	T* GetParent () const;
+	T* GetRoot () const;
+	T* GetFirst() const;
+	T* GetLast() const;
+	T* GetNext() const;
+	T* GetPrev() const;
+	T* Find (dgUnsigned32 nameCRC) const;
+	T* Find (const char* const name) const;
 
 	protected:
 	dgNode (const T &clone);
@@ -110,7 +110,7 @@ inline dgBaseNode::dgBaseNode ()
 	Clear ();
 }
 
-inline dgBaseNode::dgBaseNode (const char *name)
+inline dgBaseNode::dgBaseNode (const char* const name)
 	:dgRef (name)
 {
 	Clear ();
@@ -141,7 +141,7 @@ inline dgBaseNode *dgBaseNode::GetParent () const
 }
 
 
-inline dgBaseNode *dgBaseNode::Find (const char *name) const
+inline dgBaseNode *dgBaseNode::Find (const char* const name) const
 {
 	return Find (dgCRC (name)); 
 } 
@@ -162,7 +162,7 @@ dgNode<T>::dgNode (const T &clone)
 }
 
 template<class T>
-dgNode<T>::dgNode (const char *name)
+dgNode<T>::dgNode (const char* const name)
 	:dgBaseNode (name)
 {
 }
@@ -180,7 +180,7 @@ dgRef *dgNode<T>::CreateClone () const
 }
 
 template<class T>
-void dgNode<T>::Attach (T *parent, bool addFirst)
+void dgNode<T>::Attach (T* const parent, bool addFirst)
 {
 	dgBaseNode::Attach(parent, addFirst);
 }
@@ -192,65 +192,65 @@ void dgNode<T>::Detach ()
 }
 
 template<class T>
-T *dgNode<T>::GetChild () const
+T* dgNode<T>::GetChild () const
 {
 	return (T*) dgBaseNode::GetChild();
 }
 
 template<class T>
-T *dgNode<T>::GetSibling () const
+T* dgNode<T>::GetSibling () const
 {
 	return (T*) dgBaseNode::GetSibling ();
 }
 
 template<class T>
-T *dgNode<T>::GetParent () const
+T* dgNode<T>::GetParent () const
 {
 	return (T*) dgBaseNode::GetParent ();
 }
 
 
 template<class T>
-T *dgNode<T>::GetRoot () const
+T* dgNode<T>::GetRoot () const
 {
 	return (T*) dgBaseNode::GetRoot ();
 }
 
 
 template<class T>
-T *dgNode<T>::GetFirst() const
+T* dgNode<T>::GetFirst() const
 {
 	return (T*) dgBaseNode::GetFirst ();
 }
 
 template<class T>
-T *dgNode<T>::GetLast() const
+T* dgNode<T>::GetLast() const
 {
 	return (T*) dgBaseNode::GetLast ();
 }
 
 
 template<class T>
-T *dgNode<T>::GetNext() const
+T* dgNode<T>::GetNext() const
 {
 	return (T*) dgBaseNode::GetNext ();
 }
 
 template<class T>
-T *dgNode<T>::GetPrev() const
+T* dgNode<T>::GetPrev() const
 {
 	return (T*) dgBaseNode::GetPrev ();
 }
 
 
 template<class T>
-T *dgNode<T>::Find (dgUnsigned32 nameCRC) const 
+T* dgNode<T>::Find (dgUnsigned32 nameCRC) const 
 {
 	return (T*) dgBaseNode::Find (nameCRC);
 }
 
 template<class T>
-T *dgNode<T>::Find (const char *name) const
+T* dgNode<T>::Find (const char* const name) const
 {
 	return (T*) dgBaseNode::Find (name);
 } 

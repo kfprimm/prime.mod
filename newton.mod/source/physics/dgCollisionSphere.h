@@ -19,8 +19,8 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DGCOLLISIONSPHERE_H__4969D514_69A9_4D96_82B2_E5B0EA3D413F__INCLUDED_)
-#define AFX_DGCOLLISIONSPHERE_H__4969D514_69A9_4D96_82B2_E5B0EA3D413F__INCLUDED_
+#ifndef _DG_COLLISION_SPHERE_H__
+#define _DG_COLLISION_SPHERE_H__
 
 
 #include "dgCollisionConvex.h"
@@ -30,42 +30,43 @@
 class dgCollisionSphere: public dgCollisionConvex
 {
 	public:
-	dgCollisionSphere(dgMemoryAllocator* allocator, dgUnsigned32 signature, dgFloat32 radius, const dgMatrix& offsetMatrix);
+	dgCollisionSphere(dgMemoryAllocator* allocator, dgUnsigned32 signature, dgFloat32 radius);
 	dgCollisionSphere(dgWorld* const world, dgDeserialize deserialization, void* const userData);
 	virtual ~dgCollisionSphere();
 
 
 	protected:
 	void Init (dgFloat32 radius, dgMemoryAllocator* allocator);
-	virtual dgVector SupportVertex (const dgVector& dir) const;
-	virtual dgVector SupportVertexSimd (const dgVector& dir) const;
+	virtual dgVector SupportVertex (const dgVector& dir, dgInt32* const vertexIndex) const;
 
-	virtual void CalcAABB (const dgMatrix &matrix, dgVector& p0, dgVector& p1) const;
-//	virtual void DebugCollision (const dgBody& myBody, DebugCollisionMeshCallback callback) const;
-	virtual void DebugCollision (const dgMatrix& matrix, OnDebugCollisionMeshCallback callback, void* const userData) const;
-	virtual dgFloat32 RayCast (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const;
-	virtual dgFloat32 RayCastSimd (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const;
+	virtual void CalcAABB (const dgMatrix& matrix, dgVector& p0, dgVector& p1) const;
+	virtual void DebugCollision  (const dgMatrix& matrix, OnDebugCollisionMeshCallback callback, void* const userData) const;
+	virtual dgFloat32 RayCast (const dgVector& localP0, const dgVector& localP1, dgFloat32 maxT, dgContactPoint& contactOut, const dgBody* const body, void* const userData) const;
 
 	void TesselateTriangle (dgInt32 level, const dgVector& p0, const dgVector& p1, const dgVector& p2, dgInt32& count, dgVector* ouput) const;
 	
 //	private:
+	static dgInt32 CalculateSignature (dgFloat32 radius);
+
 	virtual dgInt32 CalculateSignature () const;
 	virtual void SetCollisionBBox (const dgVector& p0, const dgVector& p1);
-	virtual dgFloat32 CalculateMassProperties (dgVector& inertia, dgVector& crossInertia, dgVector& centerOfMass) const;
+
+	virtual void MassProperties ();
 
 	virtual dgInt32 CalculatePlaneIntersection (const dgVector& normal, const dgVector& point, dgVector* const contactsOut) const;
-	virtual dgInt32 CalculatePlaneIntersectionSimd (const dgVector& normal, const dgVector& point, dgVector* const contactsOut) const;
 
-	virtual void GetCollisionInfo(dgCollisionInfo* info) const;
+	virtual void GetCollisionInfo(dgCollisionInfo* const info) const;
 	virtual void Serialize(dgSerialize callback, void* const userData) const;
-	
-	dgFloat32 m_radius;
-	dgFloat32 m_radiusStep;
 
-//	dgFloat32 m_tethaStep;
-//	dgFloat32 m_tethaStepInv;
-//	dgFloat32 m_delCosTetha;
-//	dgFloat32 m_delSinTetha;
+	// special feature based contact calculation for conics convex (ex spheres, capsules, tapered capsules, and chamfered cylinders)
+	// in newton we only deal with sub set of conic function, that can be expressed by the equation
+	// ((x - x0) / a)^2 + ((y - y0) / b)^2 + ((z - z0) / c)^2  = 1   and possible a linear or circular sweep of the same equation
+	// this preclude parabolic and hyperbolic conics 
+	virtual dgVector ConvexConicSupporVertex (const dgVector& dir) const;
+	virtual dgVector ConvexConicSupporVertex (const dgVector& point, const dgVector& dir) const;
+	virtual dgInt32 CalculateContacts (const dgVector& point, const dgVector& normal, dgCollisionParamProxy& proxy, dgVector* const contactsOut) const;
+
+	dgFloat32 m_radius;
 	dgVector m_vertex[DG_SPHERE_VERTEX_COUNT];
 	
 	static dgInt32 m_shapeRefCount;
@@ -80,16 +81,13 @@ class dgCollisionPoint: public dgCollisionSphere
 {
 	public:
 	dgCollisionPoint (dgMemoryAllocator* const allocator) 
-		:dgCollisionSphere(allocator, 0x12344321, dgFloat32 (0.25f), dgGetIdentityMatrix())
+		:dgCollisionSphere(allocator, 0x12344321, dgFloat32 (0.25f))
 	{
 	}
 
 	virtual dgFloat32 GetVolume () const;
-	virtual void CalculateInertia (dgVector& inertia, dgVector& origin) const;
-
-	virtual dgVector SupportVertex (const dgVector& dir) const;
-	virtual dgVector SupportVertexSimd (const dgVector& dir) const;
+	virtual dgVector SupportVertex (const dgVector& dir, dgInt32* const vertexIndex) const;
 };
 
-#endif // !defined(AFX_DGCOLLISIONSPHERE_H__4969D514_69A9_4D96_82B2_E5B0EA3D413F__INCLUDED_)
+#endif 
 

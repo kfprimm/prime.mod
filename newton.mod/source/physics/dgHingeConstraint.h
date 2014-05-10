@@ -19,8 +19,8 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DGHINGECONSTRAINT_H__3FF7D7AA_90CC_4BA5_B2A4_D3BA51AD2FFD__INCLUDED_)
-#define AFX_DGHINGECONSTRAINT_H__3FF7D7AA_90CC_4BA5_B2A4_D3BA51AD2FFD__INCLUDED_
+#if !defined(AFX_DGHINGECONSTRAINT_H__3FF7D7AA_90CC_4BA5_B2A4_D3BA51AD2FFD_H)
+#define AFX_DGHINGECONSTRAINT_H__3FF7D7AA_90CC_4BA5_B2A4_D3BA51AD2FFD_H
 #include "dgBilateralConstraint.h"
 
 //template<class T>	class dgPool;
@@ -28,7 +28,7 @@
 class dgHingeConstraint;
 
 
-typedef dgUnsigned32 (dgApi *dgHingeJointAcceleration) (const dgHingeConstraint& hinge, dgJointCallBackParam* param);
+typedef dgUnsigned32 (dgApi *dgHingeJointAcceleration) (const dgHingeConstraint& hinge, dgJointCallbackParam* param);
 
 class dgHingeConstraint: public dgBilateralConstraint
 {
@@ -36,8 +36,8 @@ class dgHingeConstraint: public dgBilateralConstraint
 	dgFloat32 GetJointAngle () const;
 	dgFloat32 GetJointOmega () const;
 	dgVector GetJointForce () const;
-	dgFloat32 CalculateStopAlpha (dgFloat32 angle, const dgJointCallBackParam* param) const;
-	void SetJointParameterCallBack (dgHingeJointAcceleration callback);
+	dgFloat32 CalculateStopAlpha (dgFloat32 angle, const dgJointCallbackParam* param) const;
+	void SetJointParameterCallback (dgHingeJointAcceleration callback);
 
 	
 	
@@ -68,5 +68,5 @@ class dgHingeConstraint: public dgBilateralConstraint
 //};
 
 
-#endif // !defined(AFX_DGHINGECONSTRAINT_H__3FF7D7AA_90CC_4BA5_B2A4_D3BA51AD2FFD__INCLUDED_)
+#endif // !defined(AFX_DGHINGECONSTRAINT_H__3FF7D7AA_90CC_4BA5_B2A4_D3BA51AD2FFD_H)
 

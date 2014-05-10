@@ -19,14 +19,14 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DGSLIDINGCONSTRAINT_H__3FF7D7AA_90CC_4BA5_B2A4_D3BA51AD2FFD__INCLUDED_)
-#define AFX_DGSLIDINGCONSTRAINT_H__3FF7D7AA_90CC_4BA5_B2A4_D3BA51AD2FFD__INCLUDED_
+#if !defined(AFX_DGSLIDINGCONSTRAINT_H__3FF7D7AA_90CC_4BA5_B2A4_D3BA51AD2FFD_H)
+#define AFX_DGSLIDINGCONSTRAINT_H__3FF7D7AA_90CC_4BA5_B2A4_D3BA51AD2FFD_H
 #include "dgBilateralConstraint.h"
 
 //template<class T> class dgPool;
 
 class dgSlidingConstraint;
-typedef dgUnsigned32 (dgApi *dgSlidingJointAcceleration) (const dgSlidingConstraint& hinge, dgJointCallBackParam* param);
+typedef dgUnsigned32 (dgApi *dgSlidingJointAcceleration) (const dgSlidingConstraint& hinge, dgJointCallbackParam* param);
 
 class dgSlidingConstraint: public dgBilateralConstraint
 {
@@ -34,8 +34,8 @@ class dgSlidingConstraint: public dgBilateralConstraint
 	dgFloat32 GetJointPosit () const;
 	dgFloat32 GetJointVeloc () const;
 	dgVector GetJointForce () const;
-	dgFloat32 CalculateStopAccel (dgFloat32 distance, const dgJointCallBackParam* param) const;
-	void SetJointParameterCallBack (dgSlidingJointAcceleration callback);
+	dgFloat32 CalculateStopAccel (dgFloat32 distance, const dgJointCallbackParam* param) const;
+	void SetJointParameterCallback (dgSlidingJointAcceleration callback);
 
 	private:
 	dgSlidingConstraint();
@@ -65,5 +65,5 @@ class dgSlidingConstraintArray: public dgPoolContainer<dgSlidingConstraint>
 };
 */
 
-#endif // !defined(AFX_DGSLIDINGCONSTRAINT_H__3FF7D7AA_90CC_4BA5_B2A4_D3BA51AD2FFD__INCLUDED_)
+#endif // !defined(AFX_DGSLIDINGCONSTRAINT_H__3FF7D7AA_90CC_4BA5_B2A4_D3BA51AD2FFD_H)
 

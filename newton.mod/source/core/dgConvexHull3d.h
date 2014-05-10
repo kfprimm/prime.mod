@@ -37,48 +37,64 @@ class dgConvexHull3DFace
 {
 	public:
 	dgConvexHull3DFace();
-	dgInt32 m_index[3]; 
 	
+	
+	void SetMark(dgInt32 mark) {m_mark = mark;}
+	dgInt32 GetMark() const {return m_mark;}
+	dgList<dgConvexHull3DFace>::dgListNode* GetTwin(dgInt32 index) const { return m_twin[index];}
+
 	private:
 	dgFloat64 Evalue (const dgBigVector* const pointArray, const dgBigVector& point) const;
 	dgBigPlane GetPlaneEquation (const dgBigVector* const pointArray) const;
 
+	public:
+	dgInt32 m_index[3]; 
+	private:
 	dgInt32 m_mark;
 	dgList<dgConvexHull3DFace>::dgListNode* m_twin[3];
 	friend class dgConvexHull3d;
 };
 
+class dgHullVertex;
 
 class dgConvexHull3d: public dgList<dgConvexHull3DFace>
 {
 	public:
+	dgConvexHull3d(const dgConvexHull3d& source);
 	dgConvexHull3d(dgMemoryAllocator* const allocator, const dgFloat64* const vertexCloud, dgInt32 strideInBytes, dgInt32 count, dgFloat64 distTol, dgInt32 maxVertexCount = 0x7fffffff);
 	virtual ~dgConvexHull3d();
 
 	dgInt32 GetVertexCount() const;
 	const dgBigVector* GetVertexPool() const;
 	const dgBigVector& GetVertex(dgInt32 i) const;
-	
+
+	dgFloat64 GetDiagonal() const;
+	void GetAABB (dgBigVector& boxP0, dgBigVector& boxP1) const;
+	dgFloat64 RayCast (const dgBigVector& localP0, const dgBigVector& localP1) const;
+	void CalculateVolumeAndSurfaceArea (dgFloat64& volume, dgFloat64& surcafeArea) const;
 
 	protected:
 	dgConvexHull3d(dgMemoryAllocator* const allocator);
+	void BuildHull (const dgFloat64* const vertexCloud, dgInt32 strideInBytes, dgInt32 count, dgFloat64 distTol, dgInt32 maxVertexCount);
 
 	virtual dgListNode* AddFace (dgInt32 i0, dgInt32 i1, dgInt32 i2);
 	virtual void DeleteFace (dgListNode* const node) ;
-	virtual dgInt32 InitVertexArray(dgBigVector* const convexPoints, dgBigVector* const points, const dgFloat64* const vertexCloud, dgInt32 strideInBytes, dgInt32 count, void* const memoryPool, dgInt32 maxMemSize);
+	virtual dgInt32 InitVertexArray(dgHullVertex* const points, const dgFloat64* const vertexCloud, dgInt32 strideInBytes, dgInt32 count, void* const memoryPool, dgInt32 maxMemSize);
 
-	void CalculateConvexHull (dgAABBPointTree3d* vertexTree, dgBigVector* const convexPoints, dgBigVector* const points, dgInt32 count, dgFloat64 distTol, dgInt32 maxVertexCount);
+	void CalculateConvexHull (dgAABBPointTree3d* vertexTree, dgHullVertex* const points, dgInt32 count, dgFloat64 distTol, dgInt32 maxVertexCount);
 	dgInt32 BuildNormalList (dgBigVector* const normalArray) const;
-	dgInt32 SupportVertex (dgAABBPointTree3d** const tree, const dgBigVector* const points, const dgBigVector& dir) const;
+	dgInt32 SupportVertex (dgAABBPointTree3d** const tree, const dgHullVertex* const points, const dgBigVector& dir) const;
 	dgFloat64 TetrahedrumVolume (const dgBigVector& p0, const dgBigVector& p1, const dgBigVector& p2, const dgBigVector& p3) const;
 	void TessellateTriangle (dgInt32 level, const dgVector& p0, const dgVector& p1, const dgVector& p2, dgInt32& count, dgBigVector* const ouput, dgInt32& start) const;
 
-	dgAABBPointTree3d* BuildTree (dgAABBPointTree3d* const parent, dgBigVector* const points, dgInt32 count, dgInt32 baseIndex, dgInt8** const memoryPool, dgInt32& maxMemSize) const;
-	static dgInt32 ConvexCompareVertex(const dgBigVector* const  A, const dgBigVector* const B, void* const context);
+	dgAABBPointTree3d* BuildTree (dgAABBPointTree3d* const parent, dgHullVertex* const points, dgInt32 count, dgInt32 baseIndex, dgInt8** const memoryPool, dgInt32& maxMemSize) const;
+	static dgInt32 ConvexCompareVertex(const dgHullVertex* const  A, const dgHullVertex* const B, void* const context);
 	bool Sanity() const;
 
 	dgInt32 m_count;
 	dgFloat64 m_diag;
+	dgBigVector m_aabbP0;
+	dgBigVector m_aabbP1;
 	dgArray<dgBigVector> m_points;
 };
 
@@ -98,5 +114,16 @@ inline const dgBigVector& dgConvexHull3d::GetVertex(dgInt32 index) const
 	return m_points[index];
 }
 
+inline dgFloat64 dgConvexHull3d::GetDiagonal() const
+{
+	return m_diag;
+}
+
+
+inline void dgConvexHull3d::GetAABB (dgBigVector& boxP0, dgBigVector& boxP1) const
+{
+	boxP0 = m_aabbP0;
+	boxP1 = m_aabbP1;
+}
 
 #endif

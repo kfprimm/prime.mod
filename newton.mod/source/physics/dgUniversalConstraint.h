@@ -28,7 +28,7 @@
 class dgUniversalConstraint;
 
 
-typedef dgUnsigned32 (dgApi *dgUniversalJointAcceleration) (const dgUniversalConstraint& hinge, dgJointCallBackParam* param);
+typedef dgUnsigned32 (dgApi *dgUniversalJointAcceleration) (const dgUniversalConstraint& hinge, dgJointCallbackParam* param);
 
 class dgUniversalConstraint: public dgBilateralConstraint
 {
@@ -39,9 +39,9 @@ class dgUniversalConstraint: public dgBilateralConstraint
 	dgFloat32 GetJointOmega1 () const;
 
 	dgVector GetJointForce () const;
-	dgFloat32 CalculateStopAlpha0 (dgFloat32 angle, const dgJointCallBackParam* param) const;
-	dgFloat32 CalculateStopAlpha1 (dgFloat32 angle, const dgJointCallBackParam* param) const;
-	void SetJointParameterCallBack (dgUniversalJointAcceleration callback);
+	dgFloat32 CalculateStopAlpha0 (dgFloat32 angle, const dgJointCallbackParam* param) const;
+	dgFloat32 CalculateStopAlpha1 (dgFloat32 angle, const dgJointCallbackParam* param) const;
+	void SetJointParameterCallback (dgUniversalJointAcceleration callback);
 
 	private:
 	virtual dgUnsigned32 JacobianDerivative (dgContraintDescritor& params); 

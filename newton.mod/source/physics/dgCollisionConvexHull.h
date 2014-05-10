@@ -19,8 +19,8 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DGCOLLISIONCONVEXHULL_H__AS235640FER__INCLUDED_)
-#define AFX_DGCOLLISIONCONVEXHULL_H__AS235640FER__INCLUDED_
+#if !defined(AFX_DGCOLLISIONCONVEXHULL_H__AS235640FER_H)
+#define AFX_DGCOLLISIONCONVEXHULL_H__AS235640FER_H
 
 #include "dgCollisionConvex.h"
 
@@ -28,33 +28,40 @@
 class dgCollisionConvexHull: public dgCollisionConvex  
 {
 	public:
-	dgCollisionConvexHull(dgMemoryAllocator* const allocator, dgUnsigned32 signature, dgInt32 count, dgInt32 strideInBytes, dgFloat32 tolerance, const dgFloat32* vertexArray, const dgMatrix& matrix);
+	class dgConvexBox;
+
+	dgCollisionConvexHull(dgMemoryAllocator* const allocator, dgUnsigned32 signature);
+	dgCollisionConvexHull(dgMemoryAllocator* const allocator, dgUnsigned32 signature, dgInt32 count, dgInt32 strideInBytes, dgFloat32 tolerance, const dgFloat32* const vertexArray);
 	dgCollisionConvexHull(dgWorld* const world, dgDeserialize deserialization, void* const userData);
 	virtual ~dgCollisionConvexHull();
 
-	dgInt32 GetFaceIndices (dgInt32 index, dgInt32* indices) const;
-	private:
-	
+	dgInt32 GetFaceIndices (dgInt32 index, dgInt32* const indices) const;
+
+	static dgInt32 CalculateSignature (dgInt32 vertexCount, const dgFloat32* const vertexArray, dgInt32 strideInBytes);
+	static dgInt32 CalculatePinNumber (dgInt32 vertexCount, const dgFloat32* const vertexArray, dgInt32 strideInBytes);
+
+	protected:
+	void BuildHull (dgInt32 count, dgInt32 strideInBytes, dgFloat32 tolerance, const dgFloat32* const vertexArray);
 	bool Create (dgInt32 count, dgInt32 strideInBytes, const dgFloat32* const vertexArray, dgFloat32 tolerance);
 
 	bool RemoveCoplanarEdge (dgPolyhedra& convex, const dgBigVector* const hullVertexArray) const;	
 	dgBigVector FaceNormal (const dgEdge *face, const dgBigVector* const pool) const;
 	bool CheckConvex (dgPolyhedra& polyhedra, const dgBigVector* hullVertexArray) const;
 
+	virtual dgVector SupportVertex (const dgVector& dir, dgInt32* const vertexIndex) const;
+
 	virtual dgInt32 CalculateSignature () const;
 	virtual void SetCollisionBBox (const dgVector& p0, const dgVector& p1);
-	virtual void DebugCollision (const dgMatrix& matrix, OnDebugCollisionMeshCallback callback, void* const userData) const;
-	virtual void GetCollisionInfo(dgCollisionInfo* info) const;
+	virtual void DebugCollision  (const dgMatrix& matrix, OnDebugCollisionMeshCallback callback, void* const userData) const;
+	virtual void GetCollisionInfo(dgCollisionInfo* const info) const;
 	virtual void Serialize(dgSerialize callback, void* const userData) const;
-	virtual bool OOBBTest (const dgMatrix& matrix, const dgCollisionConvex* const shape, void* const cacheOrder) const; 
 
-	virtual void SetBreakImpulse(dgFloat32 force);
-	virtual dgFloat32 GetBreakImpulse() const;
+//	virtual dgFloat32 RayCast (const dgVector& localQ0, const dgVector& localP1, dgContactPoint& contactOut, const dgBody* const body, void* const userData) const;
 
-	dgFloat32 m_destructionImpulse;
 	dgInt32 m_faceCount;
-	dgInt32 m_boundPlanesCount;
+	dgInt32 m_supportTreeCount;
 	dgConvexSimplexEdge** m_faceArray;
+	dgConvexBox* m_supportTree;
 
 	friend class dgWorld;
 	friend class dgCollisionConvex;

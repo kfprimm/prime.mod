@@ -19,20 +19,20 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(__DGUPVECTORCONSTRAINT_563GFT35684GT__INCLUDED_)
-#define __DGUPVECTORCONSTRAINT_563GFT35684GT__INCLUDED_
+#if !defined(__DGUPVECTORCONSTRAINT_563GFT35684GT_H)
+#define __DGUPVECTORCONSTRAINT_563GFT35684GT_H
 #include "dgBilateralConstraint.h"
 
 //template<class T> class dgPool;
 
 class dgUpVectorConstraint;
 
-typedef dgUnsigned32 (dgApi *dgUpVectorJointCallBack) (const dgUpVectorConstraint& upVector);
+typedef dgUnsigned32 (dgApi *dgUpVectorJointCallback) (const dgUpVectorConstraint& upVector);
 
 class dgUpVectorConstraint: public dgBilateralConstraint
 {
 	public:
-	void SetJointParameterCallBack (dgUpVectorJointCallBack callback);
+	void SetJointParameterCallback (dgUpVectorJointCallback callback);
 	void InitPinDir (const dgVector& pin);
 	
 	dgVector GetPinDir () const;
@@ -48,7 +48,7 @@ class dgUpVectorConstraint: public dgBilateralConstraint
 	virtual dgUnsigned32 JacobianDerivative (dgContraintDescritor& params); 
 //	static dgUpVectorConstraint* Create(dgWorld* world);
 
-	dgUpVectorJointCallBack m_callBack;
+	dgUpVectorJointCallback m_callBack;
 //	dgUnsigned32 m_reserve[3];
 
 	friend class dgWorld;
@@ -61,5 +61,5 @@ class dgUpVectorConstraintArray: public dgPoolContainer<dgUpVectorConstraint>
 };
 */
 
-#endif // !defined(__DGUPVECTORCONSTRAINT_563GFT35684GT__INCLUDED_)
+#endif // !defined(__DGUPVECTORCONSTRAINT_563GFT35684GT_H)
 

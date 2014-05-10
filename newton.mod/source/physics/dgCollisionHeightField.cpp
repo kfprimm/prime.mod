@@ -27,53 +27,210 @@
 
 #define DG_HIGHTFILD_DATA_ID 0x45AF5E07
 
-dgCollisionHeightField::dgCollisionHeightField(
-	dgWorld* const world,
-	dgInt32 width, 
-	dgInt32 height, 
-	dgInt32 contructionMode, 
-	const dgUnsigned16* const elevationMap, 
-	const dgInt8* const atributeMap, 
-	dgFloat32 horizontalScale, 
-	dgFloat32 vertcalScale)
-	:dgCollisionMesh (world->GetAllocator(), m_heightField)
+dgVector dgCollisionHeightField::m_yMask (0xffffffff, 0, 0xffffffff, 0);
+dgVector dgCollisionHeightField::m_padding (dgFloat32 (1.0e-3f), dgFloat32 (1.0e-3f), dgFloat32 (1.0e-3f), dgFloat32 (0.0f));
+
+dgInt32 dgCollisionHeightField::m_cellIndices[][4] =
 {
-	dgFloat32 y0;
-	dgFloat32 y1;
+	{0, 1, 2, 3},
+	{1, 3, 0, 2}
+};
 
-	m_userRayCastCallback = NULL;
+dgInt32 dgCollisionHeightField::m_verticalEdgeMap[][7] = 
+{
+	{1 * 9 + 1, 0 * 9 + 0, 1 * 9 + 4, 1 * 9 + 6, 0 * 9 + 6, 1 * 9 + 4, 0 * 9 + 4},
+	{1 * 9 + 2, 0 * 9 + 1, 1 * 9 + 4, 1 * 9 + 6, 0 * 9 + 7, 1 * 9 + 4, 0 * 9 + 4},
+	{1 * 9 + 2, 0 * 9 + 0, 1 * 9 + 4, 1 * 9 + 7, 0 * 9 + 6, 1 * 9 + 4, 0 * 9 + 4},
+	{1 * 9 + 0, 0 * 9 + 1, 1 * 9 + 4, 1 * 9 + 7, 0 * 9 + 7, 1 * 9 + 4, 0 * 9 + 4}
+};
+
+dgInt32 dgCollisionHeightField::m_horizontalEdgeMap[][7] =
+{
+	{1 * 9 + 0, 2 * 9 + 1, 1 * 9 + 4, 1 * 9 + 7, 2 * 9 + 7, 1 * 9 + 4, 2 * 9 + 4},
+	{1 * 9 + 0, 3 * 9 + 0, 1 * 9 + 4, 1 * 9 + 7, 3 * 9 + 6, 1 * 9 + 4, 3 * 9 + 4},
+	{0 * 9 + 1, 2 * 9 + 1, 0 * 9 + 4, 1 * 9 + 7, 2 * 9 + 7, 0 * 9 + 4, 2 * 9 + 4},
+	{0 * 9 + 1, 3 * 9 + 0, 0 * 9 + 4, 0 * 9 + 6, 3 * 9 + 6, 0 * 9 + 4, 3 * 9 + 4}
+};
+
+
+dgCollisionHeightField::dgCollisionHeightField(
+	dgWorld* const world, dgInt32 width, dgInt32 height, dgInt32 contructionMode, 
+	const void* const elevationMap, dgElevationType elevationDataType, dgFloat32 verticalScale, 
+	const dgInt8* const atributeMap, dgFloat32 horizontalScale)
+	:dgCollisionMesh (world, m_heightField)
+	,m_width(width)
+	,m_height(height)
+	,m_diagonalMode (dgCollisionHeightFieldGridConstruction  (dgClamp (contructionMode, dgInt32 (m_normalDiagonals), dgInt32 (m_starInvertexDiagonals))))
+	,m_verticalScale(verticalScale)
+	,m_horizontalScale(horizontalScale)
+	,m_horizontalScaleInv (dgFloat32 (1.0f) / m_horizontalScale)
+	,m_userRayCastCallback(NULL)
+	,m_elevationDataType(elevationDataType)
+{
 	m_rtti |= dgCollisionHeightField_RTTI;
-	m_width = width;
-	m_height = height;
-	m_diagonalMode = contructionMode;
-	m_verticalScale = vertcalScale;
-	m_horizontalScale = horizontalScale;
 
-	m_elevationMap = (dgUnsigned16 *)dgMallocStack(m_width * m_height * sizeof (dgUnsigned16));
-	memcpy (m_elevationMap, elevationMap, m_width * m_height * sizeof (dgUnsigned16));
+	switch (m_elevationDataType) 
+	{
+		case m_float32Bit:
+		{
+			m_elevationMap = dgMallocStack(m_width * m_height * sizeof (dgFloat32));
+			memcpy (m_elevationMap, elevationMap, m_width * m_height * sizeof (dgFloat32));
+			break;
+		}
 
-	m_atributeMap = (dgInt8 *)dgMallocStack(m_width * m_height * sizeof (dgInt8));
-	memcpy (m_atributeMap, atributeMap, m_width * m_height * sizeof (dgInt8));
-
-	y0 = dgFloat32 (0.0f);
-	y1 = dgFloat32 (-dgFloat32 (1.0e10f));
-	for (dgInt32 i = 0; i < m_width * m_height; i ++) {
-		y1 = GetMax(y1, dgFloat32 (m_elevationMap[i]));
+		case m_unsigned16Bit:
+		{
+			m_elevationMap = dgMallocStack(m_width * m_height * sizeof (dgUnsigned16));
+			memcpy (m_elevationMap, elevationMap, m_width * m_height * sizeof (dgUnsigned16));
+		}
 	}
 
+	dgInt32 attibutePaddedMapSize = (m_width * m_height + 4) & -4; 
+	m_atributeMap = (dgInt8 *)dgMallocStack(attibutePaddedMapSize * sizeof (dgInt8));
+	m_diagonals = (dgInt8 *)dgMallocStack(attibutePaddedMapSize * sizeof (dgInt8));
 
-	m_minBox = dgVector (dgFloat32 (dgFloat32 (0.0f)), y0 * m_verticalScale, dgFloat32 (dgFloat32 (0.0f)), dgFloat32(dgFloat32 (1.0f))); 
-	m_maxBox = dgVector (dgFloat32 (m_width-1) * m_horizontalScale, y1 * m_verticalScale, dgFloat32 (m_height-1) * m_horizontalScale, dgFloat32(dgFloat32 (1.0f))); 
+	switch (m_diagonalMode)
+	{
+		case m_normalDiagonals:
+		{
+			memset (m_diagonals, 0, m_width * m_height * sizeof (dgInt8));
+			break;
+		}
+		case m_invertedDiagonals:
+		{
+			memset (m_diagonals, 1, m_width * m_height * sizeof (dgInt8));
+			break;
+		}
 
-//	m_verticalScaleInv = dgFloat32 (1.0f) / m_verticalScale;
-	m_horizontalScaleInv = dgFloat32 (1.0f) / m_horizontalScale;
+		case m_alternateOddRowsDiagonals:
+		{
+			for (dgInt32 j = 0; j < m_height; j += 2) {
+				dgInt32 index = j * m_width;
+				for (dgInt32 i = 0; i < m_width; i ++) {
+					m_diagonals[index + i] = 0;
+				}
+			}
+
+			for (dgInt32 j = 1; j < m_height; j += 2) {
+				dgInt32 index = j * m_width;
+				for (dgInt32 i = 0; i < m_width; i ++) {
+					m_diagonals[index + i] = 1;
+				}
+			}
+			break;
+		}
+
+		case m_alternateEvenRowsDiagonals:
+		{
+			for (dgInt32 j = 0; j < m_height; j += 2) {
+				dgInt32 index = j * m_width;
+				for (dgInt32 i = 0; i < m_width; i ++) {
+					m_diagonals[index + i] = 1;
+				}
+			}
+
+			for (dgInt32 j = 1; j < m_height; j += 2) {
+				dgInt32 index = j * m_width;
+				for (dgInt32 i = 0; i < m_width; i ++) {
+					m_diagonals[index + i] = 0;
+				}
+			}
+			break;
+		}
+
+
+		case m_alternateOddColumsDiagonals:
+		{
+			for (dgInt32 j = 0; j < m_height; j ++) {
+				dgInt32 index = j * m_width;
+				for (dgInt32 i = 0; i < m_width; i += 2) {
+					m_diagonals[index + i] = 0;
+				}
+
+				for (dgInt32 i = 1; i < m_width; i += 2) {
+					m_diagonals[index + i] = 1;
+				}
+			}
+			break;
+		}
+
+		case m_alternateEvenColumsDiagonals:
+		{
+			for (dgInt32 j = 0; j < m_height; j ++) {
+				dgInt32 index = j * m_width;
+				for (dgInt32 i = 0; i < m_width; i += 2) {
+					m_diagonals[index + i] = 1;
+				}
+
+				for (dgInt32 i = 1; i < m_width; i += 2) {
+					m_diagonals[index + i] = 0;
+				}
+			}
+			break;
+		}
+
+		case m_starDiagonals:
+		{
+			for (dgInt32 j = 0; j < m_height; j += 2) {
+				dgInt32 index = j * m_width;
+				for (dgInt32 i = 0; i < m_width; i += 2) {
+					m_diagonals[index + i] = 0;
+				}
+				for (dgInt32 i = 1; i < m_width; i += 2) {
+					m_diagonals[index + i] = 1;
+				}
+			}
+
+			for (dgInt32 j = 1; j < m_height; j += 2) {
+				dgInt32 index = j * m_width;
+				for (dgInt32 i = 0; i < m_width; i += 2) {
+					m_diagonals[index + i] = 1;
+				}
+				for (dgInt32 i = 1; i < m_width; i += 2) {
+					m_diagonals[index + i] = 0;
+				}
+			}
+			break;
+		}
+
+		case m_starInvertexDiagonals:
+		{
+			for (dgInt32 j = 0; j < m_height; j += 2) {
+				dgInt32 index = j * m_width;
+				for (dgInt32 i = 0; i < m_width; i += 2) {
+					m_diagonals[index + i] = 1;
+				}
+				for (dgInt32 i = 1; i < m_width; i += 2) {
+					m_diagonals[index + i] = 0;
+				}
+			}
+
+			for (dgInt32 j = 1; j < m_height; j += 2) {
+				dgInt32 index = j * m_width;
+				for (dgInt32 i = 0; i < m_width; i += 2) {
+					m_diagonals[index + i] = 0;
+				}
+				for (dgInt32 i = 1; i < m_width; i += 2) {
+					m_diagonals[index + i] = 1;
+				}
+			}
+
+			break;
+		}
+
+		default:
+			dgAssert (0);
+		
+	}
+	memcpy (m_atributeMap, atributeMap, m_width * m_height * sizeof (dgInt8));
+
 
 	dgTree<void*, unsigned>::dgTreeNode* nodeData = world->m_perInstanceData.Find(DG_HIGHTFILD_DATA_ID);
 	if (!nodeData) {
 		m_instanceData = (dgPerIntanceData*) dgMallocStack (sizeof (dgPerIntanceData));
 		m_instanceData->m_refCount = 0;
 		m_instanceData->m_world = world;
-		for (dgInt32 i = 0 ; i < DG_MAXIMUN_THREADS; i ++) {
+		for (dgInt32 i = 0 ; i < DG_MAX_THREADS_HIVE_COUNT; i ++) {
 			m_instanceData->m_vertex[i] = NULL;
 			m_instanceData->m_vertexCount[i] = 8 * 8;
 			AllocateVertex(world, i);
@@ -83,38 +240,61 @@ dgCollisionHeightField::dgCollisionHeightField(
 	m_instanceData = (dgPerIntanceData*) nodeData->GetInfo();
 
 	m_instanceData->m_refCount ++;
+
+	CalculateAABB();
 	SetCollisionBBox(m_minBox, m_maxBox);
 }
 
 dgCollisionHeightField::dgCollisionHeightField (dgWorld* const world, dgDeserialize deserialization, void* const userData)
 	:dgCollisionMesh (world, deserialization, userData)
 {
-	m_rtti |= dgCollisionHeightField_RTTI;
+	dgAssert (m_rtti | dgCollisionHeightField_RTTI);
+	
+	dgInt32 elevationDataType;
 
 	m_userRayCastCallback = NULL;
 	deserialization (userData, &m_width, sizeof (dgInt32));
 	deserialization (userData, &m_height, sizeof (dgInt32));
 	deserialization (userData, &m_diagonalMode, sizeof (dgInt32));
+	deserialization (userData, &elevationDataType, sizeof (dgInt32));
 	deserialization (userData, &m_verticalScale, sizeof (dgFloat32));
 	deserialization (userData, &m_horizontalScale, sizeof (dgFloat32));
 	deserialization (userData, &m_minBox.m_x, sizeof (dgVector)); 
 	deserialization (userData, &m_maxBox.m_x, sizeof (dgVector)); 
 
-	m_elevationMap = (dgUnsigned16 *)dgMallocStack(m_width * m_height * sizeof (dgUnsigned16));
-	m_atributeMap = (dgInt8 *)dgMallocStack(m_width * m_height * sizeof (dgInt8));
+	m_elevationDataType = dgElevationType (elevationDataType);
 
-	deserialization (userData, m_elevationMap, m_width * m_height * sizeof (dgUnsigned16));
-	deserialization (userData, m_atributeMap, m_width * m_height * sizeof (dgInt8));
+	dgInt32 attibutePaddedMapSize = (m_width * m_height + 4) & -4; 
+	m_atributeMap = (dgInt8 *)dgMallocStack(attibutePaddedMapSize * sizeof (dgInt8));
+	m_diagonals = (dgInt8 *)dgMallocStack(attibutePaddedMapSize * sizeof (dgInt8));
 
-//	m_verticalScaleInv = dgFloat32 (1.0f) / m_verticalScale;
+	switch (m_elevationDataType) 
+	{
+		case m_float32Bit:
+		{
+			m_elevationMap = dgMallocStack(m_width * m_height * sizeof (dgFloat32));
+			deserialization (userData, m_elevationMap, m_width * m_height * sizeof (dgFloat32));
+			break;
+		}
+
+		case m_unsigned16Bit:
+		{
+			m_elevationMap = dgMallocStack(m_width * m_height * sizeof (dgUnsigned16));
+			deserialization (userData, m_elevationMap, m_width * m_height * sizeof (dgUnsigned16));
+			break;
+		}
+	}
+	
+	deserialization (userData, m_atributeMap, attibutePaddedMapSize * sizeof (dgInt8));
+	deserialization (userData, m_diagonals, attibutePaddedMapSize * sizeof (dgInt8));
+
 	m_horizontalScaleInv = dgFloat32 (1.0f) / m_horizontalScale;
-
 	dgTree<void*, unsigned>::dgTreeNode* nodeData = world->m_perInstanceData.Find(DG_HIGHTFILD_DATA_ID);
 	if (!nodeData) {
 		m_instanceData = (dgPerIntanceData*) dgMallocStack (sizeof (dgPerIntanceData));
 		m_instanceData->m_refCount = 0;
 		m_instanceData->m_world = world;
-		for (dgInt32 i = 0 ; i < DG_MAXIMUN_THREADS; i ++) {
+		for (dgInt32 i = 0 ; i < DG_MAX_THREADS_HIVE_COUNT; i ++) {
 			m_instanceData->m_vertex[i] = NULL;
 			m_instanceData->m_vertexCount[i] = 8 * 8;
 			AllocateVertex(world, i);
@@ -133,7 +313,7 @@ dgCollisionHeightField::~dgCollisionHeightField(void)
 	if (!m_instanceData->m_refCount) {
 		dgWorld* world = m_instanceData->m_world;
 
-		for (dgInt32 i = 0 ; i < DG_MAXIMUN_THREADS; i ++) {
+		for (dgInt32 i = 0 ; i < DG_MAX_THREADS_HIVE_COUNT; i ++) {
 			dgFreeStack(m_instanceData->m_vertex[i]);
 		}
 		dgFreeStack(m_instanceData);
@@ -141,25 +321,41 @@ dgCollisionHeightField::~dgCollisionHeightField(void)
 	}
 	dgFreeStack(m_elevationMap);
 	dgFreeStack(m_atributeMap);
+	dgFreeStack(m_diagonals);
 }
 
 void dgCollisionHeightField::Serialize(dgSerialize callback, void* const userData) const
 {
-//	dgVector size (m_size[0].Scale (dgFloat32 (2.0f)));
-
 	SerializeLow(callback, userData);
-//	callback (userData, &size, sizeof (dgVector));
+
+	dgInt32 elevationDataType = m_elevationDataType;
 
 	callback (userData, &m_width, sizeof (dgInt32));
 	callback (userData, &m_height, sizeof (dgInt32));
 	callback (userData, &m_diagonalMode, sizeof (dgInt32));
+	callback (userData, &elevationDataType, sizeof (dgInt32));
 	callback (userData, &m_verticalScale, sizeof (dgFloat32));
 	callback (userData, &m_horizontalScale, sizeof (dgFloat32));
 	callback (userData, &m_minBox.m_x, sizeof (dgVector)); 
 	callback (userData, &m_maxBox.m_x, sizeof (dgVector)); 
 
-	callback (userData, m_elevationMap, m_width * m_height * sizeof (dgInt16));
-	callback (userData, m_atributeMap, m_width * m_height * sizeof (dgInt8));
+	switch (m_elevationDataType) 
+	{
+		case m_float32Bit:
+		{
+			callback (userData, m_elevationMap, m_width * m_height * sizeof (dgFloat32));
+			break;
+		}
+		case m_unsigned16Bit:
+		{
+			callback (userData, m_elevationMap, m_width * m_height * sizeof (dgUnsigned16));
+			break;
+		}
+	}
+
+	dgInt32 attibutePaddedMapSize = (m_width * m_height + 4) & -4; 
+	callback (userData, m_atributeMap, attibutePaddedMapSize * sizeof (dgInt8));
+	callback (userData, m_diagonals, attibutePaddedMapSize * sizeof (dgInt8));
 }
 
 void dgCollisionHeightField::SetCollisionRayCastCallback (dgCollisionHeightFieldRayCastCallback rayCastCallback)
@@ -181,18 +377,45 @@ void dgCollisionHeightField::AllocateVertex(dgWorld* const world, dgInt32 thread
 }
 
 
+void dgCollisionHeightField::CalculateAABB()
+{
+	dgFloat32 y0 = dgFloat32 (dgFloat32 (1.0e10f));
+	dgFloat32 y1 = dgFloat32 (-dgFloat32 (1.0e10f));
+	switch (m_elevationDataType) 
+	{
+		case m_float32Bit:
+		{
+			const dgFloat32* const elevation = (dgFloat32*)m_elevationMap;
+			for (dgInt32 i = 0; i < m_width * m_height; i ++) {
+				y0 = dgMin(y0, elevation[i]);
+				y1 = dgMax(y1, elevation[i]);
+			}
+			break;
+		}
 
-void dgCollisionHeightField::GetCollisionInfo(dgCollisionInfo* info) const
+		case m_unsigned16Bit:
+		{
+			const dgUnsigned16* const elevation = (dgUnsigned16*)m_elevationMap;
+			for (dgInt32 i = 0; i < m_width * m_height; i ++) {
+				y0 = dgMin(y0, dgFloat32 (elevation[i]));
+				y1 = dgMax(y1, dgFloat32 (elevation[i]));
+			}
+		}
+	}
+	m_minBox = dgVector (dgFloat32 (dgFloat32 (0.0f)),                y0 * m_verticalScale, dgFloat32 (dgFloat32 (0.0f)),               dgFloat32 (0.0f)); 
+	m_maxBox = dgVector (dgFloat32 (m_width - 1) * m_horizontalScale, y1 * m_verticalScale, dgFloat32 (m_height-1) * m_horizontalScale, dgFloat32 (0.0f)); 
+}
+
+
+void dgCollisionHeightField::GetCollisionInfo(dgCollisionInfo* const info) const
 {
 	dgCollision::GetCollisionInfo(info);
-
-	info->m_offsetMatrix = GetOffsetMatrix();
-	info->m_collisionType = m_collsionId;
 
 	dgCollisionInfo::dgHeightMapCollisionData& data = info->m_heightFieldCollision;
 	data.m_width = m_width;
 	data.m_height = m_height;
 	data.m_gridsDiagonals = m_diagonalMode;
+	data.m_elevationDataType = m_elevationDataType;
 	data.m_verticalScale = m_verticalScale;
 	data.m_horizonalScale = m_horizontalScale;
 	data.m_atributes = m_atributeMap;
@@ -200,77 +423,49 @@ void dgCollisionHeightField::GetCollisionInfo(dgCollisionInfo* info) const
 }
 
 
-void dgCollisionHeightField::CalculateMinExtend2d (const dgVector& p0, const dgVector& p1, dgVector& boxP0, dgVector& boxP1) const
+
+
+
+dgFloat32 dgCollisionHeightField::RayCastCell (const dgFastRayTest& ray, dgInt32 xIndex0, dgInt32 zIndex0, dgVector& normalOut, dgFloat32 maxT) const
 {
-	dgFloat32 x0 = GetMin (p0.m_x, p1.m_x) - dgFloat32 (1.0e-3f);
-	dgFloat32 z0 = GetMin (p0.m_z, p1.m_z) - dgFloat32 (1.0e-3f);
-
-	dgFloat32 x1 = GetMax (p0.m_x, p1.m_x) + dgFloat32 (1.0e-3f);
-	dgFloat32 z1 = GetMax (p0.m_z, p1.m_z) + dgFloat32 (1.0e-3f);
-
-	x0 = m_horizontalScale * dgFloor (x0 * m_horizontalScaleInv);
-	z0 = m_horizontalScale * dgFloor (z0 * m_horizontalScaleInv);
-	x1 = m_horizontalScale * dgFloor (x1 * m_horizontalScaleInv) + m_horizontalScale;
-	z1 = m_horizontalScale * dgFloor (z1 * m_horizontalScaleInv) + m_horizontalScale;
-
-	boxP0.m_x = GetMax (x0, m_minBox.m_x);
-	boxP0.m_z = GetMax (z0, m_minBox.m_z);
-	boxP0.m_y = -dgFloat32 (1.0e10f);
-	boxP0.m_w = dgFloat32 (0.0f);
-
-	boxP1.m_x = GetMin (x1, m_maxBox.m_x);
-	boxP1.m_z = GetMin (z1, m_maxBox.m_z);
-	boxP1.m_y = dgFloat32 (1.0e10f);
-	boxP1.m_w = dgFloat32 (0.0f);
-}
-
-void dgCollisionHeightField::CalculateMinExtend3d (const dgVector& p0, const dgVector& p1, dgVector& boxP0, dgVector& boxP1) const
-{
-	_ASSERTE (p0.m_x <= p1.m_x);
-	_ASSERTE (p0.m_y <= p1.m_y);
-	_ASSERTE (p0.m_z <= p1.m_z);
-
-	dgFloat32 x0 = m_horizontalScale * dgFloor ((p0.m_x - dgFloat32 (1.0e-3f)) * m_horizontalScaleInv);
-	dgFloat32 z0 = m_horizontalScale * dgFloor ((p0.m_z - dgFloat32 (1.0e-3f)) * m_horizontalScaleInv);
-	dgFloat32 x1 = m_horizontalScale * dgFloor ((p1.m_x + dgFloat32 (1.0e-3f)) * m_horizontalScaleInv) + m_horizontalScale;
-	dgFloat32 z1 = m_horizontalScale * dgFloor ((p1.m_z + dgFloat32 (1.0e-3f)) * m_horizontalScaleInv) + m_horizontalScale;
-
-	boxP0.m_x = GetMax (x0, m_minBox.m_x);
-	boxP0.m_z = GetMax (z0, m_minBox.m_z);
-	boxP0.m_y = p0.m_y - dgFloat32 (1.0e-3f);
-	boxP0.m_w = dgFloat32 (0.0f);
-
-	boxP1.m_x = GetMin (x1, m_maxBox.m_x);
-	boxP1.m_z = GetMin (z1, m_maxBox.m_z);
-	boxP1.m_y = p1.m_y + dgFloat32 (1.0e-3f);
-	boxP1.m_w = dgFloat32 (0.0f);
-}
-
-
-
-
-dgFloat32 dgCollisionHeightField::RayCastCellSimd (const FastRayTest& ray, dgInt32 xIndex0, dgInt32 zIndex0, dgVector& normalOut) const
-{
-	dgFloat32 t;
-	dgInt32 base;
-	dgInt32 triangle[3];
 	dgVector points[4];
+	dgInt32 triangle[3];
 
 	// get the 3d point at the corner of the cell
-
 	if ((xIndex0 < 0) || (zIndex0 < 0) || (xIndex0 >= (m_width - 1)) || (zIndex0 >= (m_height - 1))) {
 		return dgFloat32 (1.2f);
 	}
 	
-	base = zIndex0 * m_width + xIndex0;
+	dgAssert (maxT >= 1.0);
+
+	dgInt32 base = zIndex0 * m_width + xIndex0;
 	
-	points[0 * 2 + 0] = dgVector ((xIndex0 + 0) * m_horizontalScale, dgFloat32 (m_elevationMap[base]) * m_verticalScale,			   (zIndex0 + 0) * m_horizontalScale, dgFloat32 (0.0f));
-	points[0 * 2 + 1] = dgVector ((xIndex0 + 1) * m_horizontalScale, dgFloat32 (m_elevationMap[base + 1]) * m_verticalScale,           (zIndex0 + 0) * m_horizontalScale, dgFloat32 (0.0f));
-	points[1 * 2 + 1] = dgVector ((xIndex0 + 1) * m_horizontalScale, dgFloat32 (m_elevationMap[base + m_width + 1]) * m_verticalScale, (zIndex0 + 1) * m_horizontalScale, dgFloat32 (0.0f));
-	points[1 * 2 + 0] = dgVector ((xIndex0 + 0) * m_horizontalScale, dgFloat32 (m_elevationMap[base + m_width + 0]) * m_verticalScale, (zIndex0 + 1) * m_horizontalScale, dgFloat32 (0.0f));
+	switch (m_elevationDataType) 
+	{
+		case m_float32Bit:
+		{
+			const dgFloat32* const elevation = (dgFloat32*)m_elevationMap;
+			points[0 * 2 + 0] = dgVector ((xIndex0 + 0) * m_horizontalScale, m_verticalScale * elevation[base],			      (zIndex0 + 0) * m_horizontalScale, dgFloat32 (0.0f));
+			points[0 * 2 + 1] = dgVector ((xIndex0 + 1) * m_horizontalScale, m_verticalScale * elevation[base + 1],           (zIndex0 + 0) * m_horizontalScale, dgFloat32 (0.0f));
+			points[1 * 2 + 1] = dgVector ((xIndex0 + 1) * m_horizontalScale, m_verticalScale * elevation[base + m_width + 1], (zIndex0 + 1) * m_horizontalScale, dgFloat32 (0.0f));
+			points[1 * 2 + 0] = dgVector ((xIndex0 + 0) * m_horizontalScale, m_verticalScale * elevation[base + m_width + 0], (zIndex0 + 1) * m_horizontalScale, dgFloat32 (0.0f));
+			break;
+		}
+
+		case m_unsigned16Bit:
+		default:
+		{
+			const dgUnsigned16* const elevation = (dgUnsigned16*)m_elevationMap;
+			points[0 * 2 + 0] = dgVector ((xIndex0 + 0) * m_horizontalScale,  m_verticalScale * dgFloat32 (elevation[base]),			   (zIndex0 + 0) * m_horizontalScale, dgFloat32 (0.0f));
+			points[0 * 2 + 1] = dgVector ((xIndex0 + 1) * m_horizontalScale,  m_verticalScale * dgFloat32 (elevation[base + 1]),           (zIndex0 + 0) * m_horizontalScale, dgFloat32 (0.0f));
+			points[1 * 2 + 1] = dgVector ((xIndex0 + 1) * m_horizontalScale,  m_verticalScale * dgFloat32 (elevation[base + m_width + 1]), (zIndex0 + 1) * m_horizontalScale, dgFloat32 (0.0f));
+			points[1 * 2 + 0] = dgVector ((xIndex0 + 0) * m_horizontalScale,  m_verticalScale * dgFloat32 (elevation[base + m_width + 0]), (zIndex0 + 1) * m_horizontalScale, dgFloat32 (0.0f));
+			break;
+		}
+	}
 	
-	t = dgFloat32 (1.2f);
-	if (!m_diagonalMode) {
+	dgFloat32 t = dgFloat32 (1.2f);
+	if (!m_diagonals[base]) {
 		triangle[0] = 1;
 		triangle[1] = 2;
 		triangle[2] = 3;
@@ -278,8 +473,9 @@ dgFloat32 dgCollisionHeightField::RayCastCellSimd (const FastRayTest& ray, dgInt
 		dgVector e10 (points[2] - points[1]);
 		dgVector e20 (points[3] - points[1]);
 		dgVector normal (e10 * e20);
-		t = ray.PolygonIntersectSimd (normal, &points[0].m_x, sizeof (dgVector), triangle, 3);
-		if (t < dgFloat32 (1.0f)){
+		normal = normal.CompProduct4(normal.DotProduct4(normal).InvSqrt());
+		t = ray.PolygonIntersect (normal, maxT, &points[0].m_x, sizeof (dgVector), triangle, 3);
+		if (t < maxT){
 			normalOut = normal;
 			return t;
 		}
@@ -290,14 +486,15 @@ dgFloat32 dgCollisionHeightField::RayCastCellSimd (const FastRayTest& ray, dgInt
 
 		dgVector e30 (points[0] - points[1]);
 		normal = e30 * e10;
-		t = ray.PolygonIntersectSimd (normal, &points[0].m_x, sizeof (dgVector), triangle, 3);
-		if (t < dgFloat32 (1.0f)){
+		//normal = normal.Scale3 (dgRsqrt (normal % normal));
+		normal = normal.CompProduct4(normal.DotProduct4(normal).InvSqrt());
+		t = ray.PolygonIntersect (normal, maxT, &points[0].m_x, sizeof (dgVector), triangle, 3);
+		if (t < maxT){
 			normalOut = normal;
 			return t;
 		}
 
 	} else {
-
 		triangle[0] = 0;
 		triangle[1] = 2;
 		triangle[2] = 3;
@@ -305,8 +502,9 @@ dgFloat32 dgCollisionHeightField::RayCastCellSimd (const FastRayTest& ray, dgInt
 		dgVector e10 (points[2] - points[0]);
 		dgVector e20 (points[3] - points[0]);
 		dgVector normal (e10 * e20);
-		t = ray.PolygonIntersectSimd (normal, &points[0].m_x, sizeof (dgVector), triangle, 3);
-		if (t < dgFloat32 (1.0f)){
+		normal = normal.CompProduct4(normal.DotProduct4(normal).InvSqrt());
+		t = ray.PolygonIntersect (normal, maxT, &points[0].m_x, sizeof (dgVector), triangle, 3);
+		if (t < maxT){
 			normalOut = normal;
 			return t;
 		}
@@ -317,86 +515,9 @@ dgFloat32 dgCollisionHeightField::RayCastCellSimd (const FastRayTest& ray, dgInt
 
 		dgVector e30 (points[1] - points[0]);
 		normal = e20 * e30;
-		t = ray.PolygonIntersectSimd (normal, &points[0].m_x, sizeof (dgVector), triangle, 3);
-		if (t < dgFloat32 (1.0f)){
-			normalOut = normal;
-			return t;
-		}
-	}
-
-	return t;
-}
-
-
-dgFloat32 dgCollisionHeightField::RayCastCell (const FastRayTest& ray, dgInt32 xIndex0, dgInt32 zIndex0, dgVector& normalOut) const
-{
-	dgFloat32 t;
-	dgInt32 base;
-	dgInt32 triangle[3];
-	dgVector points[4];
-
-	// get the 3d point at the corner of the cell
-	if ((xIndex0 < 0) || (zIndex0 < 0) || (xIndex0 >= (m_width - 1)) || (zIndex0 >= (m_height - 1))) {
-		return dgFloat32 (1.2f);
-	}
-	
-	base = zIndex0 * m_width + xIndex0;
-	
-	points[0 * 2 + 0] = dgVector ((xIndex0 + 0) * m_horizontalScale, dgFloat32 (m_elevationMap[base]) * m_verticalScale,			   (zIndex0 + 0) * m_horizontalScale, dgFloat32 (0.0f));
-	points[0 * 2 + 1] = dgVector ((xIndex0 + 1) * m_horizontalScale, dgFloat32 (m_elevationMap[base + 1]) * m_verticalScale,           (zIndex0 + 0) * m_horizontalScale, dgFloat32 (0.0f));
-	points[1 * 2 + 1] = dgVector ((xIndex0 + 1) * m_horizontalScale, dgFloat32 (m_elevationMap[base + m_width + 1]) * m_verticalScale, (zIndex0 + 1) * m_horizontalScale, dgFloat32 (0.0f));
-	points[1 * 2 + 0] = dgVector ((xIndex0 + 0) * m_horizontalScale, dgFloat32 (m_elevationMap[base + m_width + 0]) * m_verticalScale, (zIndex0 + 1) * m_horizontalScale, dgFloat32 (0.0f));
-	
-	t = dgFloat32 (1.2f);
-	if (!m_diagonalMode) {
-		triangle[0] = 1;
-		triangle[1] = 2;
-		triangle[2] = 3;
-
-		dgVector e10 (points[2] - points[1]);
-		dgVector e20 (points[3] - points[1]);
-		dgVector normal (e10 * e20);
-		t = ray.PolygonIntersect (normal, &points[0].m_x, sizeof (dgVector), triangle, 3);
-		if (t < dgFloat32 (1.0f)){
-			normalOut = normal;
-			return t;
-		}
-
-		triangle[0] = 1;
-		triangle[1] = 0;
-		triangle[2] = 2;
-
-		dgVector e30 (points[0] - points[1]);
-		normal = e30 * e10;
-		t = ray.PolygonIntersect (normal, &points[0].m_x, sizeof (dgVector), triangle, 3);
-		if (t < dgFloat32 (1.0f)){
-			normalOut = normal;
-			return t;
-		}
-
-	} else {
-
-		triangle[0] = 0;
-		triangle[1] = 2;
-		triangle[2] = 3;
-
-		dgVector e10 (points[2] - points[0]);
-		dgVector e20 (points[3] - points[0]);
-		dgVector normal (e10 * e20);
-		t = ray.PolygonIntersect (normal, &points[0].m_x, sizeof (dgVector), triangle, 3);
-		if (t < dgFloat32 (1.0f)){
-			normalOut = normal;
-			return t;
-		}
-
-		triangle[0] = 0;
-		triangle[1] = 3;
-		triangle[2] = 1;
-
-		dgVector e30 (points[1] - points[0]);
-		normal = e20 * e30;
-		t = ray.PolygonIntersect (normal, &points[0].m_x, sizeof (dgVector), triangle, 3);
-		if (t < dgFloat32 (1.0f)){
+		normal = normal.CompProduct4(normal.DotProduct4(normal).InvSqrt());
+		t = ray.PolygonIntersect (normal, maxT, &points[0].m_x, sizeof (dgVector), triangle, 3);
+		if (t < maxT){
 			normalOut = normal;
 			return t;
 		}
@@ -405,137 +526,13 @@ dgFloat32 dgCollisionHeightField::RayCastCell (const FastRayTest& ray, dgInt32 x
 }
 
 
-
-
-dgFloat32 dgCollisionHeightField::RayCastSimd (const dgVector& q0, const dgVector& q1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const
+dgFloat32 dgCollisionHeightField::RayCast (const dgVector& q0, const dgVector& q1, dgFloat32 maxT, dgContactPoint& contactOut, const dgBody* const body, void* const userData) const
 {
 	dgVector boxP0;
 	dgVector boxP1;
 
-	// set the debug line counter to zero
-//	debugRayCast = 0;
-
 	// calculate the ray bounding box
 	CalculateMinExtend2d (q0, q1, boxP0, boxP1);
-
-	dgVector dq (q1 - q0);
-	dgVector padding (dq.Scale (m_horizontalScale * dgFloat32 (10.0f) / (dgSqrt (dq % dq) + dgFloat32 (1.0e-6f))));
-
-	// make sure the line segment crosses the original segment box
-	dgVector p0 (q0 - padding);
-	dgVector p1 (q1 + padding);
-
-	// clip the line against the bounding box
-	if (dgRayBoxClip (p0, p1, boxP0, boxP1)) { 
-		dgVector dp (p1 - p0);
-		dgVector normalOut (dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f));
-
-		dgFloat32 scale = m_horizontalScale;
-		dgFloat32 invScale = m_horizontalScaleInv;
-		dgInt32 ix0 = dgFastInt (p0.m_x * invScale);
-		dgInt32 iz0 = dgFastInt (p0.m_z * invScale);
-
-
-		// implement a 3ddda line algorithm 
-		dgInt32 xInc;
-		dgFloat32 tx;
-		dgFloat32 stepX;
-		if (dp.m_x > dgFloat32 (0.0f)) {
-			xInc = 1;
-			dgFloat32 val = dgFloat32 (1.0f) / dp.m_x;
-			stepX = scale * val;
-			tx = (scale * (ix0 + dgFloat32 (1.0f)) - p0.m_x) * val;
-		} else if (dp.m_x < dgFloat32 (0.0f)) {
-			xInc = -1;
-			dgFloat32 val = -dgFloat32 (1.0f) / dp.m_x;
-			stepX = scale * val;
-			tx = -(scale * ix0 - p0.m_x) * val;
-		} else {
-			xInc = 0;
-			stepX = dgFloat32 (0.0f);
-			tx = dgFloat32 (1.0e10f);
-		}
-
-		dgInt32 zInc;
-		dgFloat32 stepZ;
-		dgFloat32 tz;
-		if (dp.m_z > dgFloat32 (0.0f)) {
-			zInc = 1;
-			dgFloat32 val = dgFloat32 (1.0f) / dp.m_z;
-			stepZ = scale * val;
-			tz = (scale * (iz0 + dgFloat32 (1.0f)) - p0.m_z) * val;
-		} else if (dp.m_z < dgFloat32 (0.0f)) {
-			zInc = -1;
-			dgFloat32 val = -dgFloat32 (1.0f) / dp.m_z;
-			stepZ = scale * val;
-			tz = -(scale * iz0 - p0.m_z) * val;
-		} else {
-			zInc = 0;
-			stepZ = dgFloat32 (0.0f);
-			tz = dgFloat32 (1.0e10f);
-		}
-
-		dgFloat32 txAcc = tx;
-		dgFloat32 tzAcc = tz;
-		dgInt32 xIndex0 = ix0;
-		dgInt32 zIndex0 = iz0;
-		FastRayTest ray (q0, q1); 
-
-		// for each cell touched by the line
-		do {
-			dgFloat32 t = RayCastCellSimd (ray, xIndex0, zIndex0, normalOut);
-			if (t < dgFloat32 (1.0f)) {
-				// bail out at the first intersection and copy the data into the descriptor
-				contactOut.m_normal = normalOut.Scale (dgFloat32 (1.0f) / dgSqrt (normalOut % normalOut));
-				contactOut.m_userId = m_atributeMap[zIndex0 * m_width + xIndex0];
-
-				if (m_userRayCastCallback) {
-					dgVector normal (body->GetCollisionMatrix().RotateVector (contactOut.m_normal));
-					m_userRayCastCallback (body, this, t, xIndex0, zIndex0, &normal, dgInt32 (contactOut.m_userId), userData);
-				}
-
-				return t;
-			}
-
-			if (txAcc < tzAcc) {
-				xIndex0 += xInc;
-				tx = txAcc;
-				txAcc += stepX;
-			} else {
-				zIndex0 += zInc;
-				tz = txAcc;
-				tzAcc += stepZ;
-			}
-		} while ((tx <= dgFloat32 (1.0f)) || (tz <= dgFloat32 (1.0f)));
-	}
-
-	// if no cell was hit, return a large value
-	return dgFloat32 (1.2f);
-}
-
-dgFloat32 dgCollisionHeightField::RayCast (
-	const dgVector& q0, 
-	const dgVector& q1, 
-	dgContactPoint& contactOut,
-	OnRayPrecastAction preFilter, 
-	const dgBody* const body,
-	void* const userData) const
-{
-	dgVector boxP0;
-	dgVector boxP1;
-
-	// set the debug line counter to zero
-//	debugRayCast = 0;
-
-	// calculate the ray bounding box
-	CalculateMinExtend2d (q0, q1, boxP0, boxP1);
-
-//	dgVector dq (q1 - q0);
-//	dgVector padding (dq.Scale (m_horizontalScale * dgFloat32 (10.0f) / (dgSqrt (dq % dq) + dgFloat32 (1.0e-6f))));
-
-	// make sure the line segment crosses the original segment box
-//	dgVector p0 (q0 - padding);
-//	dgVector p1 (q1 + padding);
 
 	dgVector p0 (q0);
 	dgVector p1 (q1);
@@ -571,8 +568,9 @@ dgFloat32 dgCollisionHeightField::RayCast (
 		}
 
 		dgInt32 zInc;
-		dgFloat32 stepZ;
 		dgFloat32 tz;
+		dgFloat32 stepZ;
+		
 		if (dp.m_z > dgFloat32 (0.0f)) {
 			zInc = 1;
 			dgFloat32 val = dgFloat32 (1.0f) / dp.m_z;
@@ -593,19 +591,20 @@ dgFloat32 dgCollisionHeightField::RayCast (
 		dgFloat32 tzAcc = tz;
 		dgInt32 xIndex0 = ix0;
 		dgInt32 zIndex0 = iz0;
-		FastRayTest ray (q0, q1); 
+		dgFastRayTest ray (q0, q1); 
 
 		// for each cell touched by the line
 		do {
-			dgFloat32 t = RayCastCell (ray, xIndex0, zIndex0, normalOut);
-			if (t < dgFloat32 (1.0f)) {
+			dgFloat32 t = RayCastCell (ray, xIndex0, zIndex0, normalOut, maxT);
+			if (t < maxT) {
 				// bail out at the first intersection and copy the data into the descriptor
-				contactOut.m_normal = normalOut.Scale (dgFloat32 (1.0f) / dgSqrt (normalOut % normalOut));
-				contactOut.m_userId = m_atributeMap[zIndex0 * m_width + xIndex0];
+				contactOut.m_normal = normalOut.Scale3 (dgRsqrt (normalOut % normalOut));
+				contactOut.m_shapeId0 = m_atributeMap[zIndex0 * m_width + xIndex0];
+				contactOut.m_shapeId1 = m_atributeMap[zIndex0 * m_width + xIndex0];
 
 				if (m_userRayCastCallback) {
-					dgVector normal (body->GetCollisionMatrix().RotateVector (contactOut.m_normal));
-					m_userRayCastCallback (body, this, t, xIndex0, zIndex0, &normal, dgInt32 (contactOut.m_userId), userData);
+					dgVector normal (body->GetCollision()->GetGlobalMatrix().RotateVector (contactOut.m_normal));
+					m_userRayCastCallback (body, this, t, xIndex0, zIndex0, &normal, dgInt32 (contactOut.m_shapeId0), userData);
 				}
 
 				return t;
@@ -625,20 +624,15 @@ dgFloat32 dgCollisionHeightField::RayCast (
 
 	// if no cell was hit, return a large value
 	return dgFloat32 (1.2f);
+
 }
 
 
-
-
-
-void dgCollisionHeightField::GetVertexListIndexList (const dgVector& p0, const dgVector& p1, dgGetVertexListIndexList &data) const
+void dgCollisionHeightField::GetVertexListIndexList (const dgVector& p0, const dgVector& p1, dgMeshVertexListIndexList &data) const
 {
-	_ASSERTE (0);
+	dgAssert (0);
 	data.m_vertexCount = 0;
 }
-
-
-
 
 struct dgCollisionHeightFieldShowPolyContext
 {
@@ -647,76 +641,128 @@ struct dgCollisionHeightFieldShowPolyContext
 	OnDebugCollisionMeshCallback m_callback;
 };
 
+dgVector dgCollisionHeightField::SupportVertex (const dgVector& dir, dgInt32* const vertexIndex) const
+{
+	dgFloat32 maxProject (dgFloat32 (-1.e-20f));
+	dgVector support (dgFloat32 (0.0f));
+	if (m_elevationDataType == m_float32Bit)  {
+		const dgFloat32* const elevation = (dgFloat32*)m_elevationMap;
+		for (dgInt32 z = 0; z < m_height - 1; z ++) {
+			dgInt32 base = z * m_width;
+			dgFloat32 zVal = m_horizontalScale * z;
+			for (dgInt32 x = 0; x < m_width; x ++) {
+				dgVector p (m_horizontalScale * x, m_verticalScale * elevation[base + x], zVal, dgFloat32 (0.0f));
+				dgFloat32 project = dir.DotProduct4(p).m_x;
+				if (project > maxProject) {
+					maxProject = project;
+					support = p;
+				}
+			}
+		}
+
+	} else {
+		const dgUnsigned16* const elevation = (dgUnsigned16*)m_elevationMap;
+		for (dgInt32 z = 0; z < m_height - 1; z ++) {
+			dgInt32 base = z * m_width;
+			dgFloat32 zVal = m_horizontalScale * z;
+			for (dgInt32 x = 0; x < m_width; x ++) {
+				dgVector p (m_horizontalScale * x, m_verticalScale * elevation[base + x], zVal, dgFloat32 (0.0f));
+				dgFloat32 project = dir.DotProduct4(p).m_x;
+				if (project > maxProject) {
+					maxProject = project;
+					support = p;
+				}
+			}
+		}
+	}
+	return support;
+}
 
 void dgCollisionHeightField::DebugCollision (const dgMatrix& matrix, OnDebugCollisionMeshCallback callback, void* const userData) const
 {
-	dgInt32 base;
 	dgVector points[4];
 
-	base = 0;
+	dgInt32 base = 0;
 	for (dgInt32 z = 0; z < m_height - 1; z ++) {
-		points[0 * 2 + 0] = matrix.TransformVector(dgVector ((0 + 0) * m_horizontalScale, dgFloat32 (m_elevationMap[base + 0                 ]) * m_verticalScale, (z + 0) * m_horizontalScale, dgFloat32 (0.0f)));
-		points[1 * 2 + 0] = matrix.TransformVector(dgVector ((0 + 0) * m_horizontalScale, dgFloat32 (m_elevationMap[base + 0 + m_width + 0]) * m_verticalScale, (z + 1) * m_horizontalScale, dgFloat32 (0.0f)));
+		switch (m_elevationDataType) 
+		{
+			case m_float32Bit:
+			{
+				const dgFloat32* const elevation = (dgFloat32*)m_elevationMap;
+				points[0 * 2 + 0] = dgVector ((0 + 0) * m_horizontalScale, m_verticalScale * elevation[base + 0              ], (z + 0) * m_horizontalScale, dgFloat32 (0.0f));
+				points[1 * 2 + 0] = dgVector ((0 + 0) * m_horizontalScale, m_verticalScale * elevation[base + 0 + m_width + 0], (z + 1) * m_horizontalScale, dgFloat32 (0.0f));
+				break;
+			}
+
+			case m_unsigned16Bit:
+			{
+				const dgUnsigned16* const elevation = (dgUnsigned16*)m_elevationMap;
+				points[0 * 2 + 0] = dgVector ((0 + 0) * m_horizontalScale, m_verticalScale * dgFloat32 (elevation[base + 0              ]), (z + 0) * m_horizontalScale, dgFloat32 (0.0f));
+				points[1 * 2 + 0] = dgVector ((0 + 0) * m_horizontalScale, m_verticalScale * dgFloat32 (elevation[base + 0 + m_width + 0]), (z + 1) * m_horizontalScale, dgFloat32 (0.0f));
+				break;
+			}
+		}
+		points[0 * 2 + 0] = matrix.TransformVector(points[0 * 2 + 0]);
+		points[1 * 2 + 0] = matrix.TransformVector(points[1 * 2 + 0]);
 
 		for (dgInt32 x = 0; x < m_width - 1; x ++) {
 			dgTriplex triangle[3];
-			points[0 * 2 + 1] = matrix.TransformVector(dgVector ((x + 1) * m_horizontalScale, dgFloat32 (m_elevationMap[base + x +           1]) * m_verticalScale, (z + 0) * m_horizontalScale, dgFloat32 (0.0f)));
-			points[1 * 2 + 1] = matrix.TransformVector(dgVector ((x + 1) * m_horizontalScale, dgFloat32 (m_elevationMap[base + x + m_width + 1]) * m_verticalScale, (z + 1) * m_horizontalScale, dgFloat32 (0.0f)));
-			
-			if (m_diagonalMode) {
-				triangle[0].m_x = points[0].m_x;
-				triangle[0].m_y = points[0].m_y;
-				triangle[0].m_z = points[0].m_z;
+			switch (m_elevationDataType) 
+			{
+				case m_float32Bit:
+				{
+					const dgFloat32* const elevation = (dgFloat32*)m_elevationMap;
+					points[0 * 2 + 1] = dgVector ((x + 1) * m_horizontalScale, m_verticalScale * elevation[base + x +           1], (z + 0) * m_horizontalScale, dgFloat32 (0.0f));
+					points[1 * 2 + 1] = dgVector ((x + 1) * m_horizontalScale, m_verticalScale * elevation[base + x + m_width + 1], (z + 1) * m_horizontalScale, dgFloat32 (0.0f));
+					break;
+				}
 
-				triangle[1].m_x = points[2].m_x;
-				triangle[1].m_y = points[2].m_y;
-				triangle[1].m_z = points[2].m_z;
 
-				triangle[2].m_x = points[1].m_x;
-				triangle[2].m_y = points[1].m_y;
-				triangle[2].m_z = points[1].m_z;
-				callback (userData, 3, &triangle[0].m_x, m_atributeMap[base]);
-
-				triangle[0].m_x = points[1].m_x;
-				triangle[0].m_y = points[1].m_y;
-				triangle[0].m_z = points[1].m_z;
-
-				triangle[1].m_x = points[2].m_x;
-				triangle[1].m_y = points[2].m_y;
-				triangle[1].m_z = points[2].m_z;
-
-				triangle[2].m_x = points[3].m_x;
-				triangle[2].m_y = points[3].m_y;
-				triangle[2].m_z = points[3].m_z;
-				callback (userData, 3, &triangle[0].m_x, m_atributeMap[base]);
-
-			} else {
-				triangle[0].m_x = points[0].m_x;
-				triangle[0].m_y = points[0].m_y;
-				triangle[0].m_z = points[0].m_z;
-
-				triangle[1].m_x = points[2].m_x;
-				triangle[1].m_y = points[2].m_y;
-				triangle[1].m_z = points[2].m_z;
-
-				triangle[2].m_x = points[3].m_x;
-				triangle[2].m_y = points[3].m_y;
-				triangle[2].m_z = points[3].m_z;
-				callback (userData, 3, &triangle[0].m_x, m_atributeMap[base]);
-
-				triangle[0].m_x = points[0].m_x;
-				triangle[0].m_y = points[0].m_y;
-				triangle[0].m_z = points[0].m_z;
-
-				triangle[1].m_x = points[3].m_x;
-				triangle[1].m_y = points[3].m_y;
-				triangle[1].m_z = points[3].m_z;
-
-				triangle[2].m_x = points[1].m_x;
-				triangle[2].m_y = points[1].m_y;
-				triangle[2].m_z = points[1].m_z;
-				callback (userData, 3, &triangle[0].m_x, m_atributeMap[base]);
+				case m_unsigned16Bit:
+				{
+					const dgUnsigned16* const elevation = (dgUnsigned16*)m_elevationMap;
+					points[0 * 2 + 1] = dgVector ((x + 1) * m_horizontalScale, m_verticalScale * dgFloat32 (elevation[base + x +           1]), (z + 0) * m_horizontalScale, dgFloat32 (0.0f));
+					points[1 * 2 + 1] = dgVector ((x + 1) * m_horizontalScale, m_verticalScale * dgFloat32 (elevation[base + x + m_width + 1]), (z + 1) * m_horizontalScale, dgFloat32 (0.0f));
+					break;
+				}
 			}
+			points[0 * 2 + 1] = matrix.TransformVector(points[0 * 2 + 1]);
+			points[1 * 2 + 1] = matrix.TransformVector(points[1 * 2 + 1]);
+
+
+			const dgInt32* const indirectIndex = &m_cellIndices[dgInt32 (m_diagonals[z * m_width + x])][0];
+
+			dgInt32 i0 = indirectIndex[0];
+			dgInt32 i1 = indirectIndex[1];
+			dgInt32 i2 = indirectIndex[2];
+			dgInt32 i3 = indirectIndex[3];
+
+			triangle[0].m_x = points[i1].m_x;
+			triangle[0].m_y = points[i1].m_y;
+			triangle[0].m_z = points[i1].m_z;
+
+			triangle[1].m_x = points[i0].m_x;
+			triangle[1].m_y = points[i0].m_y;
+			triangle[1].m_z = points[i0].m_z;
+
+			triangle[2].m_x = points[i2].m_x;
+			triangle[2].m_y = points[i2].m_y;
+			triangle[2].m_z = points[i2].m_z;
+			callback (userData, 3, &triangle[0].m_x, m_atributeMap[base]);
+
+			triangle[0].m_x = points[i1].m_x;
+			triangle[0].m_y = points[i1].m_y;
+			triangle[0].m_z = points[i1].m_z;
+
+			triangle[1].m_x = points[i2].m_x;
+			triangle[1].m_y = points[i2].m_y;
+			triangle[1].m_z = points[i2].m_z;
+
+			triangle[2].m_x = points[i3].m_x;
+			triangle[2].m_y = points[i3].m_y;
+			triangle[2].m_z = points[i3].m_z;
+			callback (userData, 3, &triangle[0].m_x, m_atributeMap[base]);
+
 			points[0 * 2 + 0] = points[0 * 2 + 1];
 			points[1 * 2 + 0] = points[1 * 2 + 1];
 		}
@@ -725,39 +771,64 @@ void dgCollisionHeightField::DebugCollision (const dgMatrix& matrix, OnDebugColl
 }
 
 
-void dgCollisionHeightField::GetLocalAABB (const dgVector& p0, const dgVector& p1, dgVector& boxP0, dgVector& boxP1) const
+void dgCollisionHeightField::GetLocalAABB (const dgVector& q0, const dgVector& q1, dgVector& boxP0, dgVector& boxP1) const
 {
-	dgInt32 x0;
-	dgInt32 x1;
-	dgInt32 z0;
-	dgInt32 z1;
-	dgInt32 base;
-	dgInt32 minHeight;
-	dgInt32 maxHeight;
-
 	// the user data is the pointer to the collision geometry
-	CalculateMinExtend3d (p0, p1, boxP0, boxP1);
+	CalculateMinExtend3d (q0, q1, boxP0, boxP1);
 
-	x0 = dgFastInt (boxP0.m_x * m_horizontalScaleInv);
-	x1 = dgFastInt (boxP1.m_x * m_horizontalScaleInv);
-	z0 = dgFastInt (boxP0.m_z * m_horizontalScaleInv);
-	z1 = dgFastInt (boxP1.m_z * m_horizontalScaleInv);
+	dgVector p0 (boxP0.Scale4(m_horizontalScaleInv).GetInt());
+	dgVector p1 (boxP1.Scale4(m_horizontalScaleInv).GetInt());
 
-	minHeight =  0x7fffffff;
-	maxHeight = -0x7fffffff;
-	base = z0 * m_width;
-	for (dgInt32 z = z0; z <= z1; z ++) {
-		for (dgInt32 x = x0; x <= x1; x ++) {
-			dgInt32 high; 
-			high = m_elevationMap[base + x];
-			if (high < minHeight) {
-				minHeight = high;
+	dgAssert (p0.m_ix == dgFastInt (boxP0.m_x * m_horizontalScaleInv));
+	dgAssert (p0.m_iz == dgFastInt (boxP0.m_z * m_horizontalScaleInv));
+	dgAssert (p1.m_ix == dgFastInt (boxP1.m_x * m_horizontalScaleInv));
+	dgAssert (p1.m_iz == dgFastInt (boxP1.m_z * m_horizontalScaleInv));
+
+	dgInt32 x0 = p0.m_ix;
+	dgInt32 x1 = p1.m_ix;
+	dgInt32 z0 = p0.m_iz;
+	dgInt32 z1 = p1.m_iz;
+
+	dgFloat32 minHeight = dgFloat32 (1.0e10f);
+	dgFloat32 maxHeight = dgFloat32 (-1.0e10f);
+	dgInt32 base = z0 * m_width;
+	switch (m_elevationDataType) 
+	{
+		case m_float32Bit:
+		{
+			const dgFloat32* const elevation = (dgFloat32*)m_elevationMap;
+			for (dgInt32 z = z0; z <= z1; z ++) {
+				for (dgInt32 x = x0; x <= x1; x ++) {
+					dgFloat32 high = elevation[base + x];
+					if (high < minHeight) {
+						minHeight = high;
+					}
+					if (high > maxHeight) {
+						maxHeight = high;
+					}
+				}
+				base += m_width;
 			}
-			if (high > maxHeight) {
-				maxHeight = high;
-			}
+			break;
 		}
-		base += m_width;
+
+		case m_unsigned16Bit:
+		{
+			const dgUnsigned16* const elevation = (dgUnsigned16*)m_elevationMap;
+			for (dgInt32 z = z0; z <= z1; z ++) {
+				for (dgInt32 x = x0; x <= x1; x ++) {
+					dgFloat32 high = dgFloat32 (elevation[base + x]);
+					if (high < minHeight) {
+						minHeight = high;
+					}
+					if (high > maxHeight) {
+						maxHeight = high;
+					}
+				}
+				base += m_width;
+			}
+			break;
+		}
 	}
 
 	boxP0.m_y = m_verticalScale * minHeight;
@@ -765,347 +836,348 @@ void dgCollisionHeightField::GetLocalAABB (const dgVector& p0, const dgVector& p
 }
 
 
-
-void dgCollisionHeightField::GetCollidingFacesSimd (dgPolygonMeshDesc* const data) const
-{
-	GetCollidingFaces (data);
-}
-
-
-
 void dgCollisionHeightField::GetCollidingFaces (dgPolygonMeshDesc* const data) const
 {
-	dgInt32 x0;
-	dgInt32 x1;
-	dgInt32 z0;
-	dgInt32 z1;
-	dgInt32 base;
-	dgInt32 vertexIndex;
 	dgVector boxP0;
 	dgVector boxP1;
-	dgWorld* world;
+
+	dgWorld* const world = data->m_objBody->GetWorld();
 
 	// the user data is the pointer to the collision geometry
-	CalculateMinExtend3d (data->m_boxP0, data->m_boxP1, boxP0, boxP1);
+	CalculateMinExtend3d (data->m_p0, data->m_p1, boxP0, boxP1);
 
-	world = data->m_objBody->GetWorld();
-	x0 = dgFastInt (boxP0.m_x * m_horizontalScaleInv);
-	x1 = dgFastInt (boxP1.m_x * m_horizontalScaleInv);
-	z0 = dgFastInt (boxP0.m_z * m_horizontalScaleInv);
-	z1 = dgFastInt (boxP1.m_z * m_horizontalScaleInv);
+	dgVector p0 (boxP0.Scale4(m_horizontalScaleInv).GetInt());
+	dgVector p1 (boxP1.Scale4(m_horizontalScaleInv).GetInt());
 
-	dgInt32 minHeight;
-	dgInt32 maxHeight;
+	dgAssert (p0.m_ix == dgFastInt (boxP0.m_x * m_horizontalScaleInv));
+	dgAssert (p0.m_iz == dgFastInt (boxP0.m_z * m_horizontalScaleInv));
+	dgAssert (p1.m_ix == dgFastInt (boxP1.m_x * m_horizontalScaleInv));
+	dgAssert (p1.m_iz == dgFastInt (boxP1.m_z * m_horizontalScaleInv));
 
-	minHeight =  0x7fffffff;
-	maxHeight = -0x7fffffff;
+	dgInt32 x0 = p0.m_ix;
+	dgInt32 x1 = p1.m_ix;
+	dgInt32 z0 = p0.m_iz;
+	dgInt32 z1 = p1.m_iz;
 
-	base = z0 * m_width;
-	for (dgInt32 z = z0; z <= z1; z ++) {
-		for (dgInt32 x = x0; x <= x1; x ++) {
-			dgInt32 high; 
-			high = m_elevationMap[base + x];
-			if (high < minHeight) {
-				minHeight = high;
+	dgFloat32 minHeight = dgFloat32 (1.0e10f);
+	dgFloat32 maxHeight = dgFloat32 (-1.0e10f);
+	dgInt32 base = z0 * m_width;
+	switch (m_elevationDataType) 
+	{
+		case m_float32Bit:
+		{
+			const dgFloat32* const elevation = (dgFloat32*)m_elevationMap;
+			for (dgInt32 z = z0; z <= z1; z ++) {
+				for (dgInt32 x = x0; x <= x1; x ++) {
+					dgFloat32 high = elevation[base + x];
+					if (high < minHeight) {
+						minHeight = high;
+					}
+					if (high > maxHeight) {
+						maxHeight = high;
+					}
+				}
+				base += m_width;
 			}
-			if (high > maxHeight) {
-				maxHeight = high;
-			}
+			break;
 		}
-		base += m_width;
+
+		case m_unsigned16Bit:
+		{
+			const dgUnsigned16* const elevation = (dgUnsigned16*)m_elevationMap;
+			for (dgInt32 z = z0; z <= z1; z ++) {
+				for (dgInt32 x = x0; x <= x1; x ++) {
+					dgFloat32 high = dgFloat32 (elevation[base + x]);
+					if (high < minHeight) {
+						minHeight = high;
+					}
+					if (high > maxHeight) {
+						maxHeight = high;
+					}
+				}
+				base += m_width;
+			}
+			break;
+		}
 	}
 
-	if (!(((m_verticalScale * maxHeight) < boxP0.m_y) || ((m_verticalScale * minHeight) > boxP1.m_y))) {
-		dgInt32 step;
-		dgInt32 index;
-		dgInt32 faceCount;
-		dgInt32 normalBase;
-		dgInt32 normalIndex;
+	minHeight *= m_verticalScale;
+	maxHeight *= m_verticalScale;
 
+	if (!((maxHeight < boxP0.m_y) || (minHeight > boxP1.m_y))) {
 		// scan the vertices's intersected by the box extend
 		base = (z1 - z0 + 1) * (x1 - x0 + 1) + 2 * (z1 - z0) * (x1 - x0);
 		while (base > m_instanceData->m_vertexCount[data->m_threadNumber]) {
 			AllocateVertex(world, data->m_threadNumber);
 		}
 
-		vertexIndex = 0;
+		dgInt32 vertexIndex = 0;
 		base = z0 * m_width;
 		dgVector* const vertex = m_instanceData->m_vertex[data->m_threadNumber];
 
-		for (dgInt32 z = z0; z <= z1; z ++) {
-			for (dgInt32 x = x0; x <= x1; x ++) {
-				vertex[vertexIndex] = dgVector(m_horizontalScale * x, m_verticalScale * dgFloat32 (m_elevationMap[base + x]), m_horizontalScale * z, dgFloat32 (0.0f));
-				vertexIndex ++;
-				_ASSERTE (vertexIndex <= m_instanceData->m_vertexCount[data->m_threadNumber]); 
+		switch (m_elevationDataType) 
+		{
+			case m_float32Bit:
+			{
+				const dgFloat32* const elevation = (dgFloat32*)m_elevationMap;
+				for (dgInt32 z = z0; z <= z1; z ++) {
+					dgFloat32 zVal = m_horizontalScale * z;
+					for (dgInt32 x = x0; x <= x1; x ++) {
+						vertex[vertexIndex] = dgVector(m_horizontalScale * x, m_verticalScale * elevation[base + x], zVal, dgFloat32 (0.0f));
+						vertexIndex ++;
+						dgAssert (vertexIndex <= m_instanceData->m_vertexCount[data->m_threadNumber]); 
+					}
+					base += m_width;
+				}
+				break;
 			}
-			base += m_width;
+
+			case m_unsigned16Bit:
+			{
+				const dgUnsigned16* const elevation = (dgUnsigned16*)m_elevationMap;
+				for (dgInt32 z = z0; z <= z1; z ++) {
+					dgFloat32 zVal = m_horizontalScale * z;
+					for (dgInt32 x = x0; x <= x1; x ++) {
+						vertex[vertexIndex] = dgVector(m_horizontalScale * x, m_verticalScale * dgFloat32 (elevation[base + x]), zVal, dgFloat32 (0.0f));
+						vertexIndex ++;
+						dgAssert (vertexIndex <= m_instanceData->m_vertexCount[data->m_threadNumber]); 
+					}
+					base += m_width;
+				}
+				break;
+			}
+		}
+	
+		dgInt32 normalBase = vertexIndex;
+		vertexIndex = 0;
+		dgInt32 index = 0;
+		dgInt32 faceCount = 0;
+		dgInt32 step = x1 - x0 + 1;
+		dgInt32* const indices = data->m_globalFaceVertexIndex;
+		dgInt32* const faceIndexCount = data->m_meshData.m_globalFaceIndexCount;
+		dgInt32 faceSize = dgInt32 (m_horizontalScale * dgFloat32 (2.0f)); 
+
+		for (dgInt32 z = z0; z < z1; z ++) {
+			dgInt32 zStep = z * m_width;
+			for (dgInt32 x = x0; x < x1; x ++) {
+				const dgInt32* const indirectIndex = &m_cellIndices[dgInt32 (m_diagonals[zStep + x])][0];
+
+				dgInt32 vIndex[4];
+				vIndex[0] = vertexIndex;
+				vIndex[1] = vertexIndex + 1;
+				vIndex[2] = vertexIndex + step;
+				vIndex[3] = vertexIndex + step + 1;
+
+				const dgInt32 i0 = vIndex[indirectIndex[0]];
+				const dgInt32 i1 = vIndex[indirectIndex[1]];
+				const dgInt32 i2 = vIndex[indirectIndex[2]];
+				const dgInt32 i3 = vIndex[indirectIndex[3]];
+
+				const dgVector e0 (vertex[i0] - vertex[i1]);
+				const dgVector e1 (vertex[i2] - vertex[i1]);
+				const dgVector e2 (vertex[i3] - vertex[i1]);
+				dgVector n0 (e0 *  e1);
+				dgVector n1 (e1 *  e2);
+
+				//normalBase 
+				const dgInt32 normalIndex0 = normalBase;
+				vertex[normalIndex0] = n0.CompProduct4(n0.InvMagSqrt());
+				dgAssert  (dgAbsf(vertex[normalIndex0] % vertex[normalIndex0] - dgFloat32 (1.0f)) < dgFloat32 (1.0e-6f));
+
+				const dgInt32 normalIndex1 = normalBase + 1;
+				vertex[normalIndex1] = n1.CompProduct4(n1.InvMagSqrt());
+				dgAssert  (dgAbsf(vertex[normalIndex1] % vertex[normalIndex1] - dgFloat32 (1.0f)) < dgFloat32 (1.0e-6f));
+
+				faceIndexCount[faceCount] = 3;
+				indices[index + 0 + 0] = i2;
+				indices[index + 0 + 1] = i1;
+				indices[index + 0 + 2] = i0;
+				indices[index + 0 + 3] = m_atributeMap[zStep + x];
+				indices[index + 0 + 4] = normalIndex0;
+				indices[index + 0 + 5] = normalIndex0;
+				indices[index + 0 + 6] = normalIndex0;
+				indices[index + 0 + 7] = normalIndex0;
+				indices[index + 0 + 8] = faceSize;
+
+				faceIndexCount[faceCount + 1] = 3;
+				indices[index + 9 + 0] = i1;
+				indices[index + 9 + 1] = i2;
+				indices[index + 9 + 2] = i3;
+				indices[index + 9 + 3] = m_atributeMap[zStep + x];
+				indices[index + 9 + 4] = normalIndex1;
+				indices[index + 9 + 5] = normalIndex1;
+				indices[index + 9 + 6] = normalIndex1;
+				indices[index + 9 + 7] = normalIndex1;
+				indices[index + 9 + 8] = faceSize;
+
+				dgFloat32 dist (vertex[normalIndex0] % (vertex[i3] - vertex[i1]));
+				if (dist < -dgFloat32 (1.0e-3f)) {
+					indices[index + 0 + 5] = normalIndex1;
+					indices[index + 9 + 5] = normalIndex0;
+				}
+
+				index += 9 * 2;
+				normalBase += 2;
+				faceCount += 2;
+				vertexIndex ++;
+			}
+			vertexIndex ++;
 		}
 
-		normalBase = vertexIndex;
-		index = 0;
-		faceCount = 0;
-		vertexIndex = 0;
-		normalIndex = 0;
-		step = x1 - x0 + 1;
 
-		dgInt32* const indices = data->m_globalFaceVertexIndex;
-		dgInt32* const attributes = data->m_globalUserAttribute;
-		dgInt32* const faceIndexCount = data->m_globalFaceIndexCount;
-		dgInt32* const normalIndexCount = data->m_globalFaceNormalIndex;
-		dgInt32* const faceAdjencentEdgeNormal = data->m_globalAdjencentEdgeNormal;
-		dgFloat32* const facefaceMaxSize = data->m_globalFaceMaxSize;
-		dgFloat32 faceSize = GetMax (m_horizontalScale * dgFloat32 (2.0f), dgFloat32(64.0f)); 
+		//step = x1 - x0;
+		dgInt32 stepBase = (x1 - x0) * (2 * 9);
+		for (dgInt32 z = z0; z < z1; z ++) {
+			const dgInt32 diagBase = m_width * z;
+			//const dgInt32 vertexBase = (z - z0) * step;
+			//const dgInt32 triangleIndexBase = vertexBase * (2 * 9);
+			const dgInt32 triangleIndexBase = (z - z0) * stepBase;
+			for (dgInt32 x = x0; x < (x1 - 1); x ++) {
+				const dgInt32 code = (m_diagonals[diagBase + x] << 1) + m_diagonals[diagBase + x + 1];
+				const dgInt32* const edgeMap = &m_horizontalEdgeMap[code][0];
 
-		if (!m_diagonalMode) {
-			for (dgInt32 z = z0; z < z1; z ++) {
-				dgInt32 zStep;
-				zStep = z * m_width;
+				dgInt32* const triangles = &indices[(x - x0) * (2 * 9) + triangleIndexBase];
+				const dgInt32 i0 = triangles[edgeMap[0]];
+				const dgInt32 i1 = triangles[edgeMap[1]];
+				const dgInt32 i2 = triangles[edgeMap[2]];
 
-				for (dgInt32 x = x0; x < x1; x ++) {
-					dgInt32 i0;
-					dgInt32 i1;
-					dgInt32 i2;
-					dgInt32 i3;
+				const dgVector& origin = vertex[i0];
+				const dgVector& testPoint = vertex[i1];
+				const dgVector& normal = vertex[i2];
+				dgFloat32 dist (normal % (testPoint - origin));
 
-					i0 = vertexIndex;
-					i1 = vertexIndex + step;
-					i2 = vertexIndex + 1;
-					i3 = vertexIndex + step + 1;
-
-					faceIndexCount[faceCount] = 3;
-					facefaceMaxSize[faceCount] = faceSize;
-					attributes[faceCount] = m_atributeMap[zStep + x];
-					indices[index + 0] = i0;
-					indices[index + 1] = i1;
-					indices[index + 2] = i2;
-					index += 3;
-					faceCount ++;
-
-					faceIndexCount[faceCount] = 3;
-					attributes[faceCount] = m_atributeMap[zStep + x];
-					facefaceMaxSize[faceCount] = faceSize;
-					indices[index + 0] = i2;
-					indices[index + 1] = i1;
-					indices[index + 2] = i3;
-					index += 3;
-					faceCount ++;
-					vertexIndex ++;
-
-					// calculate the the normal
-					dgVector e0 (vertex[i0] - vertex[i2]);
-					dgVector e1 (vertex[i1] - vertex[i2]);
-					dgVector e2 (vertex[i3] - vertex[i2]);
-					dgVector n0 (e0 *  e1);
-					dgVector n1 (e1 *  e2);
-
-					//normalBase 
-					vertex[normalBase] = n0.Scale (dgRsqrt(n0 % n0));
-					normalIndexCount[normalIndex] = normalBase;
-					normalIndex ++;
-					normalBase ++;
-
-					vertex[normalBase] = n1.Scale (dgRsqrt(n1 % n1));
-					normalIndexCount[normalIndex] = normalBase;
-					normalIndex ++;
-					normalBase ++;
+				if (dist < -dgFloat32 (1.0e-3f)) {
+					const dgInt32 i3 = edgeMap[3];
+					const dgInt32 i4 = edgeMap[4];
+					const dgInt32 i5 = edgeMap[5];
+					const dgInt32 i6 = edgeMap[6];
+					triangles[i3] = triangles[i6];
+					triangles[i4] = triangles[i5];
 				}
-				vertexIndex ++;
 			}
-
-			base = 0;
-			index = 0;
-			step = x1 - x0;
-			for (dgInt32 z = z0; z < z1; z ++) {
-				dgInt32 z0Flag;
-				dgInt32 z1Flag;
-
-				z0Flag = ((z - z0 - 1) >> 31);
-				z1Flag = ((z1 - z - 2) >> 31);
-				for (dgInt32 x = x0; x < x1; x ++) {
-					dgInt32 xA0;
-					dgInt32 xA1;
-					dgInt32 zA0;
-					dgInt32 zA1;
-					dgInt32 zxA;
-					dgInt32 x0Flag;
-					dgInt32 x1Flag;
-					dgFloat32 side;
-					dgFloat32 diagSide;
-
-					x0Flag = ((x - x0 - 1) >> 31);
-					x1Flag = ((x1 - x - 2) >> 31);
-
-					const dgVector& point = vertex[indices[base + 1]];
-					const dgVector& n = vertex[normalIndexCount[index * 2]];
-
-					xA0 = ((~x0Flag) & (index * 2 - 1)) | (x0Flag & ((index - x + x0) * 2));
-					side = n % (vertex[indices[xA0 * 3 + 1]] - point);
-					faceAdjencentEdgeNormal[base + 0] = (side < dgFloat32 (-1.0e-5f)) ? normalIndexCount[xA0] : -1; 
-
-					zxA = index * 2 + 1;
-					diagSide = n % (vertex[indices[xA0 * 3 + 2]] - point);
-					faceAdjencentEdgeNormal[base + 1] = (diagSide < dgFloat32 (-1.0e-5f)) ? normalIndexCount[zxA] : -1; 
-
-					zA0 = ((~z0Flag) & ((index - step) * 2 + 1)) | (z0Flag & (index * 2));
-					side = n % (vertex[indices[zA0 * 3]] - point);
-					faceAdjencentEdgeNormal[base + 2] = (side < dgFloat32 (-1.0e-5f)) ? normalIndexCount[zA0] : -1; 
+		}
 
 
-					const dgVector& n1 = vertex[normalIndexCount[index * 2 + 1]];
-					xA1 = ((~x1Flag) & (index * 2 + 2)) | (x1Flag & (index * 2 + 1));
-					side = n1 % (vertex[indices[xA1 * 3 + 2]] - point);
-					faceAdjencentEdgeNormal[base + 5] = (side < dgFloat32 (-1.0e-5f)) ? normalIndexCount[xA1] : -1;
+		//dgInt32 stepBase = step * (2 * 9);
+		for (dgInt32 x = x0; x < x1; x ++) {
+			const dgInt32 triangleIndexBase = (x - x0) * (2 * 9);
+			for (dgInt32 z = z0; z < (z1 - 1); z ++) {	
+				const dgInt32 diagBase = m_width * z;
+				const dgInt32 code = (m_diagonals[diagBase + x] << 1) + m_diagonals[diagBase + m_width + x];
+				const dgInt32* const edgeMap = &m_verticalEdgeMap[code][0];
 
-					zxA = index * 2;
-					faceAdjencentEdgeNormal[base + 3] = (diagSide < dgFloat32 (-1.0e-5f)) ? normalIndexCount[zxA] : -1;;
+				//dgInt32* const triangles = &indices[(x - x0) * (2 * 9) + triangleIndexBase];
+				dgInt32* const triangles = &indices[(z - z0) * stepBase + triangleIndexBase];
+				const dgInt32 i0 = triangles[edgeMap[0]];
+				const dgInt32 i1 = triangles[edgeMap[1] + stepBase];
+				const dgInt32 i2 = triangles[edgeMap[2]];
 
-					zA1 = ((~z1Flag) & ((index + step) * 2)) | (z1Flag & (index * 2 + 1));
-					side = n % (vertex[indices[zA1 * 3 + 1]] - point);
-					faceAdjencentEdgeNormal[base + 4] = (side < dgFloat32 (-1.0e-5f)) ? normalIndexCount[zA1] : -1; 
-					index ++;
-					base += 6;
+				const dgVector& origin = vertex[i0];
+				const dgVector& testPoint = vertex[i1];
+				const dgVector& normal = vertex[i2];
+				dgFloat32 dist (normal % (testPoint - origin));
+
+				if (dist < -dgFloat32 (1.0e-3f)) {
+					const dgInt32 i3 = edgeMap[3];
+					const dgInt32 i4 = edgeMap[4] + stepBase;
+					const dgInt32 i5 = edgeMap[5];
+					const dgInt32 i6 = edgeMap[6] + stepBase;
+					triangles[i3] = triangles[i6];
+					triangles[i4] = triangles[i5];
 				}
+			}
+		}
+
+		dgInt32 stride = sizeof (dgVector) / sizeof (dgFloat32);
+		dgInt32 faceCount0 = 0; 
+		dgInt32 faceIndexCount0 = 0; 
+		dgInt32 faceIndexCount1 = 0; 
+
+		dgInt32* const address = data->m_meshData.m_globalFaceIndexStart;
+		dgFloat32* const hitDistance = data->m_meshData.m_globalHitDistance;
+		
+		if (data->m_doContinuesCollisionTest) {
+			dgFastRayTest ray (dgVector (dgFloat32 (0.0f)), data->m_boxDistanceTravelInMeshSpace);
+			for (dgInt32 i = 0; i < faceCount; i ++) {
+				const dgInt32* const indexArray = &indices[faceIndexCount1]; 
+				const dgVector& faceNormal = vertex[indexArray[4]];
+				dgFloat32 dist = data->PolygonBoxRayDistance (faceNormal, 3, indexArray, stride, &vertex[0].m_x, ray);
+				if (dist < dgFloat32 (1.0f)) {
+					hitDistance[faceCount0] = dist;
+					address[faceCount0] = faceIndexCount0;
+					memcpy (&indices[faceIndexCount0], indexArray, 9 * sizeof (dgInt32));
+					faceCount0 ++;
+					faceIndexCount0 += 9;
+				}
+				faceIndexCount1 += 9;
 			}
 		} else {
-
-			for (dgInt32 z = z0; z < z1; z ++) {
-				dgInt32 zStep;
-				zStep = z * m_width;
-				for (dgInt32 x = x0; x < x1; x ++) {
-
-					dgInt32 i0;
-					dgInt32 i1;
-					dgInt32 i2;
-					dgInt32 i3;
-
-					i0 = vertexIndex;
-					i1 = vertexIndex + step + 1;
-					i2 = vertexIndex + 1;
-					i3 = vertexIndex + step;
-
-					faceIndexCount[faceCount] = 3;
-					facefaceMaxSize[faceCount] = faceSize;
-					attributes[faceCount] = m_atributeMap[zStep + x];
-					indices[index + 0] = i0;
-					indices[index + 1] = i1;
-					indices[index + 2] = i2;
-					index += 3;
-					faceCount ++;
-
-					faceIndexCount[faceCount] = 3;
-					facefaceMaxSize[faceCount] = faceSize;
-					attributes[faceCount] = m_atributeMap[zStep + x];
-					indices[index + 0] = i0;
-					indices[index + 1] = i3;
-					indices[index + 2] = i1;
-					index += 3;
-					faceCount ++;
-					vertexIndex ++;
-
-
-					// calculate the the normal
-					dgVector e0 (vertex[i3] - vertex[i0]);
-					dgVector e1 (vertex[i1] - vertex[i0]);
-					dgVector e2 (vertex[i2] - vertex[i0]);
-					dgVector n0 (e0 *  e1);
-					dgVector n1 (e1 *  e2);
-
-					vertex[normalBase] = n0.Scale (dgRsqrt(n0 % n0));
-					normalIndexCount[normalIndex] = normalBase;
-					normalIndex ++;
-					normalBase ++;
-
-					vertex[normalBase] = n1.Scale (dgRsqrt(n1 % n1));
-					normalIndexCount[normalIndex] = normalBase;
-					normalIndex ++;
-					normalBase ++;
-				}
-				vertexIndex ++;
-			}
-
-
-			base = 0;
-			index = 0;
-			step = x1 - x0;
-			for (dgInt32 z = z0; z < z1; z ++) {
-				dgInt32 z0Flag;
-				dgInt32 z1Flag;
-
-				z0Flag = ((z - z0 - 1) >> 31);
-				z1Flag = ((z1 - z - 2) >> 31);
-				for (dgInt32 x = x0; x < x1; x ++) {
-					dgInt32 xA0;
-					dgInt32 xA1;
-					dgInt32 zA0;
-					dgInt32 zA1;
-					dgInt32 zxA;
-					dgInt32 x0Flag;
-					dgInt32 x1Flag;
-					dgFloat32 side;
-					dgFloat32 diagSide;
-
-					x1Flag = ((x - x0 - 1) >> 31);
-					x0Flag = ((x1 - x - 2) >> 31);
-
-					const dgVector& point = vertex[indices[base]];
-					const dgVector& n = vertex[normalIndexCount[index * 2]];
-					xA0 = ((~x0Flag) & (index * 2 + 3)) | (x0Flag & (index * 2));
-					side = n % (vertex[indices[xA0 * 3 + 2]] - point);
-					faceAdjencentEdgeNormal[base + 1] = (side < dgFloat32 (-1.0e-5f)) ? normalIndexCount[xA0] : -1; 
-
-					zxA = index * 2 + 1;
-					diagSide = n % (vertex[indices[xA0 * 3 + 1]] - point);
-					faceAdjencentEdgeNormal[base + 0] = (diagSide < dgFloat32 (-1.0e-5f)) ? normalIndexCount[zxA] : -1; 
-
-					zA0 = ((~z0Flag) & ((index - step) * 2 + 1)) | (z0Flag & (index * 2));
-					side = n % (vertex[indices[zA0 * 3]] - point);
-					faceAdjencentEdgeNormal[base + 2] = (side < dgFloat32 (-1.0e-5f)) ? normalIndexCount[zA0] : -1; 
-
-
-					const dgVector& n1 = vertex[normalIndexCount[index * 2 + 1]];
-					xA1 = ((~x1Flag) & (index * 2 - 2)) | (x1Flag & ((index - x + x0) * 2 + 1));
-					side = n1 % (vertex[indices[xA1 * 3]] - point);
-					faceAdjencentEdgeNormal[base + 3] = (side < dgFloat32 (-1.0e-5f)) ? normalIndexCount[xA1] : -1;
-
-					zxA = index * 2;
-					faceAdjencentEdgeNormal[base + 5] = (diagSide < dgFloat32 (-1.0e-5f)) ? normalIndexCount[zxA] : -1;;
-
-					zA1 = ((~z1Flag) & ((index + step) * 2)) | (z1Flag & (index * 2 + 1));
-					side = n % (vertex[indices[zA1 * 3 + 1]] - point);
-					faceAdjencentEdgeNormal[base + 4] = (side < dgFloat32 (-1.0e-5f)) ? normalIndexCount[zA1] : -1; 
-
-					index ++;
-					base += 6;
-				}
-			}
-		}
-
-
-		data->m_faceCount = faceCount;
-
-		// initialize the callback data structure
-		data->m_vertexStrideInBytes = sizeof (dgVector);
-		data->m_faceVertexIndex = indices;
-		data->m_faceNormalIndex = normalIndexCount;
-		data->m_faceMaxSize = facefaceMaxSize;
-		data->m_faceAdjencentEdgeNormal = faceAdjencentEdgeNormal;
-		data->m_userAttribute = attributes;
-		data->m_faceIndexCount = faceIndexCount;
-		data->m_vertex = &vertex[0].m_x;
-
-		if (GetDebugCollisionCallback()) { 
-			dgTriplex triplex[3];
-			const dgMatrix& matrix = data->m_polySoupBody->GetCollisionMatrix();
 			for (dgInt32 i = 0; i < faceCount; i ++) {
-				for (dgInt32 j = 0; j < 3; j ++) {
-					dgVector p (matrix.TransformVector(vertex[indices[i * 3 + j]]));
-					triplex[j].m_x = p.m_x;
-					triplex[j].m_y = p.m_y;
-					triplex[j].m_z = p.m_z;
+				const dgInt32* const indexArray = &indices[faceIndexCount1]; 
+				const dgVector& faceNormal = vertex[indexArray[4]];
+				dgFloat32 dist = data->PolygonBoxDistance (faceNormal, 3, indexArray, stride, &vertex[0].m_x);
+				if (dist > dgFloat32 (0.0f)) {
+					hitDistance[faceCount0] = dist;
+					address[faceCount0] = faceIndexCount0;
+					memcpy (&indices[faceIndexCount0], indexArray, 9 * sizeof (dgInt32));
+					faceCount0 ++;
+					faceIndexCount0 += 9;
 				}
-				GetDebugCollisionCallback() (data->m_polySoupBody, data->m_objBody, attributes[i], 3, &triplex[0].m_x, sizeof (dgTriplex));
+				faceIndexCount1 += 9;
 			}
 		}
+
+		if (faceCount0) {
+			// initialize the callback data structure
+			data->m_faceCount = faceCount0;
+			data->m_vertex = &vertex[0].m_x;
+			data->m_faceVertexIndex = indices;
+			data->m_faceIndexStart = address;
+			data->m_hitDistance = hitDistance;
+			data->m_faceIndexCount = faceIndexCount;
+			data->m_vertexStrideInBytes = sizeof (dgVector);
+
+			if (GetDebugCollisionCallback()) { 
+				dgTriplex triplex[3];
+				const dgMatrix& matrix = data->m_polySoupCollision->GetGlobalMatrix();
+				for (dgInt32 i = 0; i < data->m_faceCount; i ++) {
+					dgInt32 base = address[i];
+					for (dgInt32 j = 0; j < 3; j ++) {
+						dgInt32 index = data->m_faceVertexIndex[base + j];
+						dgVector p (matrix.TransformVector(vertex[index]));
+						triplex[j].m_x = p.m_x;
+						triplex[j].m_y = p.m_y;
+						triplex[j].m_z = p.m_z;
+					}
+					GetDebugCollisionCallback() (data->m_polySoupBody, data->m_objBody, data->m_faceVertexIndex[base + 4], 3, &triplex[0].m_x, sizeof (dgTriplex));
+				}
+			}
+		}
+
+
+		#ifdef _DEBUG
+			for (dgInt32 i = 0; i < data->m_faceCount; i ++) {
+				dgInt32 base = address[i];
+				const dgInt32* const localIndexArray = &data->m_faceVertexIndex[base];
+
+				int index = data->GetNormalIndex (localIndexArray, 3);
+				dgVector n (vertex[index]);
+				dgVector p0 (vertex[data->m_faceVertexIndex[base + 0]]);
+				dgVector p1 (vertex[data->m_faceVertexIndex[base + 1]]);
+				dgVector p2 (vertex[data->m_faceVertexIndex[base + 2]]);
+
+				dgVector n1 ((p1 - p0) * (p2 - p0));
+				n1 = n1.CompProduct4(n1.InvMagSqrt());
+
+				dgMatrix polygonMatrix;
+				polygonMatrix[0] = p1 - p0;
+				polygonMatrix[0] = polygonMatrix[0].CompProduct4 (polygonMatrix[0].DotProduct4(polygonMatrix[0]).InvSqrt());
+				polygonMatrix[1] = n * polygonMatrix[0];
+				polygonMatrix[2] = n;
+				polygonMatrix[3] = dgVector::m_wOne;
+				dgAssert (polygonMatrix.TestOrthogonal());
+			}
+		#endif
 	}
 }
 

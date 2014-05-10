@@ -19,8 +19,8 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_STDAFX_H__7B02FF2D_C0C3_4291_9676_333105355F57__INCLUDED_)
-#define AFX_STDAFX_H__7B02FF2D_C0C3_4291_9676_333105355F57__INCLUDED_
+#if !defined(AFX_STDAFX_H__7B02FF2D_C0C3_4291_9676_333105355F57_H)
+#define AFX_STDAFX_H__7B02FF2D_C0C3_4291_9676_333105355F57_H
 
 
 #define WIN32_LEAN_AND_MEAN		// Exclude rarely-used stuff from Windows headers
@@ -31,5 +31,5 @@
 #include "dg.h"
 #include "dgPhysics.h"
 
-#endif // !defined(AFX_STDAFX_H__7B02FF2D_C0C3_4291_9676_333105355F57__INCLUDED_)
+#endif // !defined(AFX_STDAFX_H__7B02FF2D_C0C3_4291_9676_333105355F57_H)
 

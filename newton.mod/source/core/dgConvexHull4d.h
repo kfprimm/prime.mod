@@ -57,8 +57,7 @@ class dgConvexHull4dTetraherum
 	class dgTetrahedrumFace 
 	{
 		public:
-		dgInt32 m_index[3];
-		dgInt32 m_otherVertex;
+		dgInt32 m_index[4];
 		dgList<dgConvexHull4dTetraherum>::dgListNode* m_twin;
 	};
 
@@ -79,16 +78,18 @@ class dgConvexHull4dTetraherum
 
 	dgInt32 GetMark() const { return m_mark; }
 	void SetMark(dgInt32 mark) { m_mark = mark; }
-	
-	dgTetrahedrumFace m_faces[4];
-#ifdef _DEBUG
-	dgInt32 m_debugID;
-#endif
 
 	private:
 	void Init (const dgHullVector* const points, dgInt32 v0, dgInt32 v1, dgInt32 v2, dgInt32 v3);
-	
+
+	public:
+	dgTetrahedrumFace m_faces[4];
 	dgInt32 m_mark;
+	dgInt32 m_uniqueID;
+
+#ifdef _DEBUG
+	dgInt32 m_debugID;
+#endif
 	friend class dgConvexHull4d;
 	friend class dgDelaunayTetrahedralization;
 };
@@ -107,6 +108,7 @@ class dgConvexHull4d: public dgList<dgConvexHull4dTetraherum>
 	const dgHullVector* GetHullVertexArray() const;
 
 	dgInt32 IncMark (); 
+	void Save (const char* const filename) const;
 
 	protected:
 	dgConvexHull4d(dgMemoryAllocator* const allocator);
@@ -116,22 +118,21 @@ class dgConvexHull4d: public dgList<dgConvexHull4dTetraherum>
 	virtual dgInt32 AddVertex (const dgBigVector& vertex);
 	virtual dgInt32 InitVertexArray(dgHullVector* const points, const dgBigVector* const vertexCloud, dgInt32 count, void* const memoryPool, dgInt32 maxMemSize);
 	virtual dgListNode* AddFace (dgInt32 i0, dgInt32 i1, dgInt32 i2, dgInt32 i3);
-	virtual void DeleteFace (dgListNode* const node) ;
+	virtual void DeleteFace (dgListNode* const node);
 
 	dgListNode* FindFacingNode(const dgBigVector& vertex);
-	
 	dgInt32 BuildNormalList (dgBigVector* const normalArray) const;
 	void InsertNewVertex(dgInt32 vertexIndex, dgListNode* const frontFace, dgList<dgListNode*>& deletedFaces, dgList<dgListNode*>& newFaces);
 	dgInt32 SupportVertex (dgAABBPointTree4d** const tree, const dgHullVector* const points, const dgBigVector& dir) const;
 	void TessellateTriangle (dgInt32 level, const dgVector& p0, const dgVector& p1, const dgVector& p2, dgInt32& count, dgBigVector* const ouput, dgInt32& start) const;
-
 	void CalculateConvexHull (dgAABBPointTree4d* vertexTree, dgHullVector* const points, dgInt32 count, dgFloat64 distTol);
 	void LinkSibling (dgListNode* node0, dgListNode* node1)	const;
 	bool Sanity() const;
-	static dgInt32 ConvexCompareVertex(const dgHullVector* const  A, const dgHullVector* const B, void* const context);
-
 	dgAABBPointTree4d* BuildTree (dgAABBPointTree4d* const parent, dgHullVector* const points, dgInt32 count, dgInt32 baseIndex, dgInt8** const memoryPool, dgInt32& maxMemSize) const;
 
+	static dgInt32 ConvexCompareVertex(const dgHullVector* const  A, const dgHullVector* const B, void* const context);
+	
+	dgFloat64 RoundToFloat (dgFloat64 val) const;
 	dgInt32 m_mark;
 	dgInt32 m_count;
 	dgFloat64 m_diag;
@@ -152,16 +153,16 @@ inline dgInt32 dgConvexHull4d::GetVertexCount() const
 
 inline dgInt32 dgConvexHull4d::GetVertexIndex(dgInt32 index) const
 {
-	_ASSERTE (index >= 0);
-	_ASSERTE (index < m_count);
+	dgAssert (index >= 0);
+	dgAssert (index < m_count);
 	return m_points[index].m_index;
 }
 
 
 inline const dgBigVector& dgConvexHull4d::GetVertex(dgInt32 index) const
 {
-	_ASSERTE (index >= 0);
-	_ASSERTE (index < m_count);
+	dgAssert (index >= 0);
+	dgAssert (index < m_count);
 //	return dgVector (dgFloat32 (m_points[index].m_x), dgFloat32 (m_points[index].m_y), dgFloat32 (m_points[index].m_z), dgFloat32 (m_points[index].m_w));
 	return m_points[index];
 }

@@ -130,7 +130,7 @@ dgGoogol Determinant4x4 (const dgGoogol matrix[4][4])
 	dgGoogol sign = dgFloat64 (1.0f);
 	dgGoogol det = dgFloat64 (0.0f);
 	dgGoogol negOne (dgFloat64 (-1.0f));
-	dgGoogol accError = dgFloat64 (0.0f); 
+	//dgGoogol accError = dgFloat64 (0.0f);
 	for (dgInt32 i = 0; i < 4; i ++)  {
 		dgGoogol  cofactor[3][3];
 		for (dgInt32 j = 0; j < 3; j ++) {

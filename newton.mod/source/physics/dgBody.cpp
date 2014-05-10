@@ -24,560 +24,265 @@
 #include "dgWorld.h"
 #include "dgContact.h"
 #include "dgCollision.h"
+#include "dgCollisionInstance.h"
 #include "dgCollisionCompound.h"
 #include "dgWorldDynamicUpdate.h"
+#include "dgCollisionDeformableMesh.h"
 #include "dgCollisionCompoundBreakable.h"
+
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
-#define DG_AABB_ERROR		dgFloat32 (1.0e-4f)
+//#define DG_AABB_ERROR		dgFloat32 (1.0e-4f)
 #define DG_MAX_ANGLE_STEP   dgFloat32 (45.0f * dgDEG2RAD)
 
-
+//dgVector dgBody::m_aabbTol (DG_AABB_ERROR, DG_AABB_ERROR, DG_AABB_ERROR, dgFloat32 (0.0));
 
 dgBody::dgBody()
+	:m_invWorldInertiaMatrix(dgGetZeroMatrix())
+	,m_matrix (dgGetIdentityMatrix())
+	,m_rotation(dgFloat32 (1.0f), dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f))
+	,m_mass(dgFloat32 (DG_INFINITE_MASS * 2.0f), dgFloat32 (DG_INFINITE_MASS * 2.0f), dgFloat32 (DG_INFINITE_MASS * 2.0f), dgFloat32 (DG_INFINITE_MASS * 2.0f))
+	,m_invMass(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))
+	,m_veloc(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))
+	,m_omega(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))
+	,m_minAABB(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))
+	,m_maxAABB(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))
+	,m_netForce(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))
+	,m_netTorque(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))
+	,m_localCentreOfMass(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))	
+	,m_globalCentreOfMass(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))	
+	,m_aparentMass(dgFloat32 (DG_INFINITE_MASS), dgFloat32 (DG_INFINITE_MASS), dgFloat32 (DG_INFINITE_MASS), dgFloat32 (DG_INFINITE_MASS))
+	,m_index(0)
+	,m_uniqueID(0)
+	,m_bodyGroupId(0)
+	,m_rtti(m_baseBodyRTTI)
+	,m_type(0)
+	,m_dynamicsLru(0)
+	,m_genericLRUMark(0)
+	,m_criticalSectionLock()
+	,m_flags(0)
+	,m_userData(NULL)
+	,m_world(NULL)
+	,m_collision(NULL)
+	,m_collisionCell(NULL)
+	,m_masterNode(NULL)
+	,m_destructor(NULL)
+	,m_matrixUpdate(NULL)
 {
-//	int xx = sizeof (dgBody);
-	_ASSERTE ((sizeof (dgBody) & 0x0f) == 0);
+	m_resting = true;
+	m_autoSleep = true;
+	m_collidable = true;
+	m_collideWithLinkedBodies = true;
+	m_invWorldInertiaMatrix[3][3] = dgFloat32 (1.0f);
+}
+
+dgBody::dgBody (dgWorld* const world, const dgTree<const dgCollision*, dgInt32>* const collisionCashe, dgDeserialize serializeCallback, void* const userData)
+	:m_invWorldInertiaMatrix(dgGetZeroMatrix())
+	,m_matrix (dgGetIdentityMatrix())
+	,m_rotation(dgFloat32 (1.0f), dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f))
+	,m_mass(dgFloat32 (DG_INFINITE_MASS * 2.0f), dgFloat32 (DG_INFINITE_MASS * 2.0f), dgFloat32 (DG_INFINITE_MASS * 2.0f), dgFloat32 (DG_INFINITE_MASS * 2.0f))
+	,m_invMass(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))
+	,m_veloc(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))
+	,m_omega(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))
+	,m_minAABB(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))
+	,m_maxAABB(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))
+	,m_netForce(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))
+	,m_netTorque(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))
+	,m_localCentreOfMass(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))	
+	,m_globalCentreOfMass(dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0), dgFloat32 (0.0))	
+	,m_aparentMass(dgFloat32 (DG_INFINITE_MASS), dgFloat32 (DG_INFINITE_MASS), dgFloat32 (DG_INFINITE_MASS), dgFloat32 (DG_INFINITE_MASS))
+	,m_index(0)
+	,m_uniqueID(0)
+	,m_bodyGroupId(0)
+	,m_rtti(m_baseBodyRTTI)
+	,m_type(0)
+	,m_dynamicsLru(0)
+	,m_genericLRUMark(0)
+	,m_criticalSectionLock()
+	,m_flags(0)
+	,m_userData(NULL)
+	,m_world(world)
+	,m_collision(NULL)
+	,m_collisionCell(NULL)
+	,m_masterNode(NULL)
+	,m_destructor(NULL)
+	,m_matrixUpdate(NULL)
+{
+	m_autoSleep = true;
+	m_collidable = true;
+	m_collideWithLinkedBodies = true;
+	m_invWorldInertiaMatrix[3][3] = dgFloat32 (1.0f);
+
+	serializeCallback (userData, &m_rotation, sizeof (m_rotation));
+	serializeCallback (userData, &m_matrix.m_posit, sizeof (m_matrix.m_posit));
+	serializeCallback (userData, &m_veloc, sizeof (m_veloc));
+	serializeCallback (userData, &m_omega, sizeof (m_omega));
+	serializeCallback (userData, &m_localCentreOfMass, sizeof (m_localCentreOfMass));
+	serializeCallback (userData, &m_flags, sizeof (m_flags));
+
+	m_matrix = dgMatrix (m_rotation, m_matrix.m_posit);
+
+	dgInt32 id;
+	serializeCallback (userData, &id, sizeof (id));
+
+	dgTree<const dgCollision*, dgInt32>::dgTreeNode* const node = collisionCashe->Find(id);
+	dgAssert (node);
+
+	const dgCollision* const collision = node->GetInfo();
+	collision->AddRef();
+
+	dgCollisionInstance* const instance = new (world->GetAllocator()) dgCollisionInstance (world, serializeCallback, userData);
+	instance->m_childShape = collision;
+	m_collision = instance;
 }
 
 dgBody::~dgBody()
 {
-//	_ASSERTE (m_collisionCell.GetCount() == 0);
 }
 
-
-void dgBody::SetAparentMassMatrix (const dgVector& massMatrix)
+void dgBody::AttachCollision (dgCollisionInstance* const collisionSrc)
 {
-	m_aparentMass = massMatrix;
-	if (m_collision->IsType(dgCollision::dgCollisionMesh_RTTI)) {
-		m_aparentMass.m_w = DG_INFINITE_MASS * 2.0f;
-	}
-
-	if (m_aparentMass.m_w >= DG_INFINITE_MASS) {
-		m_aparentMass.m_x = DG_INFINITE_MASS;
-		m_aparentMass.m_y = DG_INFINITE_MASS;
-		m_aparentMass.m_z = DG_INFINITE_MASS;
-		m_aparentMass.m_w = DG_INFINITE_MASS;
-	}
-}
-
-void dgBody::SetMassMatrix(dgFloat32 mass, dgFloat32 Ix, dgFloat32 Iy, dgFloat32 Iz)
-{
-//	_ASSERTE (mass > dgFloat32 (0.0f));
-	if (m_collision->IsType(dgCollision::dgCollisionMesh_RTTI)) {
-		mass = DG_INFINITE_MASS * 2.0f;
-	}
-
-	if (mass >= DG_INFINITE_MASS) {
-		m_mass.m_x = DG_INFINITE_MASS;
-		m_mass.m_y = DG_INFINITE_MASS;
-		m_mass.m_z = DG_INFINITE_MASS;
-		m_mass.m_w = DG_INFINITE_MASS;
-		m_invMass.m_x = dgFloat32 (0.0f);
-		m_invMass.m_y = dgFloat32 (0.0f);
-		m_invMass.m_z = dgFloat32 (0.0f);
-		m_invMass.m_w = dgFloat32 (0.0f);
-
-		dgBodyMasterList& masterList (*m_world);
-		if (masterList.GetFirst() != m_masterNode) {
-			masterList.InsertAfter (masterList.GetFirst(), m_masterNode);
-		}
-
-	} else {
-		_ASSERTE (Ix > dgFloat32 (0.0f));
-		_ASSERTE (Iy > dgFloat32 (0.0f));
-		_ASSERTE (Iz > dgFloat32 (0.0f));
-
-//		dgVector omega (m_mass.CompProduct(m_matrix.UnrotateVector(m_omega)));
-
-		m_mass.m_x = Ix;
-		m_mass.m_y = Iy;
-		m_mass.m_z = Iz;
-		m_mass.m_w = mass;
-
-		m_invMass.m_x = dgFloat32 (1.0f) / Ix;
-		m_invMass.m_y = dgFloat32 (1.0f) / Iy;
-		m_invMass.m_z = dgFloat32 (1.0f) / Iz;
-		m_invMass.m_w = dgFloat32 (1.0f) / mass;
-//		if (m_applyGyroscopic) {
-//			m_omega = m_matrix.UnrotateVector (omega.CompProduct(m_invMass));
-//		}
-		
-		dgBodyMasterList& masterList (*m_world);
-		masterList.RotateToEnd (m_masterNode);
-	}
-
-#ifdef _DEBUG
-	dgBodyMasterList& me = *m_world;
-	dgBodyMasterList::dgListNode* refNode;
-	for (refNode = me.GetFirst(); refNode; refNode = refNode->GetNext()) {
-		if (refNode->GetInfo().GetBody()->m_invMass.m_w != 0.0f) {
-			for (; refNode; refNode = refNode->GetNext()) {
-				dgBody* body = refNode->GetInfo().GetBody();
-				_ASSERTE (body->m_invMass.m_w != 0.0f);
-			}
-			break;
-		}
-	}
-
-#endif
-
-
-
-	SetAparentMassMatrix (m_mass);
-}
-
-
-
-void dgBody::AttachCollision (dgCollision* collision)
-{
-	_ASSERTE (collision);
-	if (collision->IsType (dgCollision::dgCollisionCompound_RTTI)) {
-
-		if (collision->IsType (dgCollision::dgCollisionCompoundBreakable_RTTI)) {
-			dgCollisionCompoundBreakable* const compound = (dgCollisionCompoundBreakable*) collision;
-			collision = new (m_world->GetAllocator()) dgCollisionCompoundBreakable (*compound);
-
-		} else {
-			dgCollisionCompound *const compound = (dgCollisionCompound*) collision;
-			collision = new (m_world->GetAllocator()) dgCollisionCompound (*compound);
-		}
-
-	} else {
-		collision->AddRef();
-	}
-
-
+	dgCollisionInstance* const instance = new (m_world->GetAllocator()) dgCollisionInstance (*collisionSrc);
 	if (m_collision) {
-		m_world->ReleaseCollision(m_collision);
-		m_collision	= collision;
-		if (m_collision->IsType(dgCollision::dgCollisionMesh_RTTI)) {
-			SetMassMatrix (m_mass.m_w, m_mass.m_x, m_mass.m_y, m_mass.m_z);
-		}
-		SetMatrix(m_matrix);
-	} else {
-		m_collision	= collision;
-		if (m_collision->IsType(dgCollision::dgCollisionMesh_RTTI)) {
-			SetMassMatrix (m_mass.m_w, m_mass.m_x, m_mass.m_y, m_mass.m_z);
-		}
+		m_collision->Release();
 	}
+	m_collision = instance;
+	m_equilibrium = 0;
 }
+
+
+
+void dgBody::Serialize (const dgTree<dgInt32, const dgCollision*>* const collisionCashe, dgSerialize serializeCallback, void* const userData)
+{
+	serializeCallback (userData, &m_rotation, sizeof (m_rotation));
+	serializeCallback (userData, &m_matrix.m_posit, sizeof (m_matrix.m_posit));
+	serializeCallback (userData, &m_veloc, sizeof (m_veloc));
+	serializeCallback (userData, &m_omega, sizeof (m_omega));
+	serializeCallback (userData, &m_localCentreOfMass, sizeof (m_localCentreOfMass));
+	serializeCallback (userData, &m_flags, sizeof (m_flags));
+
+	dgTree<dgInt32, const dgCollision*>::dgTreeNode* const node = collisionCashe->Find(m_collision->GetChildShape());
+	dgAssert (node);
+
+	dgInt32 id = node->GetInfo();
+	serializeCallback (userData, &id, sizeof (id));
+	m_collision->Serialize(serializeCallback, userData, false);
+}
+
 
 void dgBody::SetMatrix(const dgMatrix& matrix)
 {
 	SetMatrixOriginAndRotation(matrix);
 
 	if (!m_inCallback) {
-		if (m_world->m_cpu == dgSimdPresent) {
-			UpdateCollisionMatrixSimd (dgFloat32 (0.0f), 0);
-		} else {
-			UpdateCollisionMatrix (dgFloat32 (0.0f), 0);
-		}
+		UpdateCollisionMatrix (dgFloat32 (0.0f), 0);
 	}
 }
 
 void dgBody::SetMatrixIgnoreSleep(const dgMatrix& matrix)
 {
-	dgBroadPhaseCollision& collisionSystem = *m_world;
-	if (m_collisionCell.m_cell == &collisionSystem.m_inactiveList) {
-		if (!m_spawnnedFromCallback) {
-			m_world->dgGetUserLock();
-			collisionSystem.Remove(this);
-			collisionSystem.Add(this);
-			m_world->dgReleasedUserLock();
-		} else {
-			collisionSystem.Remove(this);
-			collisionSystem.Add(this);
-		}
-	}
-		
 	m_sleeping = false;
 	SetMatrix(matrix);
 }
 
-
-void dgBody::UpdateCollisionMatrixSimd (dgFloat32 timestep, dgInt32 threadIndex)
+void dgBody::UpdateWorlCollisionMatrix() const
 {
-#ifdef DG_BUILD_SIMD_CODE
-
-
-	m_collisionWorldMatrix = m_collision->m_offset.MultiplySimd(m_matrix);
-
-	dgVector oldP0 (m_minAABB);
-	dgVector oldP1 (m_maxAABB);
-	m_collision->CalcAABBSimd(m_collisionWorldMatrix, m_minAABB, m_maxAABB);
-
-	if (m_continueCollisionMode) {
-		dgFloat32 padding = m_collision->GetBoxMaxRadius() - m_collision->GetBoxMinRadius();
-		dgFloat32 maxOmega = (m_omega % m_omega) * timestep * timestep;
-		padding = (maxOmega > 1.0f) ? padding : padding * dgSqrt (maxOmega);
-		dgVector step (m_veloc.Scale (timestep) + m_accel.Scale (m_invMass.m_w * timestep * timestep));
-		step.m_x += (step.m_x > 0.0f) ? padding : -padding;
-		step.m_y += (step.m_y > 0.0f) ? padding : -padding;
-		step.m_z += (step.m_z > 0.0f) ? padding : -padding;
-		
-		dgVector boxSize ((m_maxAABB - m_minAABB).Scale (dgFloat32 (0.25f)));
-		for (dgInt32 j = 0; j < 3; j ++) {
-			if (dgAbsf (step[j]) > boxSize[j]) {
-				if (step[j] > dgFloat32 (0.0f)) {
-					m_maxAABB[j] += step[j]; 
-				} else {
-					m_minAABB[j] += step[j]; 
-				}
-			}
-		}
-
-		if (m_collision->IsType (dgCollision::dgCollisionCompound_RTTI)) {
-			dgCollisionCompound *const compoundCollision = (dgCollisionCompound *)m_collision;
-//			dgInt32 count = compoundCollision->m_count;
-//			for (dgInt32 i = 0 ; i < count; i ++) {
-//				dgVector& box1Min = compoundCollision->m_aabb[i].m_p0;
-//				dgVector& box1Max = compoundCollision->m_aabb[i].m_p1;
-				dgVector& box1Min = compoundCollision->m_root->m_p0;
-				dgVector& box1Max = compoundCollision->m_root->m_p1;
-
-				dgVector boxSize ((box1Max - box1Min).Scale (dgFloat32 (0.25f)));
-				for (dgInt32 j = 0; j < 3; j ++) {
-					if (dgAbsf (step[j]) > boxSize[j]) {
-						if (step[j] > dgFloat32 (0.0f)) {
-							box1Max[j] += step[j]; 
-						} else {
-							box1Min[j] += step[j]; 
-						}
-					}
-				}
-//			}
-		}
-	}
-
-	if (m_collisionCell.m_cell) {
-		_ASSERTE (m_world);
-		if (!m_sleeping) {
-			if ((dgAbsf (oldP0.m_x - m_minAABB.m_x) > DG_AABB_ERROR) || (dgAbsf (oldP0.m_y - m_minAABB.m_y) > DG_AABB_ERROR) ||
-				(dgAbsf (oldP0.m_z - m_minAABB.m_z) > DG_AABB_ERROR) || (dgAbsf (oldP1.m_x - m_maxAABB.m_x) > DG_AABB_ERROR) || 
-				(dgAbsf (oldP1.m_y - m_maxAABB.m_y) > DG_AABB_ERROR) || (dgAbsf (oldP1.m_z - m_maxAABB.m_z) > DG_AABB_ERROR)) {
-				m_world->UpdateBodyBroadphase (this, threadIndex);
-			} else {
-				m_collisionCell.m_cell->m_active = 1;
-			}
-		}
-	}
-#endif
+	m_collision->SetGlobalMatrix (m_collision->GetLocalMatrix() * m_matrix);
 }
+
 
 
 void dgBody::UpdateCollisionMatrix (dgFloat32 timestep, dgInt32 threadIndex)
 {
-	m_collisionWorldMatrix = m_collision->m_offset * m_matrix;
-
-	dgVector oldP0 (m_minAABB);
-	dgVector oldP1 (m_maxAABB);
-	m_collision->CalcAABB (m_collisionWorldMatrix, m_minAABB, m_maxAABB);
+	m_collision->SetGlobalMatrix (m_collision->GetLocalMatrix() * m_matrix);
+	m_collision->CalcAABB (m_collision->GetGlobalMatrix(), m_minAABB, m_maxAABB);
 
 	if (m_continueCollisionMode) {
-		dgFloat32 padding = m_collision->GetBoxMaxRadius() - m_collision->GetBoxMinRadius();
-		dgFloat32 maxOmega = (m_omega % m_omega) * timestep * timestep;
-		padding = (maxOmega > 1.0f) ? padding : padding * dgSqrt (maxOmega);
-		dgVector step (m_veloc.Scale (timestep) + m_accel.Scale (m_invMass.m_w * timestep * timestep));
-		step.m_x += (step.m_x > 0.0f) ? padding : -padding;
-		step.m_y += (step.m_y > 0.0f) ? padding : -padding;
-		step.m_z += (step.m_z > 0.0f) ? padding : -padding;
-
-		dgVector boxSize ((m_maxAABB - m_minAABB).Scale (dgFloat32 (0.25f)));
-		for (dgInt32 j = 0; j < 3; j ++) {
-			if (dgAbsf (step[j]) > boxSize[j]) {
-				if (step[j] > dgFloat32 (0.0f)) {
-					m_maxAABB[j] += step[j]; 
-				} else {
-					m_minAABB[j] += step[j]; 
-				}
-			}
-		}
-
-
-		if (m_collision->IsType (dgCollision::dgCollisionCompound_RTTI)) {
-//_ASSERTE (0);
-
-			dgCollisionCompound *const compoundCollision = (dgCollisionCompound *)m_collision;
-//			dgInt32 count = compoundCollision->m_count;
-//			for (dgInt32 i = 0 ; i < count; i ++) {
-//				dgVector& box1Min = compoundCollision->m_aabb[i].m_p0;
-//				dgVector& box1Max = compoundCollision->m_aabb[i].m_p1;
-				dgVector& box1Min = compoundCollision->m_root->m_p0;
-				dgVector& box1Max = compoundCollision->m_root->m_p1;
-
-				dgVector boxSize ((box1Max - box1Min).Scale (dgFloat32 (0.25f)));
-				for (dgInt32 j = 0; j < 3; j ++) {
-					if (dgAbsf (step[j]) > boxSize[j]) {
-						if (step[j] > dgFloat32 (0.0f)) {
-							box1Max[j] += step[j]; 
-						} else {
-							box1Min[j] += step[j]; 
-						}
-					}
-				}
-//			}
-		}
+		dgVector predictiveVeloc (PredictLinearVelocity(timestep));
+		dgVector predictiveOmega (PredictAngularVelocity(timestep));
+		dgMovingAABB (m_minAABB, m_maxAABB, predictiveVeloc, predictiveOmega, timestep, m_collision->GetBoxMaxRadius(), m_collision->GetBoxMinRadius());
 	}
 
-	if (m_collisionCell.m_cell) {
-		_ASSERTE (m_world);
+	if (m_collisionCell) {
+		dgAssert (m_world);
 		
 		if (!m_sleeping) {
-			if ((dgAbsf (oldP0.m_x - m_minAABB.m_x) > DG_AABB_ERROR) || (dgAbsf (oldP0.m_y - m_minAABB.m_y) > DG_AABB_ERROR) ||
-				(dgAbsf (oldP0.m_z - m_minAABB.m_z) > DG_AABB_ERROR) || (dgAbsf (oldP1.m_x - m_maxAABB.m_x) > DG_AABB_ERROR) || 
-				(dgAbsf (oldP1.m_y - m_maxAABB.m_y) > DG_AABB_ERROR) || (dgAbsf (oldP1.m_z - m_maxAABB.m_z) > DG_AABB_ERROR)) {
-					m_world->UpdateBodyBroadphase (this, threadIndex);
-			} else {
-				m_collisionCell.m_cell->m_active = 1;
-			}
+			m_world->GetBroadPhase()->UpdateBodyBroadphase (this, threadIndex);
 		}
 	}
 }
 
 
-dgFloat32 dgBody::RayCast (
-	const dgLineBox& line,
-	OnRayCastAction filter, 
-	OnRayPrecastAction preFilter,
-	void* const userData, 
-	dgFloat32 minT) const
+dgFloat32 dgBody::RayCast (const dgLineBox& line, OnRayCastAction filter, OnRayPrecastAction preFilter, void* const userData, dgFloat32 maxT) const
 {
-	dgContactPoint contactOut;
-
-	_ASSERTE (filter);
-	if (m_world->m_cpu == dgSimdPresent) {
-		if (dgOverlapTestSimd (line.m_boxL0, line.m_boxL1, m_minAABB, m_maxAABB)) {
-			dgVector localP0 (m_collisionWorldMatrix.UntransformVector (line.m_l0));
-			dgVector localP1 (m_collisionWorldMatrix.UntransformVector (line.m_l1));
-			dgFloat32 t = m_collision->RayCastSimd (localP0, localP1, contactOut, preFilter, this, userData);
-			if (t < minT) {
-				_ASSERTE (t >= 0.0f);
-				_ASSERTE (t <= 1.0f);
-
-				contactOut.m_normal = m_collisionWorldMatrix.RotateVectorSimd (contactOut.m_normal);
-				minT = filter (this, contactOut.m_normal, dgInt32 (contactOut.m_userId), userData, t);
+	dgAssert (filter);
+	dgVector l0 (line.m_l0);
+//	dgVector l1 (line.m_l1);
+	dgVector l1 (line.m_l0 + (line.m_l1 - line.m_l0).Scale4 (dgMin(maxT, dgFloat32 (1.0f))));
+	if (dgRayBoxClip (l0, l1, m_minAABB, m_maxAABB)) {
+		dgContactPoint contactOut;
+		const dgMatrix& globalMatrix = m_collision->GetGlobalMatrix();
+		dgVector localP0 (globalMatrix.UntransformVector (l0));
+		dgVector localP1 (globalMatrix.UntransformVector (l1));
+		dgFloat32 t = m_collision->RayCast (localP0, localP1, dgFloat32 (1.0f), contactOut, preFilter, this, userData);
+		if (t < dgFloat32 (1.0f)) {
+			dgVector p (globalMatrix.TransformVector(localP0 + (localP1 - localP0).Scale3(t)));
+			dgVector l1l0 (line.m_l1 - line.m_l0);
+			t = ((p - line.m_l0) % l1l0) / (l1l0 % l1l0);
+			if (t < maxT) {
+				dgAssert (t >= dgFloat32 (0.0f));
+				dgAssert (t <= dgFloat32 (1.0f));
+				contactOut.m_normal = globalMatrix.RotateVector (contactOut.m_normal);
+				maxT = filter (this, contactOut.m_collision0, p, contactOut.m_normal, contactOut.m_shapeId0, userData, t);
 			}
 		}
-	} else {
-		if (dgOverlapTest (line.m_boxL0, line.m_boxL1, m_minAABB, m_maxAABB)) {
-			dgVector localP0 (m_collisionWorldMatrix.UntransformVector (line.m_l0));
-			dgVector localP1 (m_collisionWorldMatrix.UntransformVector (line.m_l1));
-			dgFloat32 t = m_collision->RayCast (localP0, localP1, contactOut, preFilter, this, userData);
-			if (t < minT) {
-				_ASSERTE (t >= 0.0f);
-				_ASSERTE (t <= 1.0f);
-				contactOut.m_normal = m_collisionWorldMatrix.RotateVector (contactOut.m_normal);
-				minT = filter (this, contactOut.m_normal, dgInt32 (contactOut.m_userId), userData, t);
-			}
+	} 
+	return maxT;
+}
+
+
+
+dgFloat32 dgBody::ConvexRayCast (const dgFastRayTest& ray, const dgCollisionInstance* const convexShape, const dgVector& shapeMinBox, const dgVector& shapeMaxBox, const dgMatrix& origin, const dgVector& shapeVeloc, OnRayCastAction filter, OnRayPrecastAction preFilter, void* const userData, dgFloat32 minT, dgInt32 threadId) const
+{
+	dgVector minBox (m_minAABB - shapeMaxBox);
+	dgVector maxBox (m_maxAABB - shapeMinBox);
+	if (ray.BoxTest (minBox, maxBox)) {
+		dgContactPoint contactOut;
+		dgFloat32 t = m_collision->ConvexRayCast (convexShape, origin, shapeVeloc, minT, contactOut, preFilter, this, userData, threadId);
+		if (t < minT) {
+			dgAssert (t >= dgFloat32 (0.0f));
+			dgAssert (t <= dgFloat32 (1.1f));
+			minT = filter (this, contactOut.m_collision0, contactOut.m_point, contactOut.m_normal, contactOut.m_shapeId0, userData, t);
 		}
-	}
+	} 
 	return minT;
 }
 
 
-void dgBody::AddBuoyancyForce (
-	dgFloat32 fluidDensity, 
-	dgFloat32 fluidLinearViscousity, 
-	dgFloat32 fluidAngularViscousity, 
-	const dgVector& gravityVector, 
-	GetBuoyancyPlane buoyancuPlane,
-	void* const context)
-{
-	if (m_mass.m_w > dgFloat32 (1.0e-2f)) {
-		dgVector volumeIntegral (m_collision->CalculateVolumeIntegral (m_collisionWorldMatrix, buoyancuPlane, context));
-		if (volumeIntegral.m_w > dgFloat32 (1.0e-4f)) {
-
-//			dgVector buoyanceCenter (volumeIntegral - m_matrix.m_posit);
-			dgVector buoyanceCenter (volumeIntegral - m_globalCentreOfMass);
-
-			dgVector force (gravityVector.Scale (-fluidDensity * volumeIntegral.m_w));
-			dgVector torque (buoyanceCenter * force);
-
-			dgFloat32 damp = GetMax (GetMin ((m_veloc % m_veloc) * dgFloat32 (100.0f) * fluidLinearViscousity, dgFloat32(dgFloat32 (1.0f))), dgFloat32(dgFloat32 (10.0f)));
-			force -= m_veloc.Scale (damp);
-
-			//damp = (m_omega % m_omega) * dgFloat32 (10.0f) * fluidAngularViscousity;
-			damp = GetMax (GetMin ((m_omega % m_omega) * dgFloat32 (1000.0f) * fluidAngularViscousity, dgFloat32(0.25f)), dgFloat32(2.0f));
-			torque -= m_omega.Scale (damp);
-
-//			_ASSERTE (dgSqrt (force % force) < (dgSqrt (gravityVector % gravityVector) * m_mass.m_w * dgFloat32 (100.0f)));
-//			_ASSERTE (dgSqrt (torque % torque) < (dgSqrt (gravityVector % gravityVector) * m_mass.m_w * dgFloat32 (100.0f) * dgFloat32 (10.0f)));
-
-			m_world->dgGetUserLock();
-			m_accel += force;
-			m_alpha += torque;
-			m_world->dgReleasedUserLock();
- 		}
-	}
-}
-
-
-
-//void dgBody::CalcInvInertiaMatrix (dgMatrix& matrix) const
-void dgBody::CalcInvInertiaMatrix ()
-{
-	_ASSERTE (m_invWorldInertiaMatrix[0][3] == dgFloat32 (0.0f));
-	_ASSERTE (m_invWorldInertiaMatrix[1][3] == dgFloat32 (0.0f));
-	_ASSERTE (m_invWorldInertiaMatrix[2][3] == dgFloat32 (0.0f));
-	_ASSERTE (m_invWorldInertiaMatrix[3][3] == dgFloat32 (1.0f));
-
-	m_invWorldInertiaMatrix[0][0] = m_invMass[0] * m_matrix[0][0];
-	m_invWorldInertiaMatrix[0][1] = m_invMass[1] * m_matrix[1][0];
-	m_invWorldInertiaMatrix[0][2] = m_invMass[2] * m_matrix[2][0];
-
-	m_invWorldInertiaMatrix[1][0] = m_invMass[0] * m_matrix[0][1];
-	m_invWorldInertiaMatrix[1][1] = m_invMass[1] * m_matrix[1][1];
-	m_invWorldInertiaMatrix[1][2] = m_invMass[2] * m_matrix[2][1];
-
-	m_invWorldInertiaMatrix[2][0] = m_invMass[0] * m_matrix[0][2];
-	m_invWorldInertiaMatrix[2][1] = m_invMass[1] * m_matrix[1][2];
-	m_invWorldInertiaMatrix[2][2] = m_invMass[2] * m_matrix[2][2];
-	m_invWorldInertiaMatrix = m_invWorldInertiaMatrix * m_matrix;
-
-	m_invWorldInertiaMatrix[3][0] = dgFloat32 (0.0f);
-	m_invWorldInertiaMatrix[3][1] = dgFloat32 (0.0f);
-	m_invWorldInertiaMatrix[3][2] = dgFloat32 (0.0f);
-
-	_ASSERTE (m_invWorldInertiaMatrix[0][3] == dgFloat32 (0.0f));
-	_ASSERTE (m_invWorldInertiaMatrix[1][3] == dgFloat32 (0.0f));
-	_ASSERTE (m_invWorldInertiaMatrix[2][3] == dgFloat32 (0.0f));
-	_ASSERTE (m_invWorldInertiaMatrix[3][3] == dgFloat32 (1.0f));
-
-}
-
-void dgBody::CalcInvInertiaMatrixSimd ()
-{
-#ifdef DG_BUILD_SIMD_CODE
-//	simd_type m0;
-//	simd_type m1;
-//	simd_type m2;
-//	simd_type r0;
-//	simd_type r1;
-//	simd_type r2;
-
-	simd_type r0 = simd_pack_lo_v ((simd_type&) m_matrix[0], (simd_type&) m_matrix[1]);
-	simd_type r1 = simd_pack_lo_v ((simd_type&) m_matrix[2], (simd_type&) m_matrix[3]);
-	simd_type m0 = simd_move_lh_v (r0, r1);
-	simd_type m1 = simd_move_hl_v (r1, r0);
-	r0 = simd_pack_hi_v ((simd_type&) m_matrix[0], (simd_type&) m_matrix[1]);
-	r1 = simd_pack_hi_v ((simd_type&) m_matrix[2], (simd_type&) m_matrix[3]);
-	simd_type m2 = simd_move_lh_v (r0, r1);
-
-	r0 = simd_mul_v ((simd_type&) m_matrix[0], simd_set1 (m_invMass[0]));
-	r1 = simd_mul_v ((simd_type&) m_matrix[1], simd_set1 (m_invMass[1]));
-	simd_type r2 = simd_mul_v ((simd_type&) m_matrix[2], simd_set1 (m_invMass[2]));
-
-	(simd_type&)m_invWorldInertiaMatrix[0] = simd_mul_add_v (
-		simd_mul_add_v (simd_mul_v (r0, simd_permut_v (m0, m0, PURMUT_MASK(0, 0, 0, 0))),
-						            r1, simd_permut_v (m0, m0, PURMUT_MASK(1, 1, 1, 1))),
-									r2, simd_permut_v (m0, m0, PURMUT_MASK(2, 2, 2, 2)));
-
-	(simd_type&)m_invWorldInertiaMatrix[1] = simd_mul_add_v (
-		simd_mul_add_v (simd_mul_v (r0, simd_permut_v (m1, m1, PURMUT_MASK(0, 0, 0, 0))),
-									r1, simd_permut_v (m1, m1, PURMUT_MASK(1, 1, 1, 1))),
-									r2, simd_permut_v (m1, m1, PURMUT_MASK(2, 2, 2, 2)));
-
-	(simd_type&)m_invWorldInertiaMatrix[2] = simd_mul_add_v (
-		simd_mul_add_v (simd_mul_v (r0, simd_permut_v (m2, m2, PURMUT_MASK(0, 0, 0, 0))),
-									r1, simd_permut_v (m2, m2, PURMUT_MASK(1, 1, 1, 1))),
-									r2, simd_permut_v (m2, m2, PURMUT_MASK(2, 2, 2, 2)));
-
-#ifdef _DEBUG
-//	dgMatrix aaa (m_invWorldInertiaMatrix);
-//	CalcInvInertiaMatrix ();
-//	for (int i = 0; i < 4; i ++) {
-//		for (int j = 0; j < 4; j ++) {
-//			_ASSERTE (dgAbsf (aaa[i][j] - m_invWorldInertiaMatrix[i][j]) <= dgAbsf (aaa[i][j] * dgFloat32 (1.0e-3f)));
-//		}
-//	}
-#endif
-
-	_ASSERTE (m_invWorldInertiaMatrix[0][3] == dgFloat32 (0.0f));
-	_ASSERTE (m_invWorldInertiaMatrix[1][3] == dgFloat32 (0.0f));
-	_ASSERTE (m_invWorldInertiaMatrix[2][3] == dgFloat32 (0.0f));
-	_ASSERTE (m_invWorldInertiaMatrix[3][3] == dgFloat32 (1.0f));
-
-#else
-
-
-#endif
-
-
-}
-
-/*
-void dgBody::IntegrateVelocity (dgFloat32 timestep, bool update)
-{
-	dgFloat32 omegaMag2;
-	dgFloat32 omegaAngle;
-	dgFloat32 invOmegaMag;
-
-//	IntegrateNotUpdate (timestep);
-
-	m_globalCentreOfMass += m_veloc.Scale (timestep); 
-	while (((m_omega % m_omega) * timestep * timestep) > (DG_MAX_ANGLE_STEP * DG_MAX_ANGLE_STEP)) {
-		m_omega = m_omega.Scale (dgFloat32 (0.8f));
-	}
-
-	// this is correct
-	omegaMag2 = m_omega % m_omega;
-	if (omegaMag2 > ((dgFloat32 (0.0125f) * dgDEG2RAD) * (dgFloat32 (0.0125f) * dgDEG2RAD))) {
-		invOmegaMag = dgRsqrt (omegaMag2);
-		dgVector omegaAxis (m_omega.Scale (invOmegaMag));
-		omegaAngle = invOmegaMag * omegaMag2 * timestep;
-		dgQuaternion rotation (omegaAxis, omegaAngle);
-		m_rotation = m_rotation * rotation;
-		m_rotation.Scale(dgRsqrt (m_rotation.DotProduct (m_rotation)));
-		m_matrix = dgMatrix (m_rotation, m_matrix.m_posit);
-	}
-
-	m_matrix.m_posit = m_globalCentreOfMass - m_matrix.RotateVector(m_localCentreOfMass);
-
-	if (update) {
-		if (m_matrixUpdate) {
-			m_world->dgGetUserLock();
-			m_matrixUpdate (*this, m_matrix);
-			m_world->dgReleasedUserLock();
-		}
-		UpdateCollisionMatrix (timestep);
-	}
-}
-*/
-
 void dgBody::UpdateMatrix (dgFloat32 timestep, dgInt32 threadIndex)
 {
 	if (m_matrixUpdate) {
-//		m_world->dgGetUserLock_();
 		m_matrixUpdate (*this, m_matrix, threadIndex);
-//		m_world->dgReleasedUserLock_();
 	}
-//	UpdateCollisionMatrix (timestep, threadIndex);
-	if (m_world->m_cpu == dgSimdPresent) {
-		UpdateCollisionMatrixSimd (timestep, threadIndex);
-	} else {
-		UpdateCollisionMatrix (timestep, threadIndex);
-	}
+	UpdateCollisionMatrix (timestep, threadIndex);
 }
+
 
 void dgBody::IntegrateVelocity (dgFloat32 timestep)
 {
-
-	//	IntegrateNotUpdate (timestep);
-
-	m_globalCentreOfMass += m_veloc.Scale (timestep); 
+	m_globalCentreOfMass += m_veloc.Scale3 (timestep); 
 	while (((m_omega % m_omega) * timestep * timestep) > (DG_MAX_ANGLE_STEP * DG_MAX_ANGLE_STEP)) {
-		m_omega = m_omega.Scale (dgFloat32 (0.8f));
+		m_omega = m_omega.Scale3 (dgFloat32 (0.8f));
 	}
 
 	// this is correct
 	dgFloat32 omegaMag2 = m_omega % m_omega;
 	if (omegaMag2 > ((dgFloat32 (0.0125f) * dgDEG2RAD) * (dgFloat32 (0.0125f) * dgDEG2RAD))) {
 		dgFloat32 invOmegaMag = dgRsqrt (omegaMag2);
-		dgVector omegaAxis (m_omega.Scale (invOmegaMag));
+		dgVector omegaAxis (m_omega.Scale3 (invOmegaMag));
 		dgFloat32 omegaAngle = invOmegaMag * omegaMag2 * timestep;
 		dgQuaternion rotation (omegaAxis, omegaAngle);
 		m_rotation = m_rotation * rotation;
@@ -588,22 +293,21 @@ void dgBody::IntegrateVelocity (dgFloat32 timestep)
 	m_matrix.m_posit = m_globalCentreOfMass - m_matrix.RotateVector(m_localCentreOfMass);
 
 #ifdef _DEBUG
-	for (int i = 0; i < 4; i ++) {
-		for (int j = 0; j < 4; j ++) {
-			_ASSERTE (dgCheckFloat(m_matrix[i][j]));
+	for (dgInt32 i = 0; i < 4; i ++) {
+		for (dgInt32 j = 0; j < 4; j ++) {
+			dgAssert (dgCheckFloat(m_matrix[i][j]));
 		}
 	}
 
-	int j0 = 1;
-	int j1 = 2;
-	for (int i = 0; i < 3; i ++) {
-		dgFloat32 val;
-		_ASSERTE (m_matrix[i][3] == 0.0f);
-		val = m_matrix[i] % m_matrix[i];
-		_ASSERTE (dgAbsf (val - 1.0f) < 1.0e-5f);
+	dgInt32 j0 = 1;
+	dgInt32 j1 = 2;
+	for (dgInt32 i = 0; i < 3; i ++) {
+		dgAssert (m_matrix[i][3] == 0.0f);
+		dgFloat32 val = m_matrix[i] % m_matrix[i];
+		dgAssert (dgAbsf (val - 1.0f) < 1.0e-5f);
 		dgVector tmp (m_matrix[j0] * m_matrix[j1]);
 		val = tmp % m_matrix[i];
-		_ASSERTE (dgAbsf (val - 1.0f) < 1.0e-5f);
+		dgAssert (dgAbsf (val - 1.0f) < 1.0e-5f);
 		j0 = j1;
 		j1 = i;
 	}
@@ -612,143 +316,44 @@ void dgBody::IntegrateVelocity (dgFloat32 timestep)
 
 
 
-void dgBody::CalculateContinueVelocity (dgFloat32 timestep, dgVector& veloc, dgVector& omega) const
-{
-//	timestep = m_world->m_currTimestep;
-	veloc = m_veloc + m_accel.Scale (timestep * m_invMass.m_w); 
-
-	dgVector localAlpha (m_matrix.UnrotateVector (m_alpha));
-	dgVector alpha (m_matrix.RotateVector (localAlpha.CompProduct (m_invMass)));
-	omega = m_omega + alpha.Scale (timestep);
-}
-
-void dgBody::CalculateContinueVelocitySimd (
-	dgFloat32 timestep,
-	dgVector& veloc, 
-	dgVector& omega) const
-{
-#ifdef DG_BUILD_SIMD_CODE
-	//	timestep = m_world->m_currTimestep;
-	veloc = m_veloc + m_accel.Scale (timestep * m_invMass.m_w); 
-
-	dgVector localAlpha (m_matrix.UnrotateVectorSimd (m_alpha));
-	dgVector alpha (m_matrix.RotateVectorSimd (localAlpha.CompProductSimd (m_invMass)));
-	omega = m_omega + alpha.Scale (timestep);
-#endif
-}
-
-
-dgVector dgBody::GetTrajectory (const dgVector& velocParam, const dgVector& omegaParam) const
-{
-_ASSERTE (0);
-return dgVector (0,0,0,0);
-/*
-	dgFloat32 timestep;
-	dgFloat32 omegaMag2;
-	dgFloat32 omegaAngle;
-	dgFloat32 invOmegaMag;
-	dgVector rotdisp (dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (1.0f));
-
-	timestep = m_world->m_currTimestep;
-	dgVector omega (m_matrix.UnrotateVector (omegaParam));
-	omegaMag2 = omega % omega;
-	if (omegaMag2 > ((dgFloat32 (0.0125f) * dgDEG2RAD) * (dgFloat32 (0.0125f) * dgDEG2RAD))) {
-		invOmegaMag = dgRsqrt (omegaMag2);
-		dgVector omegaAxis (omega.Scale (invOmegaMag));
-		omegaAngle = invOmegaMag * omegaMag2 * timestep;
-		dgQuaternion rotation (omegaAxis, omegaAngle);
-		//m_rotation = rotation * m_rotation;
-		//m_rotation.Scale(dgRsqrt (m_rotation.DotProduct (m_rotation)));
-		//m_matrix = dgMatrix (m_rotation, m_matrix.m_posit);
-		dgMatrix matrix (dgQuaternion (omegaAxis, omegaAngle), dgVector (dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (1.0f)));
-		rotdisp = matrix.RotateVector (m_collision->GetOffsetMatrix().m_posit);
-	}
-
-	return velocParam.Scale (timestep) + rotdisp;
-*/
-}
-
-
-
-/*
-void dgBody::IntegrateNotUpdate (dgFloat32 timestep)
-{
-	dgFloat32 omegaMag2;
-	dgFloat32 omegaAngle;
-	dgFloat32 invOmegaMag;
-
-	m_accel = m_accel.Scale (m_invMass.m_w);
-	dgVector localAlpha (m_matrix.UnrotateVector (m_alpha));
-	m_alpha = m_matrix.RotateVector (localAlpha.CompProduct (m_invMass));
-
-	m_veloc += m_accel.Scale (timestep);
-	m_omega += m_alpha.Scale (timestep);
-
-	m_globalCentreOfMass += m_veloc.Scale (timestep); 
-	while (((m_omega % m_omega) * timestep * timestep) > (DG_MAX_ANGLE_STEP * DG_MAX_ANGLE_STEP)) {
-		m_omega = m_omega.Scale (dgFloat32 (0.8f));
-	}
-
-	// this is correct
-	omegaMag2 = m_omega % m_omega;
-	if (omegaMag2 > ((dgFloat32 (0.0125f) * dgDEG2RAD) * (dgFloat32 (0.0125f) * dgDEG2RAD))) {
-		invOmegaMag = dgRsqrt (omegaMag2);
-		dgVector omegaAxis (m_omega.Scale (invOmegaMag));
-		omegaAngle = invOmegaMag * omegaMag2 * timestep;
-		dgQuaternion rotation (omegaAxis, omegaAngle);
-		m_rotation = m_rotation * rotation;
-		m_rotation.Scale(dgRsqrt (m_rotation.DotProduct (m_rotation)));
-		m_matrix = dgMatrix (m_rotation, m_matrix.m_posit);
-	}
-
-	m_matrix.m_posit = m_globalCentreOfMass - m_matrix.RotateVector(m_localCentreOfMass);
-}
-*/
-
-
 dgVector dgBody::CalculateInverseDynamicForce (const dgVector& desiredVeloc, dgFloat32 timestep) const
 {
-	//dgWord* world; 
-	dgFloat32 massAccel;
-	massAccel = m_mass.m_w / timestep;
-
+	dgAssert (0);
+	return dgVector();
+/*
+	dgFloat32 massAccel = m_mass.m_w / timestep;
 	if (m_world->m_solverMode){
 		if (m_masterNode->GetInfo().GetCount() >= 2){
 			massAccel *= (dgFloat32 (2.0f) * dgFloat32 (LINEAR_SOLVER_SUB_STEPS) / dgFloat32 (LINEAR_SOLVER_SUB_STEPS + 1));
 		} 
 	}
-	return (desiredVeloc - m_veloc).Scale (massAccel);
+	return (desiredVeloc - m_veloc).Scale3 (massAccel);
+*/
 }
 
 
 dgConstraint* dgBody::GetFirstJoint() const
 {
-	dgBodyMasterListRow::dgListNode* node; 	
-
-	for (node = m_masterNode->GetInfo().GetFirst(); node; node = node->GetNext()) {
-		dgConstraint* joint;
-		joint = node->GetInfo().m_joint;
-		if (joint->GetId() >= dgUnknownConstraintId) {
+	for (dgBodyMasterListRow::dgListNode* node = m_masterNode->GetInfo().GetFirst(); node; node = node->GetNext()) {
+		dgConstraint* const joint = node->GetInfo().m_joint;
+		if (joint->GetId() >= dgConstraint::m_unknownConstraint) {
 			return joint;
 		}
 	}
 	return NULL;
 }
 
-dgConstraint* dgBody::GetNextJoint(dgConstraint* joint) const
+dgConstraint* dgBody::GetNextJoint(dgConstraint* const joint) const
 {
-	dgBodyMasterListRow::dgListNode* node; 	
-
-	node = joint->GetLink0();
+	dgBodyMasterListRow::dgListNode* node = joint->GetLink0();
 	if (joint->GetBody0() != this) {
 		node = joint->GetLink1();
 	}
 
 	if (node->GetInfo().m_joint == joint) {
 		for (node = node->GetNext(); node; node = node->GetNext()) {
-			dgConstraint* joint;
-			joint = node->GetInfo().m_joint;
-			if (joint->GetId() >= dgUnknownConstraintId) {
+			dgConstraint* const joint = node->GetInfo().m_joint;
+			if (joint->GetId() >= dgConstraint::m_unknownConstraint) {
 				return joint;
 			}
 		}
@@ -760,32 +365,26 @@ dgConstraint* dgBody::GetNextJoint(dgConstraint* joint) const
 
 dgConstraint* dgBody::GetFirstContact() const
 {
-	dgBodyMasterListRow::dgListNode* node; 	
-
-	for (node = m_masterNode->GetInfo().GetFirst(); node; node = node->GetNext()) {
-		dgConstraint* joint;
-		joint = node->GetInfo().m_joint;
-		if (joint->GetId() == dgContactConstraintId) {
+	for (dgBodyMasterListRow::dgListNode* node = m_masterNode->GetInfo().GetFirst(); node; node = node->GetNext()) {
+		dgConstraint* const joint = node->GetInfo().m_joint;
+		if ((joint->GetId() == dgConstraint::m_contactConstraint) && (joint->GetMaxDOF() != 0)) {
 			return joint;
 		}
 	}
 	return NULL;
 }
 
-dgConstraint* dgBody::GetNextContact(dgConstraint* joint) const
+dgConstraint* dgBody::GetNextContact(dgConstraint* const joint) const
 {
-	dgBodyMasterListRow::dgListNode* node; 	
-
-	node = joint->GetLink0();
+	dgBodyMasterListRow::dgListNode* node = joint->GetLink0();
 	if (joint->GetBody0() != this) {
 		node = joint->GetLink1();
 	}
 
 	if (node->GetInfo().m_joint == joint) {
 		for (node = node->GetNext(); node; node = node->GetNext()) {
-			dgConstraint* joint;
-			joint = node->GetInfo().m_joint;
-			if (joint->GetId() == dgContactConstraintId) {
+			dgConstraint* const joint = node->GetInfo().m_joint;
+			if ((joint->GetId() == dgConstraint::m_contactConstraint) && (joint->GetMaxDOF() != 0)) {
 				return joint;
 			}
 		}
@@ -809,14 +408,11 @@ void dgBody::SetFreeze (bool state)
 
 void dgBody::Freeze ()
 {
-	if (m_invMass.m_w > dgFloat32 (0.0f)) {
+	if (GetInvMass().m_w > dgFloat32 (0.0f)) {
 		if (!m_freeze) {
 			m_freeze = true;
-			dgBodyMasterListRow::dgListNode* node; 	
-
-			for (node = m_masterNode->GetInfo().GetFirst(); node; node = node->GetNext()) {
-				dgBody* body;
-				body = node->GetInfo().m_bodyNode;
+			for (dgBodyMasterListRow::dgListNode* node = m_masterNode->GetInfo().GetFirst(); node; node = node->GetNext()) {
+				dgBody* const body = node->GetInfo().m_bodyNode;
 				body->Freeze ();
 			}
 		}
@@ -825,16 +421,13 @@ void dgBody::Freeze ()
 
 void dgBody::Unfreeze ()
 {
-	if (m_invMass.m_w > dgFloat32 (0.0f)) {
+	if (GetInvMass().m_w > dgFloat32 (0.0f)) {
 // note this is in observation (to prevent bodies from not going to sleep  inside triggers	               
 //		m_equilibrium = false;			
 		if (m_freeze) {
 			m_freeze = false;
-			dgBodyMasterListRow::dgListNode* node; 	
-
-			for (node = m_masterNode->GetInfo().GetFirst(); node; node = node->GetNext()) {
-				dgBody* body;
-				body = node->GetInfo().m_bodyNode;
+			for (dgBodyMasterListRow::dgListNode* node = m_masterNode->GetInfo().GetFirst(); node; node = node->GetNext()) {
+				dgBody* const body = node->GetInfo().m_bodyNode;
 				body->Unfreeze ();
 			}
 		}
@@ -843,32 +436,150 @@ void dgBody::Unfreeze ()
 
 
 
+void dgBody::SetAparentMassMatrix (const dgVector& massMatrix)
+{
+	m_aparentMass = massMatrix;
+	if (m_collision->IsType(dgCollision::dgCollisionMesh_RTTI)) {
+		m_aparentMass.m_w = DG_INFINITE_MASS * 2.0f;
+	}
+
+	if (m_aparentMass.m_w >= DG_INFINITE_MASS) {
+		m_aparentMass.m_x = DG_INFINITE_MASS;
+		m_aparentMass.m_y = DG_INFINITE_MASS;
+		m_aparentMass.m_z = DG_INFINITE_MASS;
+		m_aparentMass.m_w = DG_INFINITE_MASS;
+	}
+}
+
+
+void dgBody::SetMassMatrix(dgFloat32 mass, dgFloat32 Ixx, dgFloat32 Iyy, dgFloat32 Izz)
+{
+	mass = dgAbsf (mass);
+	if (m_collision->IsType(dgCollision::dgCollisionMesh_RTTI) || m_collision->IsType(dgCollision::dgCollisionScene_RTTI)) {
+		mass = DG_INFINITE_MASS * 2.0f;
+	}
+
+	if (mass < dgFloat32 (1.0e-3f)) {
+		mass = DG_INFINITE_MASS * 2.0f;
+	}
+
+	dgAssert (m_masterNode);
+	if (mass >= DG_INFINITE_MASS) {
+		m_mass.m_x = DG_INFINITE_MASS;
+		m_mass.m_y = DG_INFINITE_MASS;
+		m_mass.m_z = DG_INFINITE_MASS;
+		m_mass.m_w = DG_INFINITE_MASS;
+		m_invMass.m_x = dgFloat32 (0.0f);
+		m_invMass.m_y = dgFloat32 (0.0f);
+		m_invMass.m_z = dgFloat32 (0.0f);
+		m_invMass.m_w = dgFloat32 (0.0f);
+
+		dgBodyMasterList& masterList (*m_world);
+		if (masterList.GetFirst() != m_masterNode) {
+			masterList.InsertAfter (masterList.GetFirst(), m_masterNode);
+		}
+		SetAparentMassMatrix (m_mass);
+
+	} else {
+		Ixx = dgAbsf (Ixx);
+		Iyy = dgAbsf (Iyy);
+		Izz = dgAbsf (Izz);
+
+		dgFloat32 Ixx1 = dgClamp (Ixx, dgFloat32 (0.001f) * mass, dgFloat32 (100.0f) * mass);
+		dgFloat32 Iyy1 = dgClamp (Iyy, dgFloat32 (0.001f) * mass, dgFloat32 (100.0f) * mass);
+		dgFloat32 Izz1 = dgClamp (Izz, dgFloat32 (0.001f) * mass, dgFloat32 (100.0f) * mass);
+
+		dgAssert (Ixx > dgFloat32 (0.0f));
+		dgAssert (Iyy > dgFloat32 (0.0f));
+		dgAssert (Izz > dgFloat32 (0.0f));
+
+		m_mass.m_x = Ixx1;
+		m_mass.m_y = Iyy1;
+		m_mass.m_z = Izz1;
+		m_mass.m_w = mass;
+
+		m_invMass.m_x = dgFloat32 (1.0f) / Ixx1;
+		m_invMass.m_y = dgFloat32 (1.0f) / Iyy1;
+		m_invMass.m_z = dgFloat32 (1.0f) / Izz1;
+		m_invMass.m_w = dgFloat32 (1.0f) / mass;
+
+		dgBodyMasterList& masterList (*m_world);
+		masterList.RotateToEnd (m_masterNode);
+
+		SetAparentMassMatrix (dgVector (Ixx, Iyy, Izz, mass));
+	}
+
+#ifdef _DEBUG
+	dgBodyMasterList& me = *m_world;
+	for (dgBodyMasterList::dgListNode* refNode = me.GetFirst(); refNode; refNode = refNode->GetNext()) {
+		dgBody* const body0 = refNode->GetInfo().GetBody();
+		dgVector invMass (body0->GetInvMass());
+		if (invMass.m_w != 0.0f) {
+			for (; refNode; refNode = refNode->GetNext()) {
+				dgBody* const body1 = refNode->GetInfo().GetBody();
+				dgVector invMass (body1->GetInvMass());
+				dgAssert (invMass.m_w != 0.0f);
+			}
+			break;
+		}
+	}
+#endif
+}
+
+
+void dgBody::SetMassProperties (dgFloat32 mass, const dgCollisionInstance* const collision)
+{
+	// using general central theorem, to extract the Inertia relative to the center of mass 
+	//IIorigin = IImatrix - unitmass * [(displacemnet % displacemnet) * identityMatrix - transpose(displacement) * displacement)];
+	dgMatrix inertia (collision->CalculateInertia());
+
+	dgVector origin (inertia.m_posit);
+	dgFloat32 mag = origin % origin;
+	for (dgInt32 i = 0; i < 3; i ++) {
+		inertia[i][i] = (inertia[i][i] - (mag - origin[i] * origin[i])) * mass;
+		for (dgInt32 j = i + 1; j < 3; j ++) {
+			dgFloat32 crossIJ = origin[i] * origin[j];
+			inertia[i][j] = (inertia[i][j] + crossIJ) * mass;
+			inertia[j][i] = (inertia[j][i] + crossIJ) * mass;
+		}
+	}
+
+	// although the engine fully supports asymmetric inertia, I will ignore cross inertia for now
+	SetMassMatrix(mass, inertia[0][0], inertia[1][1], inertia[2][2]);
+	SetCentreOfMass(origin);
+}
+
+dgMatrix dgBody::CalculateInertiaMatrix () const
+{
+	dgMatrix tmp (m_matrix.Transpose());
+	tmp[0] = tmp[0].CompProduct4 (m_mass);
+	tmp[1] = tmp[1].CompProduct4 (m_mass);
+	tmp[2] = tmp[2].CompProduct4 (m_mass);
+	return tmp * m_matrix;
+}
+
+dgMatrix dgBody::CalculateInvInertiaMatrix () const
+{
+	dgMatrix tmp (m_matrix.Transpose());
+	tmp[0] = tmp[0].CompProduct4(m_invMass);
+	tmp[1] = tmp[1].CompProduct4(m_invMass);
+	tmp[2] = tmp[2].CompProduct4(m_invMass);
+	return tmp * m_matrix;
+}
+
+void dgBody::InvalidateCache ()
+{
+	m_sleeping = false;
+	m_equilibrium = false;
+	m_genericLRUMark = 0;
+	dgMatrix matrix (m_matrix);
+	SetMatrixOriginAndRotation(matrix);
+}
+
+
 void dgBody::AddImpulse (const dgVector& pointDeltaVeloc, const dgVector& pointPosit)
 {
-	dgInt32 i;
-	dgInt32 j;
-	dgMatrix tmpMatrix;
-
-	tmpMatrix[0][0] = m_invMass[0] * m_matrix[0][0];
-	tmpMatrix[0][1] = m_invMass[1] * m_matrix[1][0];
-	tmpMatrix[0][2] = m_invMass[2] * m_matrix[2][0];
-	tmpMatrix[0][3] = dgFloat32 (0.0f);
-
-	tmpMatrix[1][0] = m_invMass[0] * m_matrix[0][1];
-	tmpMatrix[1][1] = m_invMass[1] * m_matrix[1][1];
-	tmpMatrix[1][2] = m_invMass[2] * m_matrix[2][1];
-	tmpMatrix[1][3] = dgFloat32 (0.0f);
-
-	tmpMatrix[2][0] = m_invMass[0] * m_matrix[0][2];
-	tmpMatrix[2][1] = m_invMass[1] * m_matrix[1][2];
-	tmpMatrix[2][2] = m_invMass[2] * m_matrix[2][2];
-	tmpMatrix[2][3] = dgFloat32 (0.0f);
-
-	tmpMatrix[3][0] = dgFloat32 (0.0f);
-	tmpMatrix[3][1] = dgFloat32 (0.0f);
-	tmpMatrix[3][2] = dgFloat32 (0.0f);
-	tmpMatrix[3][3] = dgFloat32 (1.0f);
-	dgMatrix invInertia (tmpMatrix * m_matrix);
+	dgMatrix invInertia (CalculateInvInertiaMatrix());
 
 	// get contact matrix
 	dgMatrix tmp;
@@ -900,8 +611,8 @@ void dgBody::AddImpulse (const dgVector& pointDeltaVeloc, const dgVector& pointP
 	tmp[3][3] = dgFloat32 (1.0f);
 
 	dgMatrix contactMatrix (tmp * invInertia * tmp);
-	for (i = 0; i < 3; i ++) {
-		for (j = 0; j < 3; j ++) {
+	for (dgInt32 i = 0; i < 3; i ++) {
+		for (dgInt32 j = 0; j < 3; j ++) {
 			contactMatrix[i][j] *= -dgFloat32 (1.0f);
 		}
 	}
@@ -915,7 +626,7 @@ void dgBody::AddImpulse (const dgVector& pointDeltaVeloc, const dgVector& pointP
 	dgVector changeOfMomentum (contactMatrix.RotateVector (pointDeltaVeloc));
 
 
-	dgVector dv (changeOfMomentum.Scale (m_invMass.m_w));
+	dgVector dv (changeOfMomentum.Scale3 (m_invMass.m_w));
 	dgVector dw (invInertia.RotateVector (globalContact * changeOfMomentum));
 
 	m_veloc += dv;
@@ -926,17 +637,47 @@ void dgBody::AddImpulse (const dgVector& pointDeltaVeloc, const dgVector& pointP
 	Unfreeze ();
 }
 
-void dgBody::InvalidateCache ()
+void dgBody::ApplyImpulsePair (const dgVector& linearImpulseIn, const dgVector& angularImpulseIn)
 {
-	m_sleeping = false;
-//	m_isInWorld = true;
-	m_equilibrium = false;
-	m_genericLRUMark = 0;
-	m_sleepingCounter = 0;
-	m_prevExternalForce = dgVector (dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f));
-	m_prevExternalTorque = dgVector (dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f));
+	dgMatrix inertia (CalculateInertiaMatrix());
+	dgMatrix invInertia (CalculateInvInertiaMatrix());
 
-	dgMatrix matrix (m_matrix);
-	SetMatrixOriginAndRotation(matrix);
+	dgVector linearImpulse (m_veloc.Scale3 (m_mass.m_w) + linearImpulseIn);
+	dgVector angularImpulse (inertia.RotateVector (m_omega) + angularImpulseIn);
+
+	m_veloc = linearImpulse.Scale3(m_invMass.m_w);
+	m_omega = invInertia.RotateVector(angularImpulse);
+
+	m_sleeping	= false;
+	m_equilibrium = false;
+	Unfreeze ();
 }
 
+void dgBody::ApplyImpulsesAtPoint (dgInt32 count, dgInt32 strideInBytes, const dgFloat32* const impulseArray, const dgFloat32* const pointArray)
+{
+	dgInt32 stride = strideInBytes / sizeof (dgFloat32);
+
+	dgMatrix inertia (CalculateInertiaMatrix());
+
+	dgVector impulse (m_veloc.Scale3 (m_mass.m_w));
+	dgVector angularImpulse (inertia.RotateVector (m_omega));
+
+	dgVector com (m_globalCentreOfMass);
+	for (dgInt32 i = 0; i < count; i ++) {
+		dgInt32 index = i * stride;
+		dgVector r (pointArray[index], pointArray[index + 1], pointArray[index + 2], dgFloat32 (0.0f));
+		dgVector L (impulseArray[index], impulseArray[index + 1], impulseArray[index + 2], dgFloat32 (0.0f));
+		dgVector Q ((r - com) * L);
+
+		impulse += L;
+		angularImpulse += Q;
+	}
+
+	dgMatrix invInertia (CalculateInvInertiaMatrix());
+	m_veloc = impulse.Scale3(m_invMass.m_w);
+	m_omega = invInertia.RotateVector(angularImpulse);
+
+	m_sleeping	= false;
+	m_equilibrium = false;
+	Unfreeze ();
+}

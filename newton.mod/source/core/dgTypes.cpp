@@ -32,18 +32,18 @@ void GetMinMax (dgVector &minOut, dgVector &maxOut, const dgFloat32* const verte
 	dgInt32 stride = dgInt32 (strideInBytes / sizeof (dgFloat32));
 	const dgFloat32* vArray = vertexArray + stride;
 
-	_ASSERTE (stride >= 3);
+	dgAssert (stride >= 3);
  	minOut = dgVector (vertexArray[0], vertexArray[1], vertexArray[2], dgFloat32 (0.0f)); 
 	maxOut = dgVector (vertexArray[0], vertexArray[1], vertexArray[2], dgFloat32 (0.0f)); 
 
 	for (dgInt32 i = 1; i < vCount; i ++) {
-		minOut.m_x = GetMin (minOut.m_x, vArray[0]);
-		minOut.m_y = GetMin (minOut.m_y, vArray[1]);
-		minOut.m_z = GetMin (minOut.m_z, vArray[2]);
+		minOut.m_x = dgMin (minOut.m_x, vArray[0]);
+		minOut.m_y = dgMin (minOut.m_y, vArray[1]);
+		minOut.m_z = dgMin (minOut.m_z, vArray[2]);
 
-		maxOut.m_x = GetMax (maxOut.m_x, vArray[0]);
-		maxOut.m_y = GetMax (maxOut.m_y, vArray[1]);
-		maxOut.m_z = GetMax (maxOut.m_z, vArray[2]);
+		maxOut.m_x = dgMax (maxOut.m_x, vArray[0]);
+		maxOut.m_y = dgMax (maxOut.m_y, vArray[1]);
+		maxOut.m_z = dgMax (maxOut.m_z, vArray[2]);
 
 		vArray += stride;
 	}
@@ -55,188 +55,22 @@ void GetMinMax (dgBigVector &minOut, dgBigVector &maxOut, const dgFloat64* const
 	dgInt32 stride = dgInt32 (strideInBytes / sizeof (dgFloat64));
 	const dgFloat64* vArray = vertexArray + stride;
 
-	_ASSERTE (stride >= 3);
+	dgAssert (stride >= 3);
 	minOut = dgBigVector (vertexArray[0], vertexArray[1], vertexArray[2], dgFloat64 (0.0f)); 
 	maxOut = dgBigVector (vertexArray[0], vertexArray[1], vertexArray[2], dgFloat64 (0.0f)); 
 
 	for (dgInt32 i = 1; i < vCount; i ++) {
-		minOut.m_x = GetMin (minOut.m_x, vArray[0]);
-		minOut.m_y = GetMin (minOut.m_y, vArray[1]);
-		minOut.m_z = GetMin (minOut.m_z, vArray[2]);
+		minOut.m_x = dgMin (minOut.m_x, vArray[0]);
+		minOut.m_y = dgMin (minOut.m_y, vArray[1]);
+		minOut.m_z = dgMin (minOut.m_z, vArray[2]);
 
-		maxOut.m_x = GetMax (maxOut.m_x, vArray[0]);
-		maxOut.m_y = GetMax (maxOut.m_y, vArray[1]);
-		maxOut.m_z = GetMax (maxOut.m_z, vArray[2]);
+		maxOut.m_x = dgMax (maxOut.m_x, vArray[0]);
+		maxOut.m_y = dgMax (maxOut.m_y, vArray[1]);
+		maxOut.m_z = dgMax (maxOut.m_z, vArray[2]);
 
 		vArray += stride;
 	}
 }
-
-
-
-#if (defined (_WIN_32_VER) || defined (_WIN_64_VER))
-
-	#if (_MSC_VER >= 1400) && defined (DG_BUILD_SIMD_CODE)
-		static bool DetectSSE_3 ()
-		{
-			__try {
-				__m128 i;
-				i = _mm_set_ps (dgFloat32 (1.0f), dgFloat32 (2.0f), dgFloat32 (3.0f), dgFloat32 (4.0f));
-				i = _mm_hadd_ps (i, i);
-				i = _mm_hadd_ps (i, i);
-				i = i;
-	//			i = _mm_dp_ps(i, i, 0);
-	//			i = _mm_dp_ps(i, i, 0);
-	//			i = _mm_hadd_ps (i, i);
-			} __except (EXCEPTION_EXECUTE_HANDLER) {
-				return false;
-			}
-			return true;
-		}
-	#else
-		static bool DetectSSE_3 ()
-		{
-			return false;
-		}
-	#endif
-
-		
-
-	#ifdef DG_BUILD_SIMD_CODE
-		static bool DetectSSE ()
-		{
-			__try {
-				__m128 i;
-				i = _mm_set_ps (dgFloat32 (1.0f), dgFloat32 (2.0f), dgFloat32 (3.0f), dgFloat32 (4.0f));
-				i = _mm_add_ps(i, i);
-				i = i;
-			} __except (EXCEPTION_EXECUTE_HANDLER) {
-				return false;
-			}
-			return true;
-		}
-	#else
-		static bool DetectSSE ()
-		{
-			return false;
-		}
-	#endif
-
-
-	dgCpuClass dgApi dgGetCpuType ()
-	{
-		if (DetectSSE_3 ()) {
-			return dgSimdPresent;
-		}
-
-		if (DetectSSE ()) {
-			return dgSimdPresent;
-		}
-		return dgNoSimdPresent;
-	}
-#endif
-
-
-#ifdef _MAC_VER
-
-	dgCpuClass dgApi dgGetCpuType ()
-	{
-		#ifdef __ppc__
-
-			return dgNoSimdPresent;
-/*
-			#ifdef 	_SCALAR_AROTHMETIC_ONLY
-				return dgNoSimdPresent;
-			#else
-					dgInt32 error;
-					dgInt32 hasSimd; 
-					size_t length = sizeof( hasSimd ); 
-
-					hasSimd = 0; 
-					error = sysctlbyname("hw.optional.altivec", & hasSimd, &length, NULL, 0); 
-					if (error) {
-						return dgNoSimdPresent;
-					}
-					if (hasSimd) {
-						return dgSimdPresent;
-					}
-					return dgNoSimdPresent; 
-			#endif
-*/
-		#else
-				dgInt32 error;
-				dgInt32 hasSimd; 
-				size_t length = sizeof( hasSimd ); 
-
-				hasSimd = 0; 
-				error = sysctlbyname("hw.optional.sse2", & hasSimd, &length, NULL, 0); 
-				if (error) {
-					return dgNoSimdPresent;
-				}
-				if (hasSimd) {
-					return dgSimdPresent;
-				}
-				return dgNoSimdPresent; 
-		#endif
-
-	}
-
-#endif
-
-#if (defined (_LINUX_VER) || defined (_MINGW_32_VER) || defined (_MINGW_64_VER))
-/*	#define cpuid(func,ax,bx,cx,dx)	__asm__ __volatile__ ("cpuid": "=a" (ax), "=b" (bx), "=c" (cx), "=d" (dx) : "a" (func)); */
-
-#ifndef _LINUX_VER_64
-	void cpuid(dgUnsigned32 op, dgUnsigned32 reg[4])
-	{
-		asm volatile(
-			#ifdef _MINGW_64_VER
-				"pushq %%rbx      \n\t" /* save %rbx */
-			#else
-				"pushl %%ebx      \n\t" /* save %ebx */
-			#endif
-
-			"cpuid            \n\t"
-			"movl %%ebx, %1   \n\t" /* save what cpuid just put in %ebx */
-
-			#ifdef _MINGW_64_VER
-				"popq %%rbx       \n\t" /* restore the old %rbx */
-			#else		
-				"popl %%ebx       \n\t" /* restore the old %ebx */
-			#endif
-			: "=a"(reg[0]), "=r"(reg[1]), "=c"(reg[2]), "=d"(reg[3])
-			: "a"(op)
-			: "cc");
-	}
-
-	static dgInt32 i386_cpuid(void) 
-	{ 
-//		int a, b, c, d; 
-//		cpuid(1,a,b,c,d); 
-//		return d; 
-
-		dgUnsigned32 reg[4];
-		cpuid(1, reg);
-		return reg[3];
-	} 
-#endif
-
-	dgCpuClass dgApi dgGetCpuType ()
-	{
-#ifndef _LINUX_VER_64
-		#define bit_MMX (1 << 23) 
-		#define bit_SSE (1 << 25) 
-		#define bit_SSE2 (1 << 26) 
-
-#ifndef __USE_DOUBLE_PRECISION__
-		if (i386_cpuid() & bit_SSE) {
-			return dgSimdPresent;
-		}
-#endif
-		#endif
-		return dgNoSimdPresent;
-	}
-#endif
 
 
 
@@ -255,15 +89,15 @@ static inline dgInt32 cmp_vertex (const dgFloat64* const v1, const dgFloat64* co
 
 static dgInt32 SortVertices (dgFloat64* const vertexList,  dgInt32 stride, dgInt32 compareCount, dgInt32 vertexCount, dgFloat64 tolerance)
 {
-	dgFloat64 xc = 0;
-	dgFloat64 yc = 0;
-	dgFloat64 zc = 0;
-	dgFloat64 x2c = 0;
-	dgFloat64 y2c = 0;
-	dgFloat64 z2c = 0;
+	dgFloat64 xc = dgFloat64 (0.0f);
+	dgFloat64 yc = dgFloat64 (0.0f);
+	dgFloat64 zc = dgFloat64 (0.0f);
+	dgFloat64 x2c = dgFloat64 (0.0f);
+	dgFloat64 y2c = dgFloat64 (0.0f);
+	dgFloat64 z2c = dgFloat64 (0.0f);
 
-	dgBigVector minP (1e10, 1e10, 1e10, 0);
-	dgBigVector maxP (-1e10, -1e10, -1e10, 0);
+	dgBigVector minP (dgFloat64 (1.0e10f), dgFloat64 (1.0e10f), dgFloat64 (1.0e10f), dgFloat64 (0.0f));
+	dgBigVector maxP (dgFloat64 (-1.0e10f), dgFloat64 (-1.0e10f), dgFloat64 (-1.0e10f), dgFloat64 (0.0f));
 	dgInt32 k = 0;
 	for (dgInt32 i = 0; i < vertexCount; i ++) {
 		dgFloat64 x  = vertexList[k + 2];
@@ -302,14 +136,14 @@ static dgInt32 SortVertices (dgFloat64* const vertexList,  dgInt32 stride, dgInt
 	}
 
 	dgBigVector del (maxP - minP);
-	dgFloat64 minDist = GetMin (del.m_x, del.m_y, del.m_z);
-	if (minDist < 1.0e-3) {
-		minDist = 1.0e-3;
+	dgFloat64 minDist = dgMin (del.m_x, del.m_y, del.m_z);
+	if (minDist < dgFloat64 (1.0e-3f)) {
+		minDist = dgFloat64 (1.0e-3f);
 	}
 
-	dgFloat64 tol = tolerance * minDist + 1.0e-12f;
-	dgFloat64 sweptWindow = 2.0 * tol;
-	sweptWindow += 1.0e-4;
+	dgFloat64 tol = tolerance * minDist + dgFloat64 (1.0e-12f);
+	dgFloat64 sweptWindow = dgFloat64 (2.0f) * tol;
+	sweptWindow += dgFloat64 (1.0e-4f);
 
 	x2c = vertexCount * x2c - xc * xc;
 	y2c = vertexCount * y2c - yc * yc;
@@ -360,7 +194,7 @@ static dgInt32 SortVertices (dgFloat64* const vertexList,  dgInt32 stride, dgInt
 				stack[stackIndex][1] = j;
 				stackIndex ++;
 			}
-			_ASSERTE (stackIndex < sizeof (stack) / (2 * sizeof (stack[0][0])));
+			dgAssert (stackIndex < dgInt32 (sizeof (stack) / (2 * sizeof (stack[0][0]))));
 		} else {
 			for (dgInt32 i = lo + 1; i <= hi ; i++) {
 				dgFloat64 tmp[64]; 
@@ -378,7 +212,7 @@ static dgInt32 SortVertices (dgFloat64* const vertexList,  dgInt32 stride, dgInt
 
 #ifdef _DEBUG
 	for (dgInt32 i = 0; i < (vertexCount - 1); i ++) {
-		_ASSERTE (cmp_vertex (&vertexList[i * stride], &vertexList[(i + 1) * stride], firstSortAxis) <= 0);
+		dgAssert (cmp_vertex (&vertexList[i * stride], &vertexList[(i + 1) * stride], firstSortAxis) <= 0);
 	}
 #endif
 
@@ -414,24 +248,24 @@ static dgInt32 SortVertices (dgFloat64* const vertexList,  dgInt32 stride, dgInt
 			count ++;
 		}
 	}
-			
+
 	return count;
 }
 
 
 
-//static dgInt32 QuickSortVertices (dgFloat32* const vertList, dgInt32 stride, dgInt32 floatSize, dgInt32 unsignedSize, dgInt32 vertexCount, dgFloat32 tolerance)
+
 static dgInt32 QuickSortVertices (dgFloat64* const vertList, dgInt32 stride, dgInt32 compareCount, dgInt32 vertexCount, dgFloat64 tolerance)
 {
 	dgInt32 count = 0;
-	if (vertexCount > (3 * 1024 * 32)) {
+	if (vertexCount > (1024 * 256)) {
 		dgFloat64 x = dgFloat32 (0.0f);
 		dgFloat64 y = dgFloat32 (0.0f);
 		dgFloat64 z = dgFloat32 (0.0f);
 		dgFloat64 xd = dgFloat32 (0.0f);
 		dgFloat64 yd = dgFloat32 (0.0f);
 		dgFloat64 zd = dgFloat32 (0.0f);
-		
+
 		for (dgInt32 i = 0; i < vertexCount; i ++) {
 			dgFloat64 x0 = vertList[i * stride + 2];
 			dgFloat64 y0 = vertList[i * stride + 3];
@@ -466,17 +300,17 @@ static dgInt32 QuickSortVertices (dgFloat64* const vertList, dgInt32 stride, dgI
 			for ( ;vertList[i1 * stride + axis] > axisVal; i1 --);
 			if (i0 <= i1) {
 				for (dgInt32 i = 0; i < stride; i ++) {
-					Swap (vertList[i0 * stride + i], vertList[i1 * stride + i]);
+					dgSwap (vertList[i0 * stride + i], vertList[i1 * stride + i]);
 				}
 				i0 ++; 
 				i1 --;
 			}
 		} while (i0 <= i1);
-		_ASSERTE (i0 < vertexCount);
+		dgAssert (i0 < vertexCount);
 
 		dgInt32 count0 = QuickSortVertices (&vertList[ 0 * stride], stride, compareCount, i0, tolerance);
 		dgInt32 count1 = QuickSortVertices (&vertList[i0 * stride], stride, compareCount, vertexCount - i0, tolerance);
-		
+
 		count = count0 + count1;
 
 		for (dgInt32 i = 0; i < count1; i ++) {
@@ -484,9 +318,9 @@ static dgInt32 QuickSortVertices (dgFloat64* const vertList, dgInt32 stride, dgI
 		}
 
 
-//		dgFloat64* const indexPtr = (dgInt64*)vertList;
+		//		dgFloat64* const indexPtr = (dgInt64*)vertList;
 		for (dgInt32 i = i0; i < vertexCount; i ++) {
-//			indexPtr[i * stride] += count0;
+			//			indexPtr[i * stride] += count0;
 			vertList[i * stride] += dgFloat64 (count0);
 		}
 
@@ -498,15 +332,9 @@ static dgInt32 QuickSortVertices (dgFloat64* const vertList, dgInt32 stride, dgI
 }
 
 
-
-
-
 dgInt32 dgVertexListToIndexList (dgFloat64* const vertList, dgInt32 strideInBytes, dgInt32 compareCount, dgInt32 vertexCount, dgInt32* const indexListOut, dgFloat64 tolerance)
 {
-#if (defined (_WIN_32_VER) || defined (_WIN_64_VER))
-	dgUnsigned32 controlWorld = dgControlFP (0xffffffff, 0);
-	dgControlFP (_PC_53, _MCW_PC);
-#endif
+	dgSetPrecisionDouble precision;
 
 	if (strideInBytes < 3 * dgInt32 (sizeof (dgFloat64))) {
 		return 0;
@@ -514,8 +342,8 @@ dgInt32 dgVertexListToIndexList (dgFloat64* const vertList, dgInt32 strideInByte
 	if (compareCount < 3) {
 		return 0;
 	}
-	_ASSERTE (compareCount <= dgInt32 (strideInBytes / sizeof (dgFloat64)));
-	_ASSERTE (strideInBytes == dgInt32 (sizeof (dgFloat64) * (strideInBytes / sizeof (dgFloat64))));
+	dgAssert (compareCount <= dgInt32 (strideInBytes / sizeof (dgFloat64)));
+	dgAssert (strideInBytes == dgInt32 (sizeof (dgFloat64) * (strideInBytes / sizeof (dgFloat64))));
 
 	dgInt32 stride = strideInBytes / dgInt32 (sizeof (dgFloat64));
 	dgInt32 stride2 = stride + 2;
@@ -555,10 +383,6 @@ dgInt32 dgVertexListToIndexList (dgFloat64* const vertList, dgInt32 strideInByte
 		m += stride2;
 	}
 
-#if (defined (_WIN_32_VER) || defined (_WIN_64_VER))
-	dgControlFP (controlWorld, _MCW_PC);
-#endif
-
 	return count;
 }
 
@@ -569,7 +393,7 @@ dgInt32 dgVertexListToIndexList (dgFloat32* const vertList, dgInt32 strideInByte
 {
 	dgInt32 stride = strideInBytes / sizeof (dgFloat32);
 
-	_ASSERTE (!unsignedSizeInBytes);
+	dgAssert (!unsignedSizeInBytes);
 	dgStack<dgFloat64> pool(vertexCount * stride);
 
 	dgInt32 floatCount = floatSizeInBytes / sizeof (dgFloat32);
@@ -594,4 +418,48 @@ dgInt32 dgVertexListToIndexList (dgFloat32* const vertList, dgInt32 strideInByte
 	}
 	
 	return count;
+}
+
+
+//#define SERIALIZE_END	'dne '
+#define SERIALIZE_END   0x646e6520
+
+void dgSerializeMarker(dgSerialize serializeCallback, void* const userData)
+{
+	dgInt32 end = SERIALIZE_END;
+	serializeCallback (userData, &end, sizeof (dgInt32));
+	serializeCallback (userData, &end, sizeof (dgInt32));
+}
+
+void dgDeserializeMarker(dgDeserialize serializeCallback, void* const userData)
+{
+	dgInt32 state = 0;
+	while (state != 2) {
+		dgInt32 marker;
+		serializeCallback (userData, &marker, sizeof (marker));
+		switch (state) 
+		{
+			case 0:
+			{
+				if (marker == SERIALIZE_END) {
+					state = 1;
+					break;
+				} else {
+					state = 0;
+				}
+				break;
+			}
+
+			case 1:
+			{
+				if (marker == SERIALIZE_END) {
+					state = 2;
+					break;
+				} else {
+					state = 0;
+				}
+				break;
+			}
+		}
+	} 
 }

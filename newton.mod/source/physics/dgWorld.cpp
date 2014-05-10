@@ -22,19 +22,21 @@
 #include "dgPhysicsStdafx.h"
 #include "dgWorld.h"
 
+#include "dgDynamicBody.h"
+#include "dgKinematicBody.h"
 #include "dgCollisionBox.h"
+#include "dgKinematicBody.h"
 #include "dgCollisionNull.h"
 #include "dgCollisionCone.h"
-#include "dgMinkowskiConv.h"
+#include "dgDeformableBody.h"
 #include "dgCollisionScene.h"
 #include "dgCollisionSphere.h"
-#include "dgCollisionEllipse.h"
 #include "dgCollisionCapsule.h"
 #include "dgCollisionCylinder.h"
+#include "dgCollisionInstance.h"
 #include "dgCollisionCompound.h"
 #include "dgWorldDynamicUpdate.h"
 #include "dgCollisionConvexHull.h"
-#include "dgCollisionConvexModifier.h"
 #include "dgCollisionChamferCylinder.h"
 
 #include "dgUserConstraint.h"
@@ -44,16 +46,18 @@
 #include "dgUpVectorConstraint.h"
 #include "dgUniversalConstraint.h"
 #include "dgCorkscrewConstraint.h"
-#include "dgConnectorConstraint.h"
-//#include "dgPointToCurveConstraint.h"
 
 
+#ifdef _NEWTON_OPENCL
+#include "dgOpenclInstance.h"
+#endif
 
-#define DG_INITIAL_ISLAND_SIZE			(1024 * 4)
-#define DG_INITIAL_BODIES_SIZE			(1024 * 4)
-#define DG_INITIAL_JOINTS_SIZE			(1024 * 4)
-#define DG_INITIAL_JACOBIAN_SIZE		(1024 * 16)
-#define DG_INITIAL_CONTATCT_SIZE		(1024 * 64)
+
+#define DG_INITIAL_ISLAND_SIZE		(1024 * 4)
+#define DG_INITIAL_BODIES_SIZE		(1024 * 4)
+#define DG_INITIAL_JOINTS_SIZE		(1024 * 4)
+#define DG_INITIAL_JACOBIAN_SIZE	(1024 * 16)
+#define DG_INITIAL_CONTACT_SIZE		(1024 * 32)
 
 
 /*
@@ -186,81 +190,76 @@ void xxxxx()
 }
 */
 
+/*
+dgWorld::dgAsyncUpdate::dgAsyncUpdate ()
+	:dgAsyncUpdateThread("Newton AsynUpdate", 1)
+{
+}
 
+void dgWorld::dgAsyncUpdate::Update ()
+{
+}
+*/
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
+#define DG_MUTEX_THREAD_ID	0
+#define DG_ASYNC_THREAD_ID	1
 
-dgWorld::dgWorld(dgMemoryAllocator* allocator):
-//	dgThreadHive(),
-	dgBodyMasterList(allocator),
-	dgBroadPhaseCollision(allocator),
-	dgBodyMaterialList(allocator),
-	dgBodyCollisionList(allocator),
-	dgActiveContacts(allocator), 
-	dgCollidingPairCollector(),
-	m_perInstanceData(allocator),
-	m_threadsManager(),
-	m_dynamicSolver()
+dgWorld::dgWorld(dgMemoryAllocator* const allocator)
+	:dgBodyMasterList(allocator)
+	,dgBodyMaterialList(allocator)
+	,dgBodyCollisionList(allocator)
+	,dgCollisionDeformableMeshList(allocator)
+	,dgActiveContacts(allocator) 
+	,dgCollidingPairCollector()
+	,dgWorldDynamicUpdate()
+	,dgMutexThread("dgMutexThread", DG_MUTEX_THREAD_ID)
+	,dgAsyncThread("dgAsyncThread", DG_ASYNC_THREAD_ID)
+	,dgWorldThreadPool(allocator)
+	,m_openCL(NULL)
+	,m_broadPhase(NULL)
+	,m_preListener(allocator)
+	,m_postListener(allocator)
+	,m_perInstanceData(allocator)
+	,m_islandMemory (DG_INITIAL_ISLAND_SIZE, allocator, 64)
+	,m_bodiesMemory (DG_INITIAL_BODIES_SIZE, allocator, 64)
+	,m_jointsMemory (DG_INITIAL_JOINTS_SIZE, allocator, 64)
+	,m_pairMemoryBuffer (DG_INITIAL_CONTACT_SIZE, allocator, 64)
+	,m_internalForcesMemory (DG_INITIAL_BODIES_SIZE, allocator, 64)
+	,m_solverMatrixMemory (DG_INITIAL_JACOBIAN_SIZE, allocator, 64)
 {
-	dgInt32 steps;
-	dgFloat32 freezeAccel2;
-	dgFloat32 freezeAlpha2;
-	dgFloat32 freezeSpeed2;
-	dgFloat32 freezeOmega2;
+	dgMutexThread* const mutexThread = this;
+	SetMatertThread (mutexThread);
 
-	// init exact arithmetic functions
 	m_allocator = allocator;
+	m_islandUpdate = NULL;
+	m_getPerformanceCount = NULL;
+	m_destroyBodyByExeciveForce = NULL;
 
-//dgThreadHive::SetThreadCount(16);
-//dgThreadHive::SetThreadCount(32);
-
-//_control87 (_EM_ZERODIVIDE | _EM_INEXACT | _EM_OVERFLOW | _EM_INVALID, _MCW_EM);
-
+	m_onCollisionInstanceDestruction = NULL;
+	m_onCollisionInstanceCopyConstrutor = NULL;
 
 	m_inUpdate = 0;
 	m_bodyGroupID = 0;
-//	m_activeBodiesCount = 0;
 	
 	m_defualtBodyGroupID = CreateBodyGroupID();
-	m_islandMemorySizeInBytes = DG_INITIAL_ISLAND_SIZE;
-	m_bodiesMemorySizeInBytes = DG_INITIAL_BODIES_SIZE;
-	m_jointsMemorySizeInBytes = DG_INITIAL_JOINTS_SIZE;
-
-	m_pairMemoryBufferSizeInBytes = 1024 * 64 * sizeof (void*);
-	m_pairMemoryBuffer = m_allocator->MallocLow (m_pairMemoryBufferSizeInBytes);
-	m_islandMemory = m_allocator->MallocLow (m_islandMemorySizeInBytes); 
-	m_jointsMemory = m_allocator->MallocLow (m_jointsMemorySizeInBytes); 
-	m_bodiesMemory = m_allocator->MallocLow (m_bodiesMemorySizeInBytes); 
-	for (dgInt32 i = 0; i < DG_MAXIMUN_THREADS; i ++) {
-		m_jacobiansMemorySizeInBytes[i] = DG_INITIAL_JACOBIAN_SIZE;
-		m_jacobiansMemory[i] = m_allocator->MallocLow (m_jacobiansMemorySizeInBytes[i]);  
-
-		m_internalForcesMemorySizeInBytes[i] = DG_INITIAL_BODIES_SIZE;
-		m_internalForcesMemory[i] = m_allocator->MallocLow (m_internalForcesMemorySizeInBytes[i]);  
-
-		m_contactBuffersSizeInBytes[i] = DG_INITIAL_CONTATCT_SIZE;
-		m_contactBuffers[i] = m_allocator->MallocLow (m_contactBuffersSizeInBytes[i]);  
-	}
-
 	m_genericLRUMark = 0;
-	m_singleIslandMultithreading = 1;
 
-	m_solverMode = 0;
+	m_useParallelSolver = 0;
+
+	//m_solverMode = 0;
+	m_solverMode = 1;
 	m_frictionMode = 0;
 	m_dynamicsLru = 0;
-	m_broadPhaseLru = 0;
 		
 	m_bodiesUniqueID = 0;
-//	m_bodiesCount = 0;
 	m_frictiomTheshold = dgFloat32 (0.25f);
 
 	m_userData = NULL;
 	m_islandUpdate = NULL;
-	m_destroyCollision = NULL;
-	m_leavingWorldNotify = NULL;
 	m_destroyBodyByExeciveForce = NULL;
 
 	m_freezeAccel2 = DG_FREEZE_MAG2;
@@ -268,11 +267,11 @@ dgWorld::dgWorld(dgMemoryAllocator* allocator):
 	m_freezeSpeed2 = DG_FREEZE_MAG2 * dgFloat32 (0.1f);
 	m_freezeOmega2 = DG_FREEZE_MAG2 * dgFloat32 (0.1f);
 
-	steps = 1;
-	freezeAccel2 = m_freezeAccel2;
-	freezeAlpha2 = m_freezeAlpha2;
-	freezeSpeed2 = m_freezeSpeed2;
-	freezeOmega2 = m_freezeOmega2;
+	dgInt32 steps = 1;
+	dgFloat32 freezeAccel2 = m_freezeAccel2;
+	dgFloat32 freezeAlpha2 = m_freezeAlpha2;
+	dgFloat32 freezeSpeed2 = m_freezeSpeed2;
+	dgFloat32 freezeOmega2 = m_freezeOmega2;
 	for (dgInt32 i = 0; i < DG_SLEEP_ENTRIES; i ++) {
 		m_sleepTable[i].m_maxAccel = freezeAccel2;
 		m_sleepTable[i].m_maxAlpha = freezeAlpha2;
@@ -293,42 +292,57 @@ dgWorld::dgWorld(dgMemoryAllocator* allocator):
 	m_sleepTable[DG_SLEEP_ENTRIES - 1].m_maxOmega = 0.1f;
 	m_sleepTable[DG_SLEEP_ENTRIES - 1].m_steps = steps;
 
+	m_hardwaredIndex = 0;
+	SetThreadsCount (0);
 
-	m_cpu = dgNoSimdPresent;
-	m_numberOfTheads = 1;
-
-	SetHardwareMode (1);
-	SetThreadsCount (DG_MAXIMUN_THREADS);
-	m_maxTheads = m_numberOfTheads;
-
-	SetHardwareMode (0);
-	SetThreadsCount (1);
-
-	dgBroadPhaseCollision::Init ();
+	//dgBroadPhase::Init ();
+	m_broadPhase = new (allocator) dgBroadPhase(this);
 	dgCollidingPairCollector::Init ();
 	
-	m_pointCollision = new (m_allocator) dgCollisionPoint(m_allocator);
+	//m_pointCollision = new (m_allocator) dgCollisionPoint(m_allocator);
+	dgCollision* const pointCollison = new (m_allocator) dgCollisionPoint(m_allocator);
+	m_pointCollision = CreateInstance(pointCollison, 0, dgGetIdentityMatrix());
+	pointCollison->Release();
+
 	AddSentinelBody();
 	SetPerfomanceCounter(NULL);
+
+
+
+	#ifdef _NEWTON_OPENCL
+	//m_openCL = dgOpencl::GetOpenCL(GetAllocator());
+	m_openCL = new (GetAllocator()) dgOpenclInstance(this);
+	#endif
 }
 
 dgWorld::~dgWorld()
 {	
+	Sync();
+	dgAsyncThread::Terminate();
+	dgMutexThread::Terminate();
+
+	#ifdef _NEWTON_OPENCL
+	if (m_openCL) {
+		delete m_openCL;
+	}
+	#endif
+
+	m_preListener.RemoveAll();
+	m_postListener.RemoveAll();
+
 	DestroyAllBodies();
 	RemoveAllGroupID();
-	m_destroyCollision = NULL;
-	ReleaseCollision(m_pointCollision);
-	DestroyBody (m_sentionelBody);
+	m_pointCollision->Release();
+	DestroyBody (m_sentinelBody);
 
-	m_allocator->FreeLow (m_jointsMemory); 
-	m_allocator->FreeLow (m_bodiesMemory);  
-	m_allocator->FreeLow (m_islandMemory);
-	m_allocator->FreeLow (m_pairMemoryBuffer);
-	for (dgInt32 i = 0; i < DG_MAXIMUN_THREADS; i ++) {
-		m_allocator->FreeLow (m_jacobiansMemory[i]);  
-		m_allocator->FreeLow (m_internalForcesMemory[i]);  
-		m_allocator->FreeLow (m_contactBuffers[i]);  
-	}
+
+	delete m_broadPhase;
+}
+
+void dgWorld::SetThreadsCount (dgInt32 count)
+{
+	dgThreadHive::SetThreadsCount(count);
+	dgThreadHive::SetPerfomanceCounter(m_getPerformanceCount);
 }
 
 dgUnsigned32 dgWorld::GetPerformanceCount ()
@@ -338,25 +352,23 @@ dgUnsigned32 dgWorld::GetPerformanceCount ()
 
 void dgWorld::AddSentinelBody()
 {
-	dgCollision* collision;
-
-	collision = new  (m_allocator) dgCollisionNull (m_allocator, 0x4352fe67);
-	m_sentionelBody = CreateBody(collision, dgGetIdentityMatrix());
-	ReleaseCollision(collision);
-
-//	dgBodyMasterList::m_sentinel = m_sentionelBody;
-	dgCollidingPairCollector::m_sentinel = m_sentionelBody;
+	dgCollision* const collision = new  (m_allocator) dgCollisionNull (m_allocator, 0x4352fe67);
+	dgCollisionInstance* const instance = CreateInstance(collision, 0, dgGetIdentityMatrix());
+	collision->Release();
+	m_sentinelBody = CreateDynamicBody(instance, dgGetIdentityMatrix());
+	instance->Release();
+	dgCollidingPairCollector::m_sentinel = m_sentinelBody;
 }
 
 dgBody* dgWorld::GetSentinelBody() const
 {
-	return m_sentionelBody;
+	return m_sentinelBody;
 }
 
 
 void dgWorld::SetSolverMode (dgInt32 mode)
 {
-	m_solverMode = dgUnsigned32 (GetMax (0, mode));
+	m_solverMode = dgUnsigned32 (dgMax (0, mode));
 }
 
 void dgWorld::SetFrictionMode (dgInt32 mode)
@@ -364,75 +376,68 @@ void dgWorld::SetFrictionMode (dgInt32 mode)
 	m_frictionMode = dgUnsigned32 (mode);
 }
 
-void dgWorld::SetHardwareMode (dgInt32 mode)
+
+dgInt32 dgWorld::EnumerateHardwareModes() const
 {
-	m_cpu = dgNoSimdPresent;
-	if (mode) {
-		m_cpu = dgGetCpuType ();
+	dgInt32 count = 1;
+	#ifdef _NEWTON_OPENCL
+		if (m_openCL) {
+			count += m_openCL->GetPlatformsCount();
+		}
+	#endif
+	return count;
+}
+
+void dgWorld::GetHardwareVendorString (dgInt32 deviceIndex, char* const description, dgInt32 maxlength) const
+{
+	deviceIndex = dgClamp(deviceIndex, 0, EnumerateHardwareModes() - 1);
+	if (deviceIndex == 0) {
+		sprintf (description, "cpu");
+
+	} else if (m_openCL) {
+		#ifdef _NEWTON_OPENCL
+			m_openCL->GetVendorString (deviceIndex - 1, description, maxlength);
+		#endif
 	}
 }
 
-dgInt32 dgWorld::GetHardwareMode(char* description)
+void dgWorld::SetCurrentHardwareMode(dgInt32 deviceIndex)
 {
-	dgInt32 mode;
-
-//	if (0) {
-//	} else {
-		if (m_cpu == dgNoSimdPresent){
-			mode = 0;
-			if (description) {
-				sprintf (description, "x87");
-			}
-		} else {
-			mode = 1;
-			if (description) {
-				sprintf (description, "simd");
-			}
+	#ifdef _NEWTON_OPENCL
+		if (m_openCL) {
+			m_openCL->CleanUp();
 		}
-//	}
-	return mode;
+	#endif
+
+	m_hardwaredIndex = dgClamp(deviceIndex, 0, EnumerateHardwareModes() - 1);
+	if ((m_hardwaredIndex > 0) && m_openCL){
+		#ifdef _NEWTON_OPENCL
+			m_openCL->SelectPlaform (m_hardwaredIndex - 1);
+		#endif
+	}
+
 }
 
 
-
-
-
-void dgWorld::SetThreadsCount (dgInt32 count)
+dgInt32 dgWorld::GetCurrentHardwareMode() const
 {
-//count = 1;
-
-	m_threadsManager.CreateThreaded (count);
-	m_numberOfTheads = dgUnsigned32 (m_threadsManager.GetThreadCount());
-	
+	return m_hardwaredIndex;
 }
-
-dgInt32 dgWorld::GetThreadsCount () const
-{
-	return dgInt32 (m_numberOfTheads);
-}
-
-dgInt32 dgWorld::GetMaxThreadsCount () const
-{
-	return dgInt32 (m_maxTheads);
-}
-
 
 void dgWorld::EnableThreadOnSingleIsland(dgInt32 mode)
 {
-	// for now disable this option
-//	m_singleIslandMultithreading = 1;
-	m_singleIslandMultithreading = mode ? 1 : 0;
+	m_useParallelSolver = mode ? 1 : 0;
 }
 
 dgInt32 dgWorld::GetThreadOnSingleIsland() const
 {
-	return m_singleIslandMultithreading ? 1 : 0;
+	return m_useParallelSolver ? 1 : 0;
 }
 
 
 void dgWorld::SetFrictionThreshold (dgFloat32 acceleration)
 {
-	m_frictiomTheshold = GetMax (dgFloat32(1.0e-2f), acceleration);
+	m_frictiomTheshold = dgMax (dgFloat32(1.0e-2f), acceleration);
 }
 
 
@@ -447,64 +452,32 @@ void dgWorld::RemoveAllGroupID()
 
 void dgWorld::DestroyAllBodies ()
 {
-	dgBody* body;
-	dgBodyMasterList::dgListNode* node;
-
 	dgBodyMasterList& me = *this;
-//	dgBodyMasterList::Iterator iter(me);
-//	for (iter.Begin(); iter; ) {
 
-	_ASSERTE (dgBodyMasterList::GetFirst()->GetInfo().GetBody() == m_sentionelBody);
-	for (node = me.GetFirst()->GetNext(); node; ) {
-		body = node->GetInfo().GetBody();
+	Sync ();
+	dgAssert (dgBodyMasterList::GetFirst()->GetInfo().GetBody() == m_sentinelBody);
+	for (dgBodyMasterList::dgListNode* node = me.GetFirst()->GetNext(); node; ) {
+		dgBody* const body = node->GetInfo().GetBody();
 		node = node->GetNext();
 		DestroyBody (body);
 	}
 
-	_ASSERTE (me.GetFirst()->GetInfo().GetCount() == 0);
-	_ASSERTE (dgBodyCollisionList::GetCount() == 0);
+	dgAssert (me.GetFirst()->GetInfo().GetCount() == 0);
+	dgAssert (dgBodyCollisionList::GetCount() == 0);
 }
 
-dgBody* dgWorld::CreateBody(dgCollision* const collision, const dgMatrix& matrix)
+
+void dgWorld::InitBody (dgBody* const body, dgCollisionInstance* const collision, const dgMatrix& matrix)
 {
-	dgBody* body;
+	dgAssert (collision);
 
-	_ASSERTE (collision);
-
-	body = new (m_allocator) dgBody();
-	_ASSERTE ((sizeof (dgBody) & 0xf) == 0);
-	_ASSERTE ((dgUnsigned64 (body) & 0xf) == 0);
-
-	memset (body, 0, sizeof (dgBody));
-
-//	m_bodiesCount ++;
 	m_bodiesUniqueID ++;
-
-
 	body->m_world = this;
 
-	body->m_freeze = false;
-	body->m_sleeping = false;
-	body->m_autoSleep = true;
-	body->m_isInWorld = true;
-	body->m_equilibrium = false;
-	body->m_continueCollisionMode = false;
-	body->m_collideWithLinkedBodies = true;
-	body->m_solverInContinueCollision = false;
 	body->m_spawnnedFromCallback = dgUnsigned32 (m_inUpdate ? true : false);
 	body->m_uniqueID = dgInt32 (m_bodiesUniqueID);
 
-
 	dgBodyMasterList::AddBody(body);
-
-//	dgBodyActiveList___::AddBody(body);
-//	_ASSERTE (body->m_activeNode);
-
-
-//	body->m_freezeAccel2 = m_freezeAccel2;
-//	body->m_freezeAlpha2 = m_freezeAlpha2;
-//	body->m_freezeSpeed2 = m_freezeSpeed2;
-//	body->m_freezeOmega2 = m_freezeOmega2;
 
 	body->SetCentreOfMass (dgVector (dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (1.0f))); 
 	body->SetLinearDamping (dgFloat32 (0.1045f)) ;
@@ -514,13 +487,41 @@ dgBody* dgWorld::CreateBody(dgCollision* const collision, const dgMatrix& matrix
 	body->m_bodyGroupId = dgInt32 (m_defualtBodyGroupID);
 
 	body->SetMassMatrix (DG_INFINITE_MASS * dgFloat32 (2.0f), DG_INFINITE_MASS, DG_INFINITE_MASS, DG_INFINITE_MASS);
-	dgBroadPhaseCollision::Add (body);
-
-	//body->SetMatrix (dgGetIdentityMatrix());
 	body->SetMatrix (matrix);
-	body->m_invWorldInertiaMatrix[3][3] = dgFloat32 (1.0f);
+	m_broadPhase->Add (body);
+}
+
+dgDynamicBody* dgWorld::CreateDynamicBody(dgCollisionInstance* const collision, const dgMatrix& matrix)
+{
+	dgDynamicBody* const body = new (m_allocator) dgDynamicBody();
+	dgAssert (dgInt32 (sizeof (dgBody) & 0xf) == 0);
+	dgAssert ((dgUnsigned64 (body) & 0xf) == 0);
+
+	InitBody (body, collision, matrix);
 	return body;
 }
+
+dgKinematicBody* dgWorld::CreateKinematicBody (dgCollisionInstance* const collision, const dgMatrix& matrix)
+{
+	dgKinematicBody* const body = new (m_allocator) dgKinematicBody();
+	dgAssert (dgInt32 (sizeof (dgBody) & 0xf) == 0);
+	dgAssert ((dgUnsigned64 (body) & 0xf) == 0);
+
+	InitBody (body, collision, matrix);
+	return body;
+}
+
+
+dgBody* dgWorld::CreateDeformableBody(dgCollisionInstance* const collision, const dgMatrix& matrix)
+{
+	dgBody* const body = new (m_allocator) dgDeformableBody();
+	dgAssert (dgInt32 (sizeof (dgBody) & 0xf) == 0);
+	dgAssert ((dgUnsigned64 (body) & 0xf) == 0);
+
+	InitBody (body, collision, matrix);
+	return body;
+}
+
 
 void dgWorld::DestroyBody(dgBody* const body)
 {
@@ -528,17 +529,11 @@ void dgWorld::DestroyBody(dgBody* const body)
 		body->m_destructor (*body);
 	}
 
-	dgBroadPhaseCollision::Remove (body);
-
-//	m_bodiesCount --;
-//	while (body->m_firstConstraintLink) {
-//		DestroyConstraint (body->m_firstConstraintLink->m_constraint);
-//	}
+	m_broadPhase->Remove (body);
 	dgBodyMasterList::RemoveBody (body);
 
-	_ASSERTE (body->m_collision);
-	ReleaseCollision (body->m_collision);
-
+	dgAssert (body->m_collision);
+	body->m_collision->Release();
 	delete body;
 }
 
@@ -549,159 +544,6 @@ void dgWorld::DestroyConstraint(dgConstraint* const constraint)
 	delete constraint;
 }
 
-/*
-void dgWorld::UnfreezeBody (dgBody *body)
-{
-	if (body->m_activation && !body->m_active) {
-		body->m_activation (*body, 1);
-	}
-	body->m_active = true;
-
-}
-
-void dgWorld::FreezeBody (dgBody *body)
-{
-	_ASSERTE (0);
-	if (body->m_activeNode) {
-		_ASSERTE (0);
-		dgBodyActiveList___::RemoveBody(body);
-		if (body->m_activation && body->m_active) {
-			body->m_activation (*body, 0);
-		}
-		body->m_active = false;
-	}
-}
-*/
-
-
-void dgWorld::UpdateCollision ()
-{
-	dgFloat32 timestep;
-	_ASSERTE (m_inUpdate == 0);
-
-	
-	m_threadsManager.ClearTimers();
-	memset (m_perfomanceCounters, 0, sizeof (m_perfomanceCounters));
-	dgUnsigned32 ticks = m_getPerformanceCount();
-
-
-	m_inUpdate ++;
-	_ASSERTE (m_numberOfTheads  >= 1);
-
-#if (defined (_WIN_32_VER) || defined (_WIN_64_VER))
-	#ifndef __USE_DOUBLE_PRECISION__
-		dgUnsigned32 controlWorld = dgControlFP (0xffffffff, 0);
-		dgControlFP (_PC_53, _MCW_PC);
-	#endif
-#endif
-
-	timestep = dgFloat32 (0.0f);
-
-	if (m_cpu == dgSimdPresent) {
-#ifdef DG_BUILD_SIMD_CODE	
-		simd_env rounding;
-		rounding = simd_get_ctrl();
-		simd_set_FZ_mode();
-
-		UpdateContactsSimd (timestep, true);
-		simd_set_ctrl (rounding);
-#endif
-
-	} else {
-		UpdateContacts (timestep, true);
-	}
-	m_inUpdate --;
-
-#if (defined (_WIN_32_VER) || defined (_WIN_64_VER))
-	#ifndef __USE_DOUBLE_PRECISION__
-		dgControlFP (controlWorld, _MCW_PC);
-	#endif
-#endif
-
-	m_perfomanceCounters[m_worldTicks] = m_getPerformanceCount() - ticks;
-}
-
-
-
-void dgWorld::Update (dgFloat32 timestep)
-{
-	dgUnsigned32 ticks;
-//timestep = 1.0f/ 60.0f;
-//timestep = 1.0f/ 120.0f;
-//timestep = 1.0f/ 180.0f;
-//timestep = 1.0f/ 240.0f;
-//timestep = 1.0f/ 300.0f;
-//timestep = 1.0f/ 600.0f;
-//timestep = 1.0f/ 1000.0f;
-
-//m_cpu = dgNoSimdPresent;
-//m_cpu = dgSimdPresent;
-//m_solverMode = 1;
-
-//xxxxx();
-
-//static int xxx;
-//dgTrace (("pass %d\n", xxx));
-//xxx ++;
-
-//m_cpu = dgNoSimdPresent;
-	#ifdef _LINUX_VER
-//		m_cpu = dgNoSimdPresent;
-	#endif
-
-	_ASSERTE (m_inUpdate == 0);
-
-	m_threadsManager.ClearTimers();
-	memset (m_perfomanceCounters, 0, sizeof (m_perfomanceCounters));
-
-	ticks = m_getPerformanceCount();
-
-	m_destroyeddBodiesPool.m_count = 0;
-	
-	m_inUpdate ++;
-	_ASSERTE (m_numberOfTheads  >= 1);
-
-#if (defined (_WIN_32_VER) || defined (_WIN_64_VER))
-	#ifndef __USE_DOUBLE_PRECISION__
-		dgUnsigned32 controlWorld = dgControlFP (0xffffffff, 0);
-		dgControlFP (_PC_53, _MCW_PC);
-	#endif
-#endif
-
-	if (m_cpu == dgSimdPresent) {
-#ifdef DG_BUILD_SIMD_CODE	
-			simd_env rounding = simd_get_ctrl();
-			simd_set_FZ_mode();
-
-			UpdateContactsSimd (timestep, false);
-			m_dynamicSolver.UpdateDynamics (this, 1, timestep);
-
-			simd_set_ctrl (rounding);
-#endif
-
-	} else {
-		UpdateContacts (timestep, false);
-		m_dynamicSolver.UpdateDynamics (this, 0, timestep);
-	}
-	m_inUpdate --;
-
-
-#if (defined (_WIN_32_VER) || defined (_WIN_64_VER))
-	#ifndef __USE_DOUBLE_PRECISION__
-		dgControlFP (controlWorld, _MCW_PC);
-	#endif
-#endif
-
-	if (m_destroyBodyByExeciveForce) {
-		for (dgInt32 i = 0; i < m_destroyeddBodiesPool.m_count; i ++) {
-			m_destroyBodyByExeciveForce (m_destroyeddBodiesPool.m_bodies[i], m_destroyeddBodiesPool.m_joint[i]);
-		}
-	}
-
-
-	m_perfomanceCounters[m_worldTicks] = m_getPerformanceCount() - ticks;
-}
-
 OnGetPerformanceCountCallback dgWorld::GetPerformaceFuntion() const
 {
 	return m_getPerformanceCount;
@@ -709,27 +551,34 @@ OnGetPerformanceCountCallback dgWorld::GetPerformaceFuntion() const
 
 void dgWorld::SetPerfomanceCounter(OnGetPerformanceCountCallback callback)
 {
-	m_threadsManager.SetPerfomanceCounter (callback);
+	dgThreadHive::SetPerfomanceCounter (callback);
 
 	if (!callback) {
 		callback = GetPerformanceCount;
 	}
 	m_getPerformanceCount = callback;
 	memset (m_perfomanceCounters, 0, sizeof (m_perfomanceCounters));
+	memset (m_perfomanceCountersBack, 0, sizeof (m_perfomanceCountersBack));
 }
 
-//dgUnsigned32 dgWorld::GetPerfomanceTicks (dgInt32 thread, dgUnsigned32 entry) const
+
 dgUnsigned32 dgWorld::GetPerfomanceTicks (dgUnsigned32 entry) const
 {
-	entry = ClampValue(dgUnsigned32 (entry), dgUnsigned32 (0), dgUnsigned32 (m_counterSize - 1));
-	return m_perfomanceCounters[entry];
-
+	entry = dgClamp(dgUnsigned32 (entry), dgUnsigned32 (0), dgUnsigned32 (m_counterSize - 1));
+	return m_perfomanceCountersBack[entry];
 }
 
 dgUnsigned32 dgWorld::GetThreadPerfomanceTicks (dgUnsigned32 threadIndex) const
 {
-	return m_threadsManager.GetPerfomanceTicks (threadIndex);
+	return dgThreadHive::GetPerfomanceTicks (threadIndex);
 }
+
+
+void dgWorld::ExecuteUserJob (dgWorkerThreadTaskCallback userJobKernel, void* const userJobKernelContext)
+{
+	QueueJob (userJobKernel, this, userJobKernelContext);
+}
+
 
 void dgWorld::SetUserData (void* const userData)
 {
@@ -747,20 +596,64 @@ void dgWorld::SetIslandUpdateCallback (OnIslandUpdate callback)
 	m_islandUpdate = callback;
 }
 
-void dgWorld::SetDestroyCollisionCallback (OnDestroyCollision callback)
-{
-	m_destroyCollision = callback;
-}
-
-void dgWorld::SetLeavingWorldCallback (OnLeavingWorldAction callback) 
-{
-	m_leavingWorldNotify = callback;
-}
-
 
 void dgWorld::SetBodyDestructionByExeciveForce (OnBodyDestructionByExeciveForce callback) 
 {
 	m_destroyBodyByExeciveForce = callback;
+}
+
+
+void* dgWorld::AddPreListener (const char* const nameid, void* const userData, OnListenerUpdateCallback updateCallback, OnListenerDestroyCallback destroyCallback)
+{
+	dgListenerList::dgListNode* const node = m_preListener.Append();
+	dgListener& listener = node->GetInfo();
+	strncpy (listener.m_name, nameid, sizeof (listener.m_name));
+	listener.m_world = this;
+	listener.m_userData = userData;
+	listener.m_onListenerUpdate = updateCallback;
+	listener.m_onListenerDestroy = destroyCallback;
+	return node;
+}
+
+
+void* dgWorld::AddPostListener (const char* const nameid, void* const userData, OnListenerUpdateCallback updateCallback, OnListenerDestroyCallback destroyCallback)
+{
+	dgListenerList::dgListNode* const node = m_postListener.Append();
+	dgListener& listener = node->GetInfo();
+	strncpy (listener.m_name, nameid, sizeof (listener.m_name));
+	listener.m_world = this;
+	listener.m_userData = userData;
+	listener.m_onListenerUpdate = updateCallback;
+	listener.m_onListenerDestroy = destroyCallback;
+	return node;
+}
+
+void* dgWorld::GetListenerUserData (void* const listenerNode) const
+{
+	dgListener& listener = ((dgListenerList::dgListNode*) listenerNode)->GetInfo();
+	return listener.m_userData;
+}
+
+void* dgWorld::FindPreListener (const char* const nameid) const
+{
+	for (dgListenerList::dgListNode* node = m_preListener.GetFirst(); node; node = node->GetNext()) {
+		dgListener& listener = node->GetInfo();
+		if (!strcmp (nameid, listener.m_name)) {
+			return node;
+		}
+	}
+	return NULL;
+}
+
+void* dgWorld::FindPostListener (const char* const nameid) const 
+{
+	for (dgListenerList::dgListNode* node = m_postListener.GetFirst(); node; node = node->GetNext()) {
+		dgListener& listener = node->GetInfo();
+		if (!strcmp (nameid, listener.m_name)) {
+			return node;
+		}
+	}
+	return NULL;
 }
 
 
@@ -772,9 +665,8 @@ dgBallConstraint* dgWorld::CreateBallConstraint (
 {
 	dgBallConstraint *constraint;
 	
-	_ASSERTE (body0);
-	_ASSERTE (body0 != body1);
-//	constraint = dgBallConstraint::Create(this);
+	dgAssert (body0);
+	dgAssert (body0 != body1);
 	constraint = new (m_allocator) dgBallConstraint;
 
 	AttachConstraint (constraint, body0, body1);
@@ -791,9 +683,8 @@ dgHingeConstraint* dgWorld::CreateHingeConstraint (
 {
 	dgHingeConstraint *constraint;
 
-	_ASSERTE (body0);
-	_ASSERTE (body0 != body1);
-//	constraint = dgHingeConstraint::Create(this);
+	dgAssert (body0);
+	dgAssert (body0 != body1);
 	constraint = new (m_allocator) dgHingeConstraint;
 
 	AttachConstraint (constraint, body0, body1);
@@ -806,8 +697,7 @@ dgUpVectorConstraint* dgWorld::CreateUpVectorConstraint (const dgVector& pin, dg
 {
 	dgUpVectorConstraint *constraint;
 	
-	_ASSERTE (body);
-//	constraint = dgUpVectorConstraint::Create(this);
+	dgAssert (body);
 	constraint = new (m_allocator) dgUpVectorConstraint;
 
 	AttachConstraint (constraint, body, NULL);
@@ -825,9 +715,8 @@ dgSlidingConstraint* dgWorld::CreateSlidingConstraint (
 {
 	dgSlidingConstraint *constraint;
 
-	_ASSERTE (body0);
-	_ASSERTE (body0 != body1);
-//	constraint = dgSlidingConstraint::Create(this);
+	dgAssert (body0);
+	dgAssert (body0 != body1);
 	constraint = new (m_allocator) dgSlidingConstraint;
 
 	AttachConstraint (constraint, body0, body1);
@@ -844,9 +733,8 @@ dgCorkscrewConstraint* dgWorld::CreateCorkscrewConstraint (
 {
 	dgCorkscrewConstraint *constraint;
 
-	_ASSERTE (body0);
-	_ASSERTE (body0 != body1);
-//	constraint = dgCorkscrewConstraint::Create(this);
+	dgAssert (body0);
+	dgAssert (body0 != body1);
 	constraint = new (m_allocator) dgCorkscrewConstraint;
 
 	AttachConstraint (constraint, body0, body1);
@@ -864,51 +752,14 @@ dgUniversalConstraint* dgWorld::CreateUniversalConstraint (
 {
 	dgUniversalConstraint *constraint;
 
-	_ASSERTE (body0);
-	_ASSERTE (body0 != body1);
-//	constraint = dgUniversalConstraint::Create(this);
+	dgAssert (body0);
+	dgAssert (body0 != body1);
 	constraint = new (m_allocator) dgUniversalConstraint;
 
 	AttachConstraint (constraint, body0, body1);
 	constraint->SetPivotAndPinDir(pivot, pin0, pin1);
 	return constraint;
 }
-
-/*
-dgPointToCurveConstraint* dgWorld::AttachPointToCurveConstraint (
-	const dgVector& pivot, 
-	dgBody* const body0, 
-	OnPointToCurveCallback funt,
-	void *curveContext)
-{
-	dgPointToCurveConstraint *constraint;
-
-	_ASSERTE (body0);
-	constraint = dgPointToCurveConstraint::Create();
-
-	AttachConstraint (constraint, body0, NULL);
-	constraint->SetPivotPoint (pivot, funt, curveContext);
-	return constraint;
-}
-*/
-
-/*
-dgConnectorConstraint* dgWorld::CreateConnectorConstraint (dgBody *body0__, dgBody *body1__)
-{
-	_ASSERTE (0);
-	return NULL;
-
-	dgConnectorConstraint *constraint;
-
-	_ASSERTE (body0);
-	_ASSERTE (body0 != body1);
-	constraint = dgConnectorConstraint::Create();
-
-	AttachConstraint (constraint, body0, body1);
-	constraint->Setup();
-	return constraint;
-}
-*/
 
 
 /*
@@ -931,87 +782,42 @@ dgInt32 dgWorld::GetConstraintsCount() const
 }
 
 
-/*
-dgLink* dgWorld::FindConstraintLink (const dgBody* const body0, const dgBody* const body1) const
-{
-	_ASSERTE (0);
-
-	dgLink *ptr;
-	dgLink *link;
-
-	_ASSERTE (body0);
-	if (!body0) {
-		_ASSERTE (0);
-		Swap (body0, body1);
-	}
-
-	if (body0) {
-		link = body0->m_firstConstraintLink;
-		if (link) {
-			ptr = link;
-			do {
-				_ASSERTE (ptr->m_body == body0);
-				if (ptr->m_twin->m_body == body1) {
-					return ptr;
-				}
-			
-				ptr = ptr->m_twin->m_next;
-			} while (ptr != link);
-		}
-	}
-
-	return NULL;
-}
-*/
-/*
-dgConstraint* dgWorld::GetConstraint (const dgLink* constraintLink) const
-{
-	return constraintLink->m_constraint;
-}
-*/
-
-
-
-void dgWorld::BodySetMatrix (dgBody* body, const dgMatrix& matrix)
+void dgWorld::BodySetMatrix (dgBody* const body, const dgMatrix& matrix)
 {
 	#define DG_RECURSIVE_SIZE	1024
-	dgInt32 index;
+
 	dgBody* queue[DG_RECURSIVE_SIZE];
 
-
-	index = 1;
+	dgInt32 index = 1;
 	queue[0] = body;
 	m_genericLRUMark ++;
 	body->m_genericLRUMark = m_genericLRUMark;
 	dgMatrix relMatrix (body->GetMatrix().Inverse() * matrix);
 	while (index) {
-		dgBody* body;
-		
 		index --;
-		body = queue[index];
-		_ASSERTE (body != m_sentionelBody);
+		dgBody* body = queue[index];
+		dgAssert (body != m_sentinelBody);
 
-		dgBroadPhaseCollision::Remove (body);
-		dgBroadPhaseCollision::Add (body);
+		m_broadPhase->Remove (body);
+		m_broadPhase->Add (body);
 
 		dgMatrix matrix (body->GetMatrix() * relMatrix);
 		body->SetVelocity (dgVector (dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f)));    
 		body->SetOmega (dgVector (dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f), dgFloat32 (0.0f)));    
 		body->SetMatrix (matrix);
-		body->m_isInWorld = true;
 
 		for (dgBodyMasterListRow::dgListNode* jointNode = body->m_masterNode->GetInfo().GetFirst(); jointNode; jointNode = jointNode->GetNext()) {
 			dgBodyMasterListCell& cell = jointNode->GetInfo();
 			body = cell.m_bodyNode;
-			if (body != m_sentionelBody) {
+			if (body != m_sentinelBody) {
 				if (body->m_genericLRUMark != m_genericLRUMark) {
 					dgConstraint* constraint;
 					constraint = cell.m_joint;
-					if (constraint->GetId() != dgContactConstraintId) {
+					if (constraint->GetId() != dgConstraint::m_contactConstraint) {
 						body->m_genericLRUMark = m_genericLRUMark;
 						queue[index] = body;
 						index ++;
-						_ASSERTE (index < DG_RECURSIVE_SIZE);
+						dgAssert (index < DG_RECURSIVE_SIZE);
 					}
 				}
 			}
@@ -1019,174 +825,6 @@ void dgWorld::BodySetMatrix (dgBody* body, const dgMatrix& matrix)
 	}
 }
 
-
-void dgWorld::AddBodyImpulse (dgBody* body, const dgVector& pointVeloc, const dgVector& pointPosit)
-{
-	if (body->m_invMass.m_w > dgFloat32 (0.0f)) {
-//		UnfreezeBody (body);
-		body->AddImpulse (pointVeloc, pointPosit);
-	}
-}
-
-/*
-dgInt32 dgWorld::GetBodyArray (dgBody* root, dgBody** array, dgInt32 maxSize) const
-{
-	_ASSERTE (0);
-	return 0;
-
-	dgInt32 i;
-	dgInt32 count;
-	dgLink* ptr;
-	dgLink* link;
-	dgBody* body;
-	dgConstraint* constraint;
-	dgLink* stack[2048];
-	const dgInt64 mask = dgInt64 (65536) * dgInt64 (65536) * dgInt64 (65536) * dgInt64 (4096);
-
-	count = 0;
-	link = root->m_firstConstraintLink; 
-	if (link) {
-		root->m_lru |= mask;
-		stack[0] = link;
-		i = 1;
-		while (i) {
-			i --;
-			link = stack[i];
-			ptr = link;
-			do {
-				body = ptr->m_twin->m_body;
-				if (body) {
-					_ASSERTE (body);
-					if (~body->m_lru & mask) {
-						constraint = ptr->m_constraint;
-						if (constraint->IsBilateral()) {
-							if (count <	maxSize) {
-								array[count] = body; 
-								count ++;
-							}
-							stack[i] = ptr->m_twin;
-							i ++;
-						}
-						body->m_lru |= mask;
-					}
-				}
-
-				ptr = ptr->m_twin->m_next;
-			} while (ptr != link);
-		}
-
-		link = root->m_firstConstraintLink; 
-		root->m_lru &= ~ mask;
-		stack[0] = link;
-		i = 1;
-		while (i) {
-			i --;
-			link = stack[i];
-			ptr = link;
-			do {
-				body = ptr->m_twin->m_body;
-				if (body) {
-					_ASSERTE (body);
-					if (body->m_lru & mask) {
-						constraint = ptr->m_constraint;
-						if (constraint->IsBilateral()) {
-							stack[i] = ptr->m_twin;
-							i ++;
-						}
-						body->m_lru &= ~ mask;
-					}
-				}
-				ptr = ptr->m_twin->m_next;
-			} while (ptr != link);
-		}
-	}
-
-	return count;
-}
-
-
-dgInt32 dgWorld::GetConstraintArray (dgConstraint* root, dgConstraint** constraintArray, dgInt32 maxSize) const
-{
-_ASSERTE (0);
-return 0;
-
-	dgInt32 i;
-	dgInt32 stack;
-	dgInt32 count;
-	dgLink* ptr;
-	dgLink* link;
-	dgBody* body;
-	dgConstraint* constraint;
-	dgConstraint* constraintPtr;
-	dgConstraint* stackPool[2048];
-	const dgInt64 mask = dgInt64 (65536) * dgInt64 (65536) * dgInt64 (65536) * dgInt64 (4096);
-
-	count = 0;
-	stack = 1;
-	stackPool[0] = root;
-	root->m_lru |= mask;
-
-	while (stack && (count < maxSize)) {
-		stack --;
-		constraint = stackPool[stack];
-		constraintArray[count] = constraint;
-		count ++;
-
-		body = constraint->m_body0;
-		if (body && (body->m_invMass.m_w != dgFloat32 (0.0f))) {
-			link = body->m_firstConstraintLink; 
-			_ASSERTE (link);
-			ptr = link;
-			do {
-				constraintPtr = ptr->m_constraint;
-				if (!(constraintPtr->m_lru & mask)) {
-					constraintPtr->m_lru |= mask;
-					stackPool[stack] = constraintPtr;
-					stack ++;
-				}
-			
-				ptr = ptr->m_twin->m_next;
-			} while (ptr != link); 
-		}
-
-		body = constraint->m_body1;
-		if (body && (body->m_invMass.m_w != dgFloat32 (0.0f))) {
-			link = body->m_firstConstraintLink; 
-			_ASSERTE (link);
-			ptr = link;
-			do {
-				constraintPtr = ptr->m_constraint;
-				if (!(constraintPtr->m_lru & mask)) {
-					constraintPtr->m_lru |= mask;
-					stackPool[stack] = constraintPtr;
-					stack ++;
-				}
-
-				ptr = ptr->m_twin->m_next;
-			} while (ptr != link); 
-		}
-	} 
-
-	for (i = 0; i < stack; i ++) {
-		constraint = stackPool[i];
-		constraint->m_lru &= ~mask;
-	}
-
-	for (i = 0; i < count; i ++) {
-		constraint = constraintArray[i];
-		constraint->m_lru &= ~mask;
-
-		#ifdef _DEBUG
-		for (stack = i + 1; stack < count; stack ++) {                                                                 
-			_ASSERTE (constraint != constraintArray[stack]);
-		}
-		#endif                             
-	}
-
-	return count;
-
-}
-*/
 
 bool dgWorld::AreBodyConnectedByJoints (dgBody* const originSrc, dgBody* const targetSrc)
 {
@@ -1197,10 +835,11 @@ bool dgWorld::AreBodyConnectedByJoints (dgBody* const originSrc, dgBody* const t
 
 	dgBody* origin1 = originSrc;
 	dgBody* target1 = targetSrc;
-	if (origin1->m_mass[3] == dgFloat32 (0.0f)) {
-		Swap (origin1, target1);
+	if (origin1->GetInvMass().m_w == dgFloat32 (0.0f)) {
+		dgSwap (origin1, target1);
 	}
 
+	dgAssert (origin1->GetInvMass().m_w != dgFloat32 (0.0f));
 	dgBody* const origin = origin1;
 	dgBody* const target = target1;
 
@@ -1213,14 +852,14 @@ bool dgWorld::AreBodyConnectedByJoints (dgBody* const originSrc, dgBody* const t
 		dgBody* const origin = queue[start];
 		start ++;
 		start &= (DG_QEUEU_SIZE - 1);
-		
+	
 		for (dgBodyMasterListRow::dgListNode* jointNode = origin->m_masterNode->GetInfo().GetFirst(); jointNode; jointNode = jointNode->GetNext()) {
 			dgBodyMasterListCell& cell = jointNode->GetInfo();
 
 			dgBody* const body = cell.m_bodyNode;
 			if (body->m_genericLRUMark != m_genericLRUMark) {
 				dgConstraint* const constraint = cell.m_joint;
-				if (constraint->GetId() != dgContactConstraintId) {
+				if (constraint->GetId() != dgConstraint::m_contactConstraint) {
 					if (body == target) {
 						return true;
 					}
@@ -1232,7 +871,6 @@ bool dgWorld::AreBodyConnectedByJoints (dgBody* const originSrc, dgBody* const t
 			}
 		}
 	}
-
 	return false;
 }
 
@@ -1249,10 +887,303 @@ void dgWorld::FlushCache()
 	}
 
 	// clean up memory in bradPhase
-	dgBroadPhaseCollision::InvalidateCache ();
+	m_broadPhase->InvalidateCache ();
 
 	// sort body list
 	SortMasterList();
+}
+
+
+void dgWorld::StepDynamics (dgFloat32 timestep)
+{
+
+//static int xxx ;
+//xxx ++;
+//dgTrace (("%d\n", xxx));
+//if (xxx >= 2000)
+//xxx *=1;
+
+	//xxxxx();
+
+	dgAssert (m_inUpdate == 0);
+//SerializeToFile ("xxx.bin");
+
+	m_destroyeddBodiesPool.m_count = 0;
+
+	dgThreadHive::ClearTimers();
+	memset (m_perfomanceCounters, 0, sizeof (m_perfomanceCounters));
+	dgUnsigned32 ticks = m_getPerformanceCount();
+
+	m_inUpdate ++;
+	dgAssert (GetThreadCount() >= 1);
+
+	m_broadPhase->UpdateContacts (timestep);
+	UpdateDynamics (timestep);
+
+	if (m_destroyBodyByExeciveForce) {
+		for (dgInt32 i = 0; i < m_destroyeddBodiesPool.m_count; i ++) {
+			m_destroyBodyByExeciveForce (m_destroyeddBodiesPool.m_bodies[i], m_destroyeddBodiesPool.m_joint[i]);
+		}
+	}
+
+	if (m_postListener.GetCount()) {
+		dgUnsigned32 ticks = m_getPerformanceCount();
+		for (dgListenerList::dgListNode* node = m_postListener.GetFirst(); node; node = node->GetNext()) {
+			dgListener& listener = node->GetInfo();
+			listener.m_onListenerUpdate (this, listener.m_userData, timestep);
+		}
+		m_perfomanceCounters[m_postUpdataListerTicks] = m_getPerformanceCount() - ticks;
+	}
+
+	m_inUpdate --;
+	m_perfomanceCounters[m_worldTicks] = m_getPerformanceCount() - ticks;
+}
+
+
+void dgWorldThreadPool::OnBeginWorkerThread (dgInt32 threadId)
+{
+
+}
+
+void dgWorldThreadPool::OnEndWorkerThread (dgInt32 threadId)
+{
+
+}
+
+
+
+void dgWorld::Execute (dgInt32 threadID)
+{
+	if (threadID == DG_MUTEX_THREAD_ID) {
+		dgMutexThread::Execute (threadID);
+	} else {
+		dgAsyncThread::Execute (threadID);
+	}
+}
+
+
+void dgWorld::TickCallback (dgInt32 threadID)
+{
+	if (threadID == DG_MUTEX_THREAD_ID) {
+		StepDynamics (m_savetimestep);
+		memcpy (m_perfomanceCountersBack, m_perfomanceCounters, sizeof (m_perfomanceCounters));
+	} else {
+		Update (m_savetimestep);
+	}
+}
+
+
+void dgWorld::Sync ()
+{
+	while (dgMutexThread::IsBusy()) {
+		dgThreadYield();
+	}
+}
+
+
+void dgWorld::Update (dgFloat32 timestep)
+{
+	m_savetimestep = timestep;
+
+	#ifdef DG_USE_THREAD_EMULATION
+		dgFloatExceptions exception;
+		dgSetPrecisionDouble precision;
+
+		// runs the update in same separate thread as the calling application, as if it was a separate thread  
+		StepDynamics (m_savetimestep);
+		memcpy (m_perfomanceCountersBack, m_perfomanceCounters, sizeof (m_perfomanceCounters));
+	#else 
+		// runs the update in a separate thread and wait until the update is completed before it returns.
+		// this will run well on single core systems, since the two thread are mutually exclusive 
+		dgMutexThread::Tick();
+	#endif
+}
+
+
+void dgWorld::UpdateAsync (dgFloat32 timestep)
+{
+	m_savetimestep = timestep;
+
+	#ifdef DG_USE_THREAD_EMULATION
+		StepDynamics (m_savetimestep);
+		memcpy (m_perfomanceCountersBack, m_perfomanceCounters, sizeof (m_perfomanceCounters));
+	#else 
+		// execute one update, but do not wait for the update to finish, instead return immediately to the caller
+		dgAsyncThread::Tick();
+	#endif
+}
+
+
+void dgWorld::SerializeToFile (const char* const fileName) const
+{
+	FILE* const file = fopen (fileName, "wb");
+	if (file) {
+		dgBody** const array = new dgBody*[GetBodiesCount()];
+
+		dgInt32 count = 0;
+		const dgBodyMasterList& me = *this;
+		for (dgBodyMasterList::dgListNode* node = me.GetFirst()->GetNext(); node; node = node->GetNext()) {
+			const dgBodyMasterListRow& graphNode = node->GetInfo();
+			array[count] = graphNode.GetBody();	
+			count ++;
+			dgAssert (count <= GetBodiesCount());
+		}
+		SerializeBodyArray (array, count, OnBodySerializeToFile, OnSerializeToFile, file);
+
+		delete[] array;
+		fclose (file);
+	}
+}
+
+
+void dgWorld::SerializeBodyArray (dgBody** const array, dgInt32 count, OnBodySerialize bodyCallback, dgSerialize serializeCallback, void* const userData) const
+{
+	dgSerializeMarker (serializeCallback, userData);
+
+	// serialize all collisions
+	dgInt32 uniqueShapes = 0;
+	dgTree<dgInt32, const dgCollision*> shapeMap(GetAllocator());
+	for (dgInt32 i = 0; i < count; i ++) {
+		dgBody* const body = array[i];
+		dgAssert (body->m_world == this);
+		dgCollisionInstance* const instance = body->GetCollision();
+		const dgCollision* const collision = instance->GetChildShape();
+		dgTree<dgInt32, const dgCollision*>::dgTreeNode* const shapeNode = shapeMap.Insert(uniqueShapes, collision);
+		if (shapeNode) {
+			uniqueShapes ++;
+		}
+	}
+
+	serializeCallback(userData, &uniqueShapes, sizeof (uniqueShapes));	
+	dgTree<dgInt32, const dgCollision*>::Iterator iter (shapeMap);
+	for (iter.Begin(); iter; iter ++) {
+		dgInt32 id = iter.GetNode()->GetInfo();
+		const dgCollision* const collision = iter.GetKey();
+		dgCollisionInstance instance (this, collision, 0, dgMatrix (dgGetIdentityMatrix()));
+		serializeCallback(userData, &id, sizeof (id));	
+		instance.Serialize(serializeCallback, userData);
+		dgSerializeMarker(serializeCallback, userData);
+	}
+
+	serializeCallback(userData, &count, sizeof (count));	
+	for (dgInt32 i = 0; i < count; i ++) {
+		dgBody* const body = array[i];
+
+		dgInt32 bodyType = body->GetType();
+		serializeCallback(userData, &bodyType, sizeof (bodyType));	
+
+		// serialize the body
+		body->Serialize(&shapeMap, serializeCallback, userData);
+
+		// serialize body custom data
+		bodyCallback (*body, serializeCallback, userData);
+		
+
+		dgSerializeMarker(serializeCallback, userData);
+	}
+}
+
+
+void dgWorld::OnSerializeToFile (void* const fileHandle, const void* const buffer, size_t size)
+{
+	dgAssert ((size & 0x03) == 0);
+	fwrite (buffer, size, 1, (FILE*) fileHandle);
+}
+
+
+void dgWorld::OnBodySerializeToFile (dgBody& body, dgSerialize serializeCallback, void* const fileHandle)
+{
+	const char* const bodyIndentification = "NewtonGravityBody\0\0\0\0";
+	int size = (dgInt32 (strlen (bodyIndentification)) + 3) & -4;
+	serializeCallback (fileHandle, &size, sizeof (size));
+	serializeCallback (fileHandle, bodyIndentification, size);
+}
+
+
+void dgWorld::SetCollisionInstanceConstructorDestructor (OnCollisionInstanceDuplicate constructor, OnCollisionInstanceDestroy destructor)
+{
+	m_onCollisionInstanceDestruction = destructor;
+	m_onCollisionInstanceCopyConstrutor = constructor;
+}
+
+
+
+void dgWorld::DeserializeBodyArray (OnBodyDeserialize bodyCallback, dgDeserialize deserialization, void* const userData)
+{
+	dgDeserializeMarker (deserialization, userData);
+
+	dgTree<const dgCollision*, dgInt32> shapeMap(GetAllocator());
+
+	dgInt32 uniqueShapes;
+	deserialization(userData, &uniqueShapes, sizeof (uniqueShapes));	
+	for (dgInt32 i = 0; i < uniqueShapes; i ++) {
+		dgInt32 id;
+
+		deserialization(userData, &id, sizeof (id));	
+		dgCollisionInstance instance (this, deserialization, userData);
+		dgDeserializeMarker (deserialization, userData);
+
+		const dgCollision* const shape = instance.GetChildShape();
+		shapeMap.Insert(shape, id);
+		shape->AddRef();
+	}
+
+	dgInt32 bodyCount;
+	deserialization (userData, &bodyCount, sizeof (bodyCount));	
+	for (dgInt32 i = 0; i < bodyCount; i ++) {
+		dgInt32 bodyType;
+		deserialization(userData, &bodyType, sizeof (bodyType));	
+		dgBody* body = NULL; 
+
+		switch (bodyType)
+		{
+			case dgBody::m_dynamicBody:
+			{
+				body = new (m_allocator) dgDynamicBody(this, &shapeMap, deserialization, userData);
+				break;
+			}
+			case dgBody::m_kinamticBody:
+			{
+				body = new (m_allocator) dgKinematicBody(this, &shapeMap, deserialization, userData);
+				break;
+			}
+
+			case dgBody::m_deformableBody:
+			{
+				dgAssert (0);
+				break;
+			}
+		}
+
+		m_bodiesUniqueID ++;
+		body->m_freeze = false;
+		body->m_sleeping = false;
+		body->m_equilibrium = false;
+		body->m_spawnnedFromCallback = false;
+		body->m_uniqueID = dgInt32 (m_bodiesUniqueID);
+
+		dgBodyMasterList::AddBody(body);
+		body->SetMatrix (body->GetMatrix());
+		m_broadPhase->Add (body);
+		if (body->IsRTTIType(dgBody::m_dynamicBodyRTTI)) {
+			dgDynamicBody* const dynBody = (dgDynamicBody*)body;
+			dynBody->SetMassMatrix (dynBody->m_mass.m_w, dynBody->m_mass.m_x, dynBody->m_mass.m_y, dynBody->m_mass.m_z);
+		}
+
+		// load user related data 
+		bodyCallback (*body, deserialization, userData);
+
+		// sync to next body
+		dgDeserializeMarker (deserialization, userData);
+
+	}
+
+	dgTree<const dgCollision*, dgInt32>::Iterator iter (shapeMap);
+	for (iter.Begin(); iter; iter ++) {
+		const dgCollision* const collision = iter.GetNode()->GetInfo();
+		collision->Release();
+	}
+
 }
 
 

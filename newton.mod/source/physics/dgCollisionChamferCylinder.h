@@ -19,8 +19,8 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DGCOLLISIONCHAMFERCYLINDER_H__AS235640FER__INCLUDED_)
-#define AFX_DGCOLLISIONCHAMFERCYLINDER_H__AS235640FER__INCLUDED_
+#if !defined(AFX_DGCOLLISIONCHAMFERCYLINDER_H__AS235640FER_H)
+#define AFX_DGCOLLISIONCHAMFERCYLINDER_H__AS235640FER_H
 
 #include "dgCollisionConvex.h"
 
@@ -32,48 +32,38 @@
 class dgCollisionChamferCylinder: public dgCollisionConvex  
 {
 	public:
-	dgCollisionChamferCylinder(dgMemoryAllocator* const allocator, dgUnsigned32 signature, dgFloat32 radius, dgFloat32 height, const dgMatrix& matrix);
+	dgCollisionChamferCylinder(dgMemoryAllocator* const allocator, dgUnsigned32 signature, dgFloat32 radius, dgFloat32 height);
 	dgCollisionChamferCylinder(dgWorld* const world, dgDeserialize deserialization, void* const userData);
 	virtual ~dgCollisionChamferCylinder();
 
 
-//	private:
 	protected:
 	void Init (dgFloat32 radius, dgFloat32 height);
-//	bool IsInside (const dgPlane& plane, dgVector& point) const;
-//	bool GetPointOnSurface (const dgVector& origin, const dgVector& dir, dgVector& point) const;
-	virtual dgFloat32 RayCast (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const;
-	virtual dgFloat32 RayCastSimd (const dgVector& localP0, const dgVector& localP1, dgContactPoint& contactOut, OnRayPrecastAction preFilter, const dgBody* const body, void* const userData) const;
-
-	virtual dgVector SupportVertex (const dgVector& dir) const;
-	virtual dgVector SupportVertexSimd (const dgVector& dir) const;
-
-	
-//	dgVector ImplicitCylindexSupport (const dgVector& dir) const;
-
+	virtual dgFloat32 RayCast (const dgVector& localP0, const dgVector& localP1, dgFloat32 maxT, dgContactPoint& contactOut, const dgBody* const body, void* const userData) const;
+	virtual dgVector SupportVertex (const dgVector& dir, dgInt32* const vertexIndex) const;
 	virtual dgInt32 CalculatePlaneIntersection (const dgVector& normal, const dgVector& origin, dgVector* const contactsOut)  const;
-	virtual dgInt32 CalculatePlaneIntersectionSimd (const dgVector& normal, const dgVector& point, dgVector* const contactsOut) const;
 
-//	virtual void DebugCollision (const dgBody& myBody, DebugCollisionMeshCallback callback) const;
-	virtual void DebugCollision (const dgMatrix& matrix, OnDebugCollisionMeshCallback callback, void* const userData) const;
+	virtual void DebugCollision  (const dgMatrix& matrix, OnDebugCollisionMeshCallback callback, void* const userData) const;
 	virtual dgInt32 CalculateSignature () const;
 	virtual void SetCollisionBBox (const dgVector& p0, const dgVector& p1);
-	virtual void GetCollisionInfo(dgCollisionInfo* info) const;
+	virtual void GetCollisionInfo(dgCollisionInfo* const info) const;
 	virtual void Serialize(dgSerialize callback, void* const userData) const;
 
-	private:
-//	dgVector QuatizedSupportVertex (const dgVector& dir) const;
-//	dgVector QuatizedSupportVertexSimd (const dgVector& dir) const;
+	static dgInt32 CalculateSignature (dgFloat32 radius, dgFloat32 height);
 
+	// special feature based contact calculation for conics convex (ex spheres, capsules, tapered capsules, and chamfered cylinders)
+	// in newton we only deal with sub set of conic function, that can be expressed by the equation
+	// ((x - x0) / a)^2 + ((y - y0) / b)^2 + ((z - z0) / c)^2  = 1   and possible a linear or circular sweep of the same equation
+	// this preclude parabolic and hyperbolic conics 
+	virtual dgVector ConvexConicSupporVertex (const dgVector& dir) const;
+	virtual dgVector ConvexConicSupporVertex (const dgVector& point, const dgVector& dir) const;
+	virtual dgInt32 CalculateContacts (const dgVector& point, const dgVector& normal, dgCollisionParamProxy& proxy, dgVector* const contactsOut) const;
+
+
+	private:
 	dgFloat32 m_height;
 	dgFloat32 m_radius;
 
-//	dgFloat32 m_delCosTetha;
-//	dgFloat32 m_delSinTetha;
-//	dgFloat32 m_tethaStep;
-//	dgFloat32 m_tethaStepInv;
-
-	dgVector m_silhuette[4];
 	dgVector m_vertex[DG_CHAMFERCYLINDER_BRAKES * (DG_CHAMFERCYLINDER_SLICES + 1)];
 	static dgInt32 m_shapeRefCount;
 	static dgConvexSimplexEdge m_edgeArray[];

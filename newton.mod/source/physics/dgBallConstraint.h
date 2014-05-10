@@ -19,8 +19,8 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(AFX_DGBALLCONSTRAINT_H__7C9E1F9A_5EC6_48BE_8C9F_FB90132C6619__INCLUDED_)
-#define AFX_DGBALLCONSTRAINT_H__7C9E1F9A_5EC6_48BE_8C9F_FB90132C6619__INCLUDED_
+#if !defined(AFX_DGBALLCONSTRAINT_H__7C9E1F9A_5EC6_48BE_8C9F_FB90132C6619_H)
+#define AFX_DGBALLCONSTRAINT_H__7C9E1F9A_5EC6_48BE_8C9F_FB90132C6619_H
 #include "dgBilateralConstraint.h"
 
 #ifdef _WIN_32_VER
@@ -39,7 +39,7 @@ class dgBallConstraint: public dgBilateralConstraint
 	dgVector GetJointAngle ()const;
 	dgVector GetJointOmega ()const;
 	dgVector GetJointForce ()const;
-	void SetJointParameterCallBack (dgBallJointFriction callback);
+	void SetJointParameterCallback (dgBallJointFriction callback);
 
 	bool GetTwistLimitState () const; 
 	void SetTwistLimitState (bool state); 

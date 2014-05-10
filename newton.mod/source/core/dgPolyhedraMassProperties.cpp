@@ -398,17 +398,23 @@ public:
 dgPolyhedraMassProperties::dgPolyhedraMassProperties()
 {
 	memset (this, 0, sizeof (dgPolyhedraMassProperties));
+	mult[0] = dgFloat32 (1.0f/6.0f); 
+	mult[1] = dgFloat32 (1.0f/24.0f);
+	mult[2] = dgFloat32 (1.0f/24.0f);
+	mult[3] = dgFloat32 (1.0f/24.0f);
+	mult[4] = dgFloat32 (1.0f/60.0f);
+	mult[5] = dgFloat32 (1.0f/60.0f);
+	mult[6] = dgFloat32 (1.0f/60.0f);
+	mult[7] = dgFloat32 (1.0f/120.0f);
+	mult[8] = dgFloat32 (1.0f/120.0f);
+	mult[9] = dgFloat32 (1.0f/120.0f);
 }
 
-void dgPolyhedraMassProperties::AddCGFace (dgInt32 indexCount, const dgVector* faceVertex)
+void dgPolyhedraMassProperties::AddCGFace (dgInt32 indexCount, const dgVector* const faceVertex)
 {
-	dgVector f1;
-	dgVector f2;
-	dgFloat32 temp0;
-
 	#define CDSubexpressions(w0,w1,w2,f1,f2) \
 	{					\
-		temp0 = w0 + w1; \
+		dgFloat32 temp0 = w0 + w1; \
 		f1 = temp0 + w2; \
 		f2 = w0 * w0 + w1 * temp0 + w2 * f1; \
 	}					
@@ -423,6 +429,8 @@ void dgPolyhedraMassProperties::AddCGFace (dgInt32 indexCount, const dgVector* f
 		dgVector e02 (p2 - p0);
 		dgVector d (e01 * e02);
 
+		dgVector f1;
+		dgVector f2;
 		CDSubexpressions (p0.m_x, p1.m_x, p2.m_x, f1.m_x, f2.m_x);
 		CDSubexpressions (p0.m_y, p1.m_y, p2.m_y, f1.m_y, f2.m_y);
 		CDSubexpressions (p0.m_z, p1.m_z, p2.m_z, f1.m_z, f2.m_z);
@@ -438,22 +446,13 @@ void dgPolyhedraMassProperties::AddCGFace (dgInt32 indexCount, const dgVector* f
 	}
 }
 
-void dgPolyhedraMassProperties::AddInertiaFace (dgInt32 indexCount, const dgFloat32* faceVertex)
+void dgPolyhedraMassProperties::AddInertiaFace (dgInt32 indexCount, const dgFloat32* const faceVertex)
 {
-	dgInt32 i;
-	dgFloat32 temp0;
-	dgFloat32 temp1;
-	dgFloat32 temp2;
-	dgVector f1;
-	dgVector f2;
-	dgVector f3;
-
-
 	#define InertiaSubexpression(w0,w1,w2,f1,f2,f3) \
 	{					 \
-		temp0 = w0 + w1; \
-		temp1 = w0 * w0; \
-		temp2 = temp1 + w1 * temp0; \
+		dgFloat32 temp0 = w0 + w1; \
+		dgFloat32 temp1 = w0 * w0; \
+		dgFloat32 temp2 = temp1 + w1 * temp0; \
 		f1 = temp0 + w2; \
 		f2 = temp2 + w2 * f1;  \
 		f3 = w0 * temp1 + w1 * temp2 + w2 * f2; \
@@ -462,13 +461,16 @@ void dgPolyhedraMassProperties::AddInertiaFace (dgInt32 indexCount, const dgFloa
 	dgVector p0 (faceVertex[0], faceVertex[1], faceVertex[2], 0.0f);
 	dgVector p1 (faceVertex[3], faceVertex[4], faceVertex[5], 0.0f);
 
-	for (i = 2; i < indexCount; i++) {
+	for (dgInt32 i = 2; i < indexCount; i++) {
 		dgVector p2 (faceVertex[i * 3], faceVertex[i * 3 + 1], faceVertex[i * 3 + 2], 0.0f);
 
 		dgVector e01 (p1 - p0);
 		dgVector e02 (p2 - p0);
 		dgVector d (e01 * e02);
 
+		dgVector f1;
+		dgVector f2;
+		dgVector f3;
 		InertiaSubexpression (p0.m_x, p1.m_x, p2.m_x, f1.m_x, f2.m_x, f3.m_x);
 		InertiaSubexpression (p0.m_y, p1.m_y, p2.m_y, f1.m_y, f2.m_y, f3.m_y);
 		InertiaSubexpression (p0.m_z, p1.m_z, p2.m_z, f1.m_z, f2.m_z, f3.m_z);
@@ -489,24 +491,13 @@ void dgPolyhedraMassProperties::AddInertiaFace (dgInt32 indexCount, const dgFloa
 }
 
 
-void dgPolyhedraMassProperties::AddInertiaAndCrossFace (dgInt32 indexCount, const dgFloat32* faceVertex)
+void dgPolyhedraMassProperties::AddInertiaAndCrossFace (dgInt32 indexCount, const dgFloat32* const faceVertex)
 {
-	dgInt32 i;
-	dgFloat32 temp0;
-	dgFloat32 temp1;
-	dgFloat32 temp2;
-	dgVector f1;
-	dgVector f2;
-	dgVector f3;
-	dgVector g0;
-	dgVector g1;
-	dgVector g2;
-
 	#define Subexpressions(w0,w1,w2,f1,f2,f3,g0,g1,g2) \
 	{												   \
-		temp0 = w0 + w1; \
-		temp1 = w0 * w0; \
-		temp2 = temp1 + w1 * temp0; \
+		dgFloat32 temp0 = w0 + w1; \
+		dgFloat32 temp1 = w0 * w0; \
+		dgFloat32 temp2 = temp1 + w1 * temp0; \
 		f1 = temp0 + w2; \
 		f2 = temp2 + w2 * f1;  \
 		f3 = w0 * temp1 + w1 * temp2 + w2 * f2; \
@@ -517,14 +508,19 @@ void dgPolyhedraMassProperties::AddInertiaAndCrossFace (dgInt32 indexCount, cons
 
 	dgVector p0 (&faceVertex[0]);
 	dgVector p1 (&faceVertex[3]);
-
-	for (i = 2; i < indexCount; i++) {
+	for (dgInt32 i = 2; i < indexCount; i++) {
 		dgVector p2 (&faceVertex[i * 3]);
 
 		dgVector e01 (p1 - p0);
 		dgVector e02 (p2 - p0);
 		dgVector d (e01 * e02);
 
+		dgVector f1;
+		dgVector f2;
+		dgVector f3;
+		dgVector g0;
+		dgVector g1;
+		dgVector g2;
 		Subexpressions (p0.m_x, p1.m_x, p2.m_x, f1.m_x, f2.m_x, f3.m_x, g0.m_x, g1.m_x, g2.m_x);
 		Subexpressions (p0.m_y, p1.m_y, p2.m_y, f1.m_y, f2.m_y, f3.m_y, g0.m_y, g1.m_y, g2.m_y);
 		Subexpressions (p0.m_z, p1.m_z, p2.m_z, f1.m_z, f2.m_z, f3.m_z, g0.m_z, g1.m_z, g2.m_z);
@@ -551,17 +547,14 @@ void dgPolyhedraMassProperties::AddInertiaAndCrossFace (dgInt32 indexCount, cons
 
 dgFloat32 dgPolyhedraMassProperties::MassProperties (dgVector& cg, dgVector& inertia, dgVector& crossInertia)
 {
-	dgFloat32 volume;
-
 	for (dgInt32 i = 0; i < 10; i++) {
 		intg[i] *= mult[i];
 	}
 
-	volume = intg[0];
-
 	cg.m_x = intg[1];
 	cg.m_y = intg[2];
 	cg.m_z = intg[3];
+	cg.m_w = dgFloat32 (0.0f);
 	inertia.m_x = intg[5] + intg[6];
 	inertia.m_y = intg[4] + intg[6];
 	inertia.m_z = intg[4] + intg[5];
@@ -570,13 +563,8 @@ dgFloat32 dgPolyhedraMassProperties::MassProperties (dgVector& cg, dgVector& ine
 	crossInertia.m_y = -intg[9];
 	crossInertia.m_z = -intg[7];
 	crossInertia.m_w = dgFloat32 (0.0f);
-	return volume;
+	return intg[0];
 }
 
-
-dgFloat32 dgPolyhedraMassProperties::mult[10] = {dgFloat32 (1.0f/6.0f), 
-										dgFloat32 (1.0f/24.0f), dgFloat32 (1.0f/24.0f), dgFloat32 (1.0f/24.0f),
-										dgFloat32 (1.0f/60.0f), dgFloat32 (1.0f/60.0f), dgFloat32 (1.0f/60.0f),
-										dgFloat32 (1.0f/120.0f), dgFloat32 (1.0f/120.0f), dgFloat32 (1.0f/120.0f)};
 
 

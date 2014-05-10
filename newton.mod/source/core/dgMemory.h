@@ -31,19 +31,16 @@
 class dgMemoryAllocator;
 
 void* dgApi dgMalloc (size_t size, dgMemoryAllocator* const allocator);
-void  dgApi dgFree (void *ptr);
+void  dgApi dgFree (void* const ptr);
 
 
 void* dgApi dgMallocStack (size_t size);
 void* dgApi dgMallocAligned (size_t size, dgInt32 alignmentInBytes);
-void  dgApi dgFreeStack (void *ptr);
+void  dgApi dgFreeStack (void* const ptr);
 
 typedef void* (dgApi *dgMemAlloc) (dgUnsigned32 size);
-typedef void (dgApi *dgMemFree) (void *ptr, dgUnsigned32 size);
+typedef void (dgApi *dgMemFree) (void* const ptr, dgUnsigned32 size);
 
-
-typedef void (dgApi *dgSerialize) (void* userData, const void* buffer, size_t size);
-typedef void (dgApi *dgDeserialize) (void* userData, void* buffer, size_t size);
 
 //void dgSetMemoryDrivers (dgMemAlloc alloc, dgMemFree free);
 void dgSetGlobalAllocators (dgMemAlloc alloc, dgMemFree free);
@@ -52,12 +49,12 @@ dgInt32 dgGetMemoryUsed ();
 
 #define DG_CLASS_ALLOCATOR_NEW(allocator)			inline void *operator new (size_t size, dgMemoryAllocator* const allocator) { return dgMalloc(size, allocator);}
 #define DG_CLASS_ALLOCATOR_NEW_ARRAY(allocator)		inline void *operator new[] (size_t size, dgMemoryAllocator* const allocator) { return dgMalloc(size, allocator);}
-#define DG_CLASS_ALLOCATOR_DELETE(allocator)		inline void operator delete (void *ptr, dgMemoryAllocator* const allocator) { dgFree(ptr); }
-#define DG_CLASS_ALLOCATOR_DELETE_ARRAY(allocator)	inline void operator delete[] (void *ptr, dgMemoryAllocator* const allocator) { dgFree(ptr); }
-#define DG_CLASS_ALLOCATOR_NEW_DUMMY				inline void *operator new (size_t size) { _ASSERTE (0); return dgMalloc(size, NULL);}
-#define DG_CLASS_ALLOCATOR_NEW_ARRAY_DUMMY			inline void *operator new[] (size_t size) { _ASSERTE (0); return dgMalloc(size, NULL);}
-#define DG_CLASS_ALLOCATOR_DELETE_DUMMY				inline void operator delete (void *ptr) { dgFree(ptr); }
-#define DG_CLASS_ALLOCATOR_DELETE_ARRAY_DUMMY		inline void operator delete[] (void *ptr) { dgFree(ptr); }
+#define DG_CLASS_ALLOCATOR_DELETE(allocator)		inline void operator delete (void* const ptr, dgMemoryAllocator* const allocator) { dgFree(ptr); }
+#define DG_CLASS_ALLOCATOR_DELETE_ARRAY(allocator)	inline void operator delete[] (void* const ptr, dgMemoryAllocator* const allocator) { dgFree(ptr); }
+#define DG_CLASS_ALLOCATOR_NEW_DUMMY				inline void *operator new (size_t size) { dgAssert (0); return dgMalloc(size, NULL);}
+#define DG_CLASS_ALLOCATOR_NEW_ARRAY_DUMMY			inline void *operator new[] (size_t size) { dgAssert (0); return dgMalloc(size, NULL);}
+#define DG_CLASS_ALLOCATOR_DELETE_DUMMY				inline void operator delete (void* const ptr) { dgFree(ptr); }
+#define DG_CLASS_ALLOCATOR_DELETE_ARRAY_DUMMY		inline void operator delete[] (void* const ptr) { dgFree(ptr); }
 
 
 #define DG_CLASS_ALLOCATOR(allocator)				\
@@ -75,7 +72,8 @@ dgInt32 dgGetMemoryUsed ();
 
 class dgMemoryAllocator
 {
-	#if (defined (_WIN_64_VER) || defined (_MINGW_64_VER) || defined (_LINUX_VER) || defined (_MAC_VER))
+
+	#if (defined (_WIN_64_VER) || defined (_MINGW_64_VER) || defined (_POSIX_VER_64) || defined (_MACOSX_VER))
 		#define DG_MEMORY_GRANULARITY_BITS		6	
 	#else
 		#define DG_MEMORY_GRANULARITY_BITS		5	
@@ -160,8 +158,8 @@ class dgMemoryAllocator
 		public:
 		dgMemoryLeaksTracker();
 		~dgMemoryLeaksTracker ();
-		void RemoveBlock (void *ptr);
-		void InsertBlock (dgInt32 size, void *ptr);
+		void RemoveBlock (void* const ptr);
+		void InsertBlock (dgInt32 size, void* const ptr);
 
 		dgInt32 m_density;
 		dgInt32 m_totalAllocatedBytes; 
@@ -175,13 +173,13 @@ class dgMemoryAllocator
 	dgMemoryAllocator ();
 	~dgMemoryAllocator ();
 	void *operator new (size_t size);
-	void operator delete (void *ptr);
+	void operator delete (void* const ptr);
 	dgInt32 GetMemoryUsed() const;
 	void SetAllocatorsCallback (dgMemAlloc memAlloc, dgMemFree memFree);
 	void *MallocLow (dgInt32 size, dgInt32 alignment = DG_MEMORY_GRANULARITY);
-	void FreeLow (void *retPtr);
+	void FreeLow (void* const retPtr);
 	void *Malloc (dgInt32 memsize);
-	void Free (void *retPtr);
+	void Free (void* const retPtr);
 
 
 	protected:

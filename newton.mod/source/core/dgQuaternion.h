@@ -32,7 +32,7 @@ class dgQuaternion
 {
 	public:
 	dgQuaternion (); 
-	dgQuaternion (const dgMatrix &matrix);
+	dgQuaternion (const dgMatrix& matrix);
 	dgQuaternion (dgFloat32 q0, dgFloat32 q1, dgFloat32 q2, dgFloat32 q3); 
 	dgQuaternion (const dgVector &unit_Axis, dgFloat32 angle = dgFloat32 (0.0f));
 	
@@ -42,7 +42,7 @@ class dgQuaternion
 	dgQuaternion Inverse () const; 
 
 	dgQuaternion Slerp (const dgQuaternion &q1, dgFloat32 t) const;
-	dgVector CalcAverageOmega (const dgQuaternion &q1, dgFloat32 dt) const;
+	dgVector CalcAverageOmega (const dgQuaternion &q1, dgFloat32 invdt) const;
 
 	dgQuaternion operator* (const dgQuaternion &B) const;
 	dgQuaternion operator+ (const dgQuaternion &B) const; 
@@ -71,7 +71,7 @@ inline dgQuaternion::dgQuaternion (dgFloat32 Q0, dgFloat32 Q1, dgFloat32 Q2, dgF
 	m_q1 = Q1;
 	m_q2 = Q2;
 	m_q3 = Q3;
-//	_ASSERTE (dgAbsf (DotProduct (*this) -dgFloat32 (1.0f)) < dgFloat32(1.0e-4f));
+//	dgAssert (dgAbsf (DotProduct (*this) -dgFloat32 (1.0f)) < dgFloat32(1.0e-4f));
 }
 
 
