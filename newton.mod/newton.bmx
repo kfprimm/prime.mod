@@ -10,8 +10,10 @@ ModuleInfo "License: MIT"
 ModuleInfo "Version: 0.01"
 ModuleInfo "Newton Version: 3.11"
 
-?Not Win32
+?Linux
 ModuleInfo "CC_OPTS: -Wall -Wno-strict-aliasing -D_POSIX_VER -m32 -O2 -fpic -g -msse -msse3 -mfpmath=sse -ffloat-store -ffast-math -freciprocal-math -funsafe-math-optimizations -fsingle-precision-constant"
+?MacOS
+ModuleInfo "CC_OPTS: -Wall -Wno-strict-aliasing -D_MACOSX_VER -m32 -O2 -fpic -g -msse -msse3 -mfpmath=sse -ffloat-store -ffast-math -freciprocal-math -funsafe-math-optimizations -fsingle-precision-constant"
 ?Win32
 ModuleInfo "CC_OPTS: -Wall -Wno-strict-aliasing -DPTW32_BUILD -DPTW32_STATIC_LIB -D_NEWTON_STATIC_LIB -D_MINGW_32_VER -m32 -O2 -g -msse -msse3 -mfpmath=sse -ffloat-store -ffast-math -freciprocal-math -funsafe-math-optimizations -fsingle-precision-constant"
 ?
