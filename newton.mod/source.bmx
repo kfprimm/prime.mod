@@ -4,7 +4,14 @@ Strict
 Import "newton-dynamics/coreLibrary_300/source/core/*.h"
 Import "newton-dynamics/coreLibrary_300/source/physics/*.h"
 Import "newton-dynamics/coreLibrary_300/source/meshUtil/*.h"
+Import "newton-dynamics/coreLibrary_300/source/pthreads.2/*.h"
 
+?Win32
+' pthread library
+Import "newton-dynamics/coreLibrary_300/source/pthreads.2/pthread.c"
+?
+
+' dg low level library
 Import "newton-dynamics/coreLibrary_300/source/core/dgAABBPolygonSoup.cpp"
 Import "newton-dynamics/coreLibrary_300/source/core/dgAsyncThread.cpp"
 Import "newton-dynamics/coreLibrary_300/source/core/dgConvexHull3d.cpp"
@@ -36,6 +43,7 @@ Import "newton-dynamics/coreLibrary_300/source/core/dgThreadHive.cpp"
 Import "newton-dynamics/coreLibrary_300/source/core/dgTree.cpp"
 Import "newton-dynamics/coreLibrary_300/source/core/dgTypes.cpp"
 
+' Physics engine files
 Import "newton-dynamics/coreLibrary_300/source/physics/dgBody.cpp"
 Import "newton-dynamics/coreLibrary_300/source/physics/dgDynamicBody.cpp"
 Import "newton-dynamics/coreLibrary_300/source/physics/dgKinematicBody.cpp"
@@ -98,4 +106,3 @@ Import "newton-dynamics/coreLibrary_300/source/meshUtil/dgMeshEffect6.cpp"
 
 Import "newton-dynamics/coreLibrary_300/source/newton/Newton.cpp"
 Import "newton-dynamics/coreLibrary_300/source/newton/NewtonClass.cpp"
-
