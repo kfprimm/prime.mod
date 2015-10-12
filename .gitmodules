@@ -1,6 +1,10 @@
 [submodule "newton.mod/newton-dynamics"]
 	path = newton.mod/newton-dynamics
 	url = https://github.com/MADEAPPS/newton-dynamics.git
+	ignore = dirty
 [submodule "pthreads2.mod/pthreads"]
+
 	path = pthreads2.mod/pthreads
 	url = https://github.com/coapp-packages/pthreads.git
+
+	ignore = dirty
