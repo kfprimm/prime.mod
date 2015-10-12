@@ -4,12 +4,6 @@ Strict
 Import "newton-dynamics/coreLibrary_300/source/core/*.h"
 Import "newton-dynamics/coreLibrary_300/source/physics/*.h"
 Import "newton-dynamics/coreLibrary_300/source/meshUtil/*.h"
-Import "newton-dynamics/coreLibrary_300/source/pthreads.2/*.h"
-
-?Win32
-' pthread library
-Import "newton-dynamics/coreLibrary_300/source/pthreads.2/pthread.c"
-?
 
 ' dg low level library
 Import "newton-dynamics/coreLibrary_300/source/core/dgAABBPolygonSoup.cpp"

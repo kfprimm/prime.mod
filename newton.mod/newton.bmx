@@ -10,15 +10,16 @@ ModuleInfo "License: MIT"
 ModuleInfo "Version: 0.01"
 ModuleInfo "Newton Version: 3.11"
 
-ModuleInfo "CC_OPTS: -Wall -Wno-strict-aliasing -m32 -O2 -fpic -g -msse -msse3 -mfpmath=sse -ffloat-store -ffast-math -freciprocal-math -funsafe-math-optimizations -fsingle-precision-constant"
+ModuleInfo "CC_OPTS: -Wall -Wno-strict-aliasing -m32 -O2 -fpic -msse -msse3 -mfpmath=sse -ffloat-store -ffast-math -freciprocal-math -funsafe-math-optimizations -fsingle-precision-constant"
 ?Linux
 ModuleInfo "CC_OPTS: -D_POSIX_VER"
 ?MacOS
 ModuleInfo "CC_OPTS: -D_MACOSX_VER"
 ?Win32
-ModuleInfo "CC_OPTS: -DPTW32_BUILD_INLINED -DPTW32_STATIC_LIB -D_NEWTON_STATIC_LIB -D_MINGW_32_VER -DHAVE_PTW32_CONFIG_H -D__CLEANUP_C"
+ModuleInfo "CC_OPTS: -D_NEWTON_STATIC_LIB -D_MINGW_32_VER"
 ?
 
+Import Prime.pthreads2
 Import "source.bmx"
 
 '/* Copyright (c) <2003-2011> <Julio Jerez, Newton Game Dynamics>
